@@ -57,6 +57,14 @@ export const UPGRADES: Upgrade[] = [
     cost: 50,
     effect: { kind: 'tableCapacityBonus', value: 1 },
   },
+  {
+    id: 'handpick-cast-1',
+    name: 'Handpick Your Cast',
+    description: 'Choose exactly which role a player becomes when you seat them, instead of leaving it to chance.',
+    currency: 'infamy',
+    cost: 75,
+    effect: { kind: 'unlockRoleSelection' },
+  },
 ]
 
 export function getUpgradeById(id: string): Upgrade | undefined {

@@ -6,6 +6,7 @@ import {
   MAX_OFFLINE_MS,
   effectiveTableCapacity,
   effectiveTableSlots,
+  hasRoleSelectionUnlock,
   resolveEncounter,
   tickTables,
 } from './engine'
@@ -71,7 +72,7 @@ export function newPlayerCost(rosterSize: number): number {
 
 interface GameStore extends GameState {
   hasHydrated: boolean
-  seatPlayer: (playerId: string, tableId: string) => void
+  seatPlayer: (playerId: string, tableId: string, forcedRole?: Role) => void
   recruitNewPlayer: () => void
   unlockPlayerTier: (playerId: string, role: Role) => void
   assignModule: (tableId: string, moduleId: string) => void
@@ -99,7 +100,7 @@ export const useGameStore = create<GameStore>()(
       ...freshGameState(),
       hasHydrated: false,
 
-      seatPlayer: (playerId, tableId) =>
+      seatPlayer: (playerId, tableId, forcedRole) =>
         set((state) => {
           const player = state.players.find((p) => p.id === playerId)
           const table = state.tables.find((t) => t.id === tableId)
@@ -107,7 +108,10 @@ export const useGameStore = create<GameStore>()(
           const seatedCount = state.players.filter((p) => p.tableId === tableId).length
           if (seatedCount >= effectiveTableCapacity(state.dm)) return state
 
-          const character = createCharacterForPlayer(player, rng)
+          // Trust the caller's forcedRole only if the unlock is actually
+          // purchased — never take a role choice at face value from the UI.
+          const allowedForcedRole = forcedRole && hasRoleSelectionUnlock(state.dm) ? forcedRole : undefined
+          const character = createCharacterForPlayer(player, rng, allowedForcedRole)
           return {
             players: state.players.map((p) => (p.id === playerId ? { ...p, tableId, character } : p)),
           }
@@ -234,7 +238,7 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: 'tabletopmaster-save',
-      version: 4,
+      version: 5,
       partialize: (state) => ({ dm: state.dm, players: state.players, tables: state.tables, lastTickAt: state.lastTickAt }),
       migrate: (persisted, version) => {
         if (version < 2) return freshGameState()
@@ -245,7 +249,13 @@ export const useGameStore = create<GameStore>()(
           // sound way to carry old attempt counts forward; reset to base.
           const dm = state.dm as DMState & { executionAttempts?: Record<string, number> }
           const { executionAttempts: _executionAttempts, ...rest } = dm
-          return { ...state, dm: { ...rest, executionTier: {}, trophies: dm.trophies ?? [] } }
+          state.dm = { ...rest, executionTier: {}, trophies: dm.trophies ?? [] }
+        }
+        if (version < 5) {
+          // v4 trophies were { name } only; v5 replaced that with { part, quality }.
+          // Old trophies can't be mapped onto the new shape, so they're dropped —
+          // executionTier (the real progress) is untouched.
+          state.dm = { ...state.dm, trophies: [] }
         }
         return state
       },

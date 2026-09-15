@@ -3,6 +3,7 @@ import { applyXp, toCombatUnit } from './characters'
 import { runEncounter } from './combat/simulate'
 import type { EncounterTemplate, EnemySpawn } from './combat/types'
 import { getModuleById } from './data/modules'
+import { DEFAULT_TROPHY_PARTS, getTrophyQuality } from './data/trophies'
 import { getUpgradeById } from './data/upgrades'
 import { dominantTrait } from './personality'
 import type { DMState, Player, Table, Trophy } from './types'
@@ -60,6 +61,10 @@ export function tableSlotBonus(dm: DMState): number {
     if (upgrade?.effect.kind === 'tableSlotBonus') bonus += upgrade.effect.value
   }
   return bonus
+}
+
+export function hasRoleSelectionUnlock(dm: DMState): boolean {
+  return dm.purchasedUpgradeIds.some((id) => getUpgradeById(id)?.effect.kind === 'unlockRoleSelection')
 }
 
 export function effectiveTableCapacity(dm: DMState): number {
@@ -183,10 +188,12 @@ export function resolveEncounter(
     nextEncounterIndex = (table.encounterIndex + 1) % moduleDef.encounters.length
 
     if (isExecution) {
+      const parts = moduleDef.trophyParts ?? DEFAULT_TROPHY_PARTS
       const trophy: Trophy = {
         id: generateTrophyId(),
         moduleId: moduleDef.id,
-        name: `${encounterTemplate.enemies[0]?.name ?? moduleDef.name} Trophy #${executionTier + 1}`,
+        part: parts[Math.floor(rng() * parts.length)],
+        quality: getTrophyQuality(executionTier),
         tierDefeated: executionTier,
         earnedAt: Date.now(),
       }

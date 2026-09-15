@@ -68,6 +68,18 @@ export const MODULES: AdventureModule[] = [
     tier: 99,
     unlockCost: 0,
     encounters: [TARRASQUE_AWAITS],
+    trophyParts: [
+      'Scale',
+      'Fang',
+      'Claw',
+      'Horn',
+      'Tail Spike',
+      'Hide',
+      'Eye',
+      'Heart',
+      'Wing Membrane',
+      'Tongue',
+    ],
   },
 ]
 

@@ -43,6 +43,8 @@ export interface AdventureModule {
   tier: number
   unlockCost: number
   encounters: EncounterTemplate[]
+  /** For execution modules: the pool of trophy "parts" a win can drop. Falls back to a generic pool if omitted. */
+  trophyParts?: string[]
 }
 
 export interface Table {
@@ -65,6 +67,7 @@ export type UpgradeEffect =
   | { kind: 'infamyMultiplier'; value: number }
   | { kind: 'tableCapacityBonus'; value: number }
   | { kind: 'tableSlotBonus'; value: number }
+  | { kind: 'unlockRoleSelection' }
 
 export interface Upgrade {
   id: string
@@ -78,7 +81,10 @@ export interface Upgrade {
 export interface Trophy {
   id: string
   moduleId: string
-  name: string
+  /** Which body part dropped, e.g. "Fang" — drawn from the module's trophyParts pool. */
+  part: string
+  /** Quality name derived from tierDefeated, e.g. "Superior" — see data/trophies.ts. */
+  quality: string
   /** The tier that was actually overcome to earn this (0 = the module's base difficulty). */
   tierDefeated: number
   earnedAt: number

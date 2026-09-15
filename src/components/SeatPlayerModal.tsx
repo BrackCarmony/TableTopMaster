@@ -1,5 +1,6 @@
-import { ROLE_ICON, TRAIT_ICON, TRAIT_LABEL } from './icons'
+import { ROLE_ICON, ROLE_LABEL, TRAIT_ICON, TRAIT_LABEL } from './icons'
 import { newPlayerCost, useGameStore } from '../game/store'
+import { hasRoleSelectionUnlock } from '../game/engine'
 import { dominantTrait } from '../game/personality'
 import type { Role, Table } from '../game/types'
 
@@ -8,12 +9,18 @@ const ROLES: Role[] = ['tank', 'dps', 'healer']
 export function SeatPlayerModal({ table, onClose }: { table: Table; onClose: () => void }) {
   const players = useGameStore((s) => s.players)
   const infamy = useGameStore((s) => s.dm.infamy)
+  const canChooseRole = useGameStore((s) => hasRoleSelectionUnlock(s.dm))
   const seatPlayer = useGameStore((s) => s.seatPlayer)
   const recruitNewPlayer = useGameStore((s) => s.recruitNewPlayer)
 
   const benched = players.filter((p) => p.tableId === null)
   const cost = newPlayerCost(players.length)
   const canRecruit = infamy >= cost
+
+  function seatAndClose(playerId: string, role?: Role) {
+    seatPlayer(playerId, table.id, role)
+    onClose()
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
@@ -42,15 +49,8 @@ export function SeatPlayerModal({ table, onClose }: { table: Table; onClose: () 
         <div className="flex flex-col gap-2">
           {benched.map((player) => {
             const trait = dominantTrait(player.personality)
-            return (
-              <button
-                key={player.id}
-                onClick={() => {
-                  seatPlayer(player.id, table.id)
-                  onClose()
-                }}
-                className="rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-left transition hover:border-emerald-600 hover:bg-slate-750"
-              >
+            const info = (
+              <>
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-slate-100">
                     {player.name} <span title={TRAIT_LABEL[trait]}>{TRAIT_ICON[trait]}</span>
@@ -64,6 +64,35 @@ export function SeatPlayerModal({ table, onClose }: { table: Table; onClose: () 
                     </span>
                   ))}
                 </p>
+              </>
+            )
+
+            if (canChooseRole) {
+              return (
+                <div key={player.id} className="rounded-md border border-slate-700 bg-slate-800 px-3 py-2">
+                  {info}
+                  <div className="mt-2 flex gap-1.5">
+                    {ROLES.map((role) => (
+                      <button
+                        key={role}
+                        onClick={() => seatAndClose(player.id, role)}
+                        className="flex-1 rounded-md bg-slate-700 px-2 py-1 text-xs font-medium text-slate-100 transition hover:bg-emerald-700"
+                      >
+                        {ROLE_ICON[role]} {ROLE_LABEL[role]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )
+            }
+
+            return (
+              <button
+                key={player.id}
+                onClick={() => seatAndClose(player.id)}
+                className="rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-left transition hover:border-emerald-600 hover:bg-slate-750"
+              >
+                {info}
               </button>
             )
           })}

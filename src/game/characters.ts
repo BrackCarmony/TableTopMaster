@@ -23,8 +23,8 @@ export function createPlayer(rng: RngFn, existingNames: string[] = []): Player {
   }
 }
 
-export function createCharacterForPlayer(player: Player, rng: RngFn): Character {
-  const role: Role = rollRole(rng, player.roleTiers)
+export function createCharacterForPlayer(player: Player, rng: RngFn, forcedRole?: Role): Character {
+  const role: Role = forcedRole ?? rollRole(rng, player.roleTiers)
   const tierDef = getClassTier(role, player.roleTiers[role])
   return {
     id: generateId('char'),

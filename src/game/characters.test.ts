@@ -30,4 +30,14 @@ describe('createCharacterForPlayer', () => {
       expect(tierDef.names).toContain(character.className)
     }
   })
+
+  it('honors an explicit forcedRole, bypassing the weighted roll entirely', () => {
+    // roleTiers is all-healer weighted, so an unforced roll would almost
+    // never land on tank — forcing it should still always land on tank.
+    const player = makePlayer({ roleTiers: { tank: 1, dps: 1, healer: 99 } })
+    for (let seed = 0; seed < 20; seed++) {
+      const character = createCharacterForPlayer(player, createRng(seed), 'tank')
+      expect(character.role).toBe('tank')
+    }
+  })
 })

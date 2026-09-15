@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { createCharacterForPlayer, createPlayer } from './characters'
 import type { CombatLogEvent } from './combat/types'
-import { computeInfamyReward, resolveEncounter } from './engine'
+import { getModuleById } from './data/modules'
+import { getTrophyQuality } from './data/trophies'
+import { computeInfamyReward, hasRoleSelectionUnlock, resolveEncounter } from './engine'
 import { createRng } from './rng'
 import type { Character, DMState, Player, Table } from './types'
 
@@ -130,6 +132,10 @@ describe('resolveEncounter execution-module tier scaling', () => {
     expect(result.dm.trophies[0].moduleId).toBe('tarrasque-execution')
     expect(result.dm.trophies[0].tierDefeated).toBe(0)
     expect(result.dm.infamy).toBeGreaterThan(dm.infamy)
+
+    const tarrasque = getModuleById('tarrasque-execution')!
+    expect(tarrasque.trophyParts).toContain(result.dm.trophies[0].part)
+    expect(result.dm.trophies[0].quality).toBe(getTrophyQuality(0))
   })
 
   it('scales the next fight up based on the tier just won, not merely attempted', () => {
@@ -155,5 +161,15 @@ describe('resolveEncounter execution-module tier scaling', () => {
     const result = resolveEncounter(table, [seated], dm, createRng(8))
     expect(result.dm.executionTier).toEqual({})
     expect(result.dm.trophies).toEqual([])
+  })
+})
+
+describe('hasRoleSelectionUnlock', () => {
+  it('is false until the upgrade is purchased', () => {
+    expect(hasRoleSelectionUnlock(makeDm())).toBe(false)
+  })
+
+  it('is true once handpick-cast-1 is purchased', () => {
+    expect(hasRoleSelectionUnlock(makeDm({ purchasedUpgradeIds: ['handpick-cast-1'] }))).toBe(true)
   })
 })
