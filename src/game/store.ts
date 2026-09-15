@@ -57,8 +57,14 @@ function ensureTableSlots(tables: Table[], dm: DMState): Table[] {
   return [...tables, ...additions]
 }
 
+// The first two recruits beyond the starting 2 (i.e. filling out a full
+// 4-person table) are cheap, so a rough early run of bad party comp / early
+// deaths doesn't lock the roster below a playable size. Costs ramp up
+// normally once a full first party is within reach.
+const EARLY_RECRUIT_COSTS: Record<number, number> = { 2: 1, 3: 4 }
+
 export function newPlayerCost(rosterSize: number): number {
-  return 8 + rosterSize * 6
+  return EARLY_RECRUIT_COSTS[rosterSize] ?? 8 + rosterSize * 6
 }
 
 interface GameStore extends GameState {
