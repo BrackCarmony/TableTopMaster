@@ -5,7 +5,7 @@ import type { EncounterTemplate, EnemySpawn } from './combat/types'
 import { getModuleById } from './data/modules'
 import { getUpgradeById } from './data/upgrades'
 import { dominantTrait } from './personality'
-import type { DMState, Player, Table } from './types'
+import type { DMState, Player, Table, Trophy } from './types'
 
 export const BASE_COOLDOWN_MS = 5000
 export const MIN_COOLDOWN_MS = 1000
@@ -81,8 +81,20 @@ function freshCooldown(multipliers: Multipliers): number {
   return Math.max(MIN_COOLDOWN_MS, Math.round(BASE_COOLDOWN_MS * multipliers.cooldown))
 }
 
-/** Each attempt at an execution module makes it 40% deadlier than the last, so a party can't out-level it into a fair fight. */
+/**
+ * Each time an execution module is actually WON, it comes back 40% deadlier
+ * next time — never from merely attempting or losing. That keeps "just
+ * don't fight it until you're ready" from being a viable way to dodge the
+ * escalation: leaving it alone keeps it exactly as dangerous as it is now.
+ */
 const EXECUTION_GROWTH_RATE = 1.4
+const TROPHY_BASE_INFAMY = 25
+const TROPHY_INFAMY_PER_TIER = 15
+
+let nextTrophyId = 1
+function generateTrophyId(): string {
+  return `trophy-${Date.now().toString(36)}-${(nextTrophyId++).toString(36)}`
+}
 
 function scaleEnemySpawn(spawn: EnemySpawn, multiplier: number): EnemySpawn {
   if (multiplier === 1) return spawn
@@ -96,8 +108,8 @@ function scaleEnemySpawn(spawn: EnemySpawn, multiplier: number): EnemySpawn {
   }
 }
 
-function scaleEncounterForAttempt(template: EncounterTemplate, attempts: number): EncounterTemplate {
-  const multiplier = EXECUTION_GROWTH_RATE ** attempts
+function scaleEncounterForTier(template: EncounterTemplate, tier: number): EncounterTemplate {
+  const multiplier = EXECUTION_GROWTH_RATE ** tier
   if (multiplier === 1) return template
   return { ...template, enemies: template.enemies.map((spawn) => scaleEnemySpawn(spawn, multiplier)) }
 }
@@ -119,13 +131,12 @@ export function resolveEncounter(
   const moduleDef = table.assignedModuleId ? getModuleById(table.assignedModuleId) : undefined
   if (!moduleDef) return { table, players: seatedPlayers, dm: initialDm }
 
-  let dm = initialDm
-  let encounterTemplate = moduleDef.encounters[table.encounterIndex % moduleDef.encounters.length]
-  if (moduleDef.kind === 'execution') {
-    const attempts = dm.executionAttempts[moduleDef.id] ?? 0
-    encounterTemplate = scaleEncounterForAttempt(encounterTemplate, attempts)
-    dm = { ...dm, executionAttempts: { ...dm.executionAttempts, [moduleDef.id]: attempts + 1 } }
-  }
+  const dm = initialDm
+  const isExecution = moduleDef.kind === 'execution'
+  const executionTier = isExecution ? (dm.executionTier[moduleDef.id] ?? 0) : 0
+  const encounterTemplate = isExecution
+    ? scaleEncounterForTier(moduleDef.encounters[table.encounterIndex % moduleDef.encounters.length], executionTier)
+    : moduleDef.encounters[table.encounterIndex % moduleDef.encounters.length]
 
   const partyUnits = seatedPlayers.map((p) => toCombatUnit(p.character!, dominantTrait(p.personality)))
   const result = runEncounter(partyUnits, encounterTemplate, rng)
@@ -170,6 +181,23 @@ export function resolveEncounter(
     nextDm = { ...dm, gold: dm.gold + goldGain }
     nextLifetimeGold += goldGain
     nextEncounterIndex = (table.encounterIndex + 1) % moduleDef.encounters.length
+
+    if (isExecution) {
+      const trophy: Trophy = {
+        id: generateTrophyId(),
+        moduleId: moduleDef.id,
+        name: `${encounterTemplate.enemies[0]?.name ?? moduleDef.name} Trophy #${executionTier + 1}`,
+        tierDefeated: executionTier,
+        earnedAt: Date.now(),
+      }
+      const infamyBonus = TROPHY_BASE_INFAMY + executionTier * TROPHY_INFAMY_PER_TIER
+      nextDm = {
+        ...nextDm,
+        infamy: nextDm.infamy + infamyBonus,
+        executionTier: { ...nextDm.executionTier, [moduleDef.id]: executionTier + 1 },
+        trophies: [...nextDm.trophies, trophy],
+      }
+    }
   }
 
   const nextTable: Table = {

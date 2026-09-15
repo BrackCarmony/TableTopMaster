@@ -4,6 +4,7 @@ import { TopBar } from './components/TopBar'
 import { TableCard } from './components/TableCard'
 import { UpgradesPanel } from './components/UpgradesPanel'
 import { RosterPanel } from './components/RosterPanel'
+import { TrophyCase } from './components/TrophyCase'
 
 export default function App() {
   useGameLoop()
@@ -27,6 +28,7 @@ export default function App() {
             <TableCard key={table.id} table={table} />
           ))}
         </div>
+        <TrophyCase />
         <RosterPanel />
         <UpgradesPanel />
       </main>

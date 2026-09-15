@@ -3,10 +3,10 @@ import { useGameStore } from '../game/store'
 import type { CombatLogEvent } from '../game/combat/types'
 import type { AdventureModule, Table } from '../game/types'
 
-function describeDangerLevel(attempts: number): string {
-  if (attempts >= 8) return 'now a near-unrecognizable apex horror.'
-  if (attempts >= 5) return 'monstrously empowered.'
-  if (attempts >= 3) return 'considerably stronger.'
+function describeDangerLevel(tier: number): string {
+  if (tier >= 8) return 'now a near-unrecognizable apex horror.'
+  if (tier >= 5) return 'monstrously empowered.'
+  if (tier >= 3) return 'considerably stronger.'
   return 'a little stronger.'
 }
 
@@ -83,7 +83,7 @@ export function ModulePickerModal({
         <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-rose-400">Execution Contracts</h3>
         <div className="flex flex-col gap-2">
           {executionModules.map((moduleDef) => {
-            const attempts = dm.executionAttempts[moduleDef.id] ?? 0
+            const tier = dm.executionTier[moduleDef.id] ?? 0
             return (
               <button
                 key={moduleDef.id}
@@ -95,9 +95,9 @@ export function ModulePickerModal({
                   <span className="text-xs text-rose-400">Guaranteed TPK</span>
                 </div>
                 <p className="mt-1 text-xs text-rose-300/80">{moduleDef.description}</p>
-                {attempts > 0 && (
+                {tier > 0 && (
                   <p className="mt-1 text-xs font-medium text-rose-400">
-                    Fed {attempts} {attempts === 1 ? 'party' : 'parties'} already — {describeDangerLevel(attempts)}
+                    Defeated {tier} {tier === 1 ? 'time' : 'times'} already — {describeDangerLevel(tier)}
                   </p>
                 )}
               </button>

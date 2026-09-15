@@ -38,7 +38,8 @@ function createInitialDm(): DMState {
     unlockedModuleIds: ['goblin-ambush', 'tarrasque-execution'],
     purchasedUpgradeIds: [],
     tableSlots: 1,
-    executionAttempts: {},
+    executionTier: {},
+    trophies: [],
   }
 }
 
@@ -233,13 +234,18 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: 'tabletopmaster-save',
-      version: 3,
+      version: 4,
       partialize: (state) => ({ dm: state.dm, players: state.players, tables: state.tables, lastTickAt: state.lastTickAt }),
       migrate: (persisted, version) => {
         if (version < 2) return freshGameState()
         const state = persisted as GameState
-        if (version < 3) {
-          return { ...state, dm: { ...state.dm, executionAttempts: state.dm.executionAttempts ?? {} } }
+        if (version < 4) {
+          // v3's executionAttempts tracked attempts, not wins — the semantics
+          // changed (escalation now only happens on a win), so there's no
+          // sound way to carry old attempt counts forward; reset to base.
+          const dm = state.dm as DMState & { executionAttempts?: Record<string, number> }
+          const { executionAttempts: _executionAttempts, ...rest } = dm
+          return { ...state, dm: { ...rest, executionTier: {}, trophies: dm.trophies ?? [] } }
         }
         return state
       },

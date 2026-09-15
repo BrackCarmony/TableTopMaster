@@ -75,6 +75,15 @@ export interface Upgrade {
   effect: UpgradeEffect
 }
 
+export interface Trophy {
+  id: string
+  moduleId: string
+  name: string
+  /** The tier that was actually overcome to earn this (0 = the module's base difficulty). */
+  tierDefeated: number
+  earnedAt: number
+}
+
 export interface DMState {
   name: string
   level: number
@@ -83,8 +92,9 @@ export interface DMState {
   unlockedModuleIds: string[]
   purchasedUpgradeIds: string[]
   tableSlots: number
-  /** How many times each execution module has been run, keyed by module id — each attempt makes that module more dangerous. */
-  executionAttempts: Record<string, number>
+  /** How many times each execution module has been DEFEATED, keyed by module id — each win escalates that module further. Never rises from losing or from leaving it alone. */
+  executionTier: Record<string, number>
+  trophies: Trophy[]
 }
 
 export interface GameState {
