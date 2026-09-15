@@ -59,6 +59,84 @@ export const BANDIT_HIDEOUT_2: EncounterTemplate = {
   ],
 }
 
+export const SUNKEN_CRYPT_1: EncounterTemplate = {
+  id: 'sunken-crypt-1',
+  name: 'Restless Dead',
+  gridWidth: 9,
+  gridHeight: 9,
+  partyStartPositions: PARTY_START,
+  enemies: [
+    { name: 'Skeleton Soldier', role: 'tank', position: { x: 7, y: 2 }, hp: 42, attackPower: 8, defense: 6, healPower: 0, moveRange: 3, attackRange: 1, speed: 8 },
+    { name: 'Skeleton Soldier', role: 'tank', position: { x: 7, y: 6 }, hp: 42, attackPower: 8, defense: 6, healPower: 0, moveRange: 3, attackRange: 1, speed: 8 },
+    { name: 'Skeleton Archer', role: 'dps', position: { x: 8, y: 4 }, hp: 30, attackPower: 11, defense: 3, healPower: 0, moveRange: 2, attackRange: 4, speed: 9 },
+  ],
+}
+
+export const SUNKEN_CRYPT_2: EncounterTemplate = {
+  id: 'sunken-crypt-2',
+  name: "The Lich's Vigil",
+  gridWidth: 9,
+  gridHeight: 9,
+  partyStartPositions: PARTY_START,
+  enemies: [
+    { name: 'Lich', role: 'tank', position: { x: 7, y: 4 }, hp: 70, attackPower: 12, defense: 7, healPower: 0, moveRange: 3, attackRange: 2, speed: 9 },
+    { name: 'Skeleton Soldier', role: 'tank', position: { x: 7, y: 2 }, hp: 42, attackPower: 8, defense: 6, healPower: 0, moveRange: 3, attackRange: 1, speed: 8 },
+    { name: 'Cultist Priest', role: 'healer', position: { x: 8, y: 6 }, hp: 32, attackPower: 6, defense: 3, healPower: 10, moveRange: 3, attackRange: 2, speed: 9 },
+  ],
+}
+
+export const DRAGONS_PEAK_1: EncounterTemplate = {
+  id: 'dragons-peak-1',
+  name: 'Wyrmling Nest',
+  gridWidth: 10,
+  gridHeight: 10,
+  partyStartPositions: PARTY_START,
+  enemies: [
+    { name: 'Wyrmling', role: 'dps', position: { x: 8, y: 2 }, hp: 55, attackPower: 15, defense: 6, healPower: 0, moveRange: 4, attackRange: 2, speed: 14 },
+    { name: 'Wyrmling', role: 'dps', position: { x: 8, y: 5 }, hp: 55, attackPower: 15, defense: 6, healPower: 0, moveRange: 4, attackRange: 2, speed: 14 },
+    { name: 'Wyrmling', role: 'dps', position: { x: 8, y: 8 }, hp: 55, attackPower: 15, defense: 6, healPower: 0, moveRange: 4, attackRange: 2, speed: 14 },
+  ],
+}
+
+export const DRAGONS_PEAK_2: EncounterTemplate = {
+  id: 'dragons-peak-2',
+  name: 'The Elder Wyrm',
+  gridWidth: 10,
+  gridHeight: 10,
+  partyStartPositions: PARTY_START,
+  enemies: [
+    { name: 'Elder Wyrm', role: 'tank', position: { x: 8, y: 5 }, hp: 110, attackPower: 18, defense: 9, healPower: 0, moveRange: 4, attackRange: 2, speed: 13 },
+    { name: 'Wyrmling', role: 'dps', position: { x: 8, y: 2 }, hp: 55, attackPower: 15, defense: 6, healPower: 0, moveRange: 4, attackRange: 2, speed: 14 },
+    { name: 'Wyrmling', role: 'dps', position: { x: 8, y: 8 }, hp: 55, attackPower: 15, defense: 6, healPower: 0, moveRange: 4, attackRange: 2, speed: 14 },
+  ],
+}
+
+export const ABYSSAL_RIFT_1: EncounterTemplate = {
+  id: 'abyssal-rift-1',
+  name: 'Rift Spawn',
+  gridWidth: 10,
+  gridHeight: 10,
+  partyStartPositions: PARTY_START,
+  enemies: [
+    { name: 'Imp', role: 'dps', position: { x: 8, y: 2 }, hp: 60, attackPower: 18, defense: 7, healPower: 0, moveRange: 5, attackRange: 3, speed: 16 },
+    { name: 'Hellhound', role: 'dps', position: { x: 8, y: 5 }, hp: 75, attackPower: 20, defense: 8, healPower: 0, moveRange: 5, attackRange: 1, speed: 18 },
+    { name: 'Imp Shaman', role: 'healer', position: { x: 8, y: 8 }, hp: 55, attackPower: 10, defense: 6, healPower: 13, moveRange: 4, attackRange: 2, speed: 15 },
+  ],
+}
+
+export const ABYSSAL_RIFT_2: EncounterTemplate = {
+  id: 'abyssal-rift-2',
+  name: "Demon Prince's Court",
+  gridWidth: 10,
+  gridHeight: 10,
+  partyStartPositions: PARTY_START,
+  enemies: [
+    { name: 'Demon Prince', role: 'tank', position: { x: 8, y: 5 }, hp: 160, attackPower: 24, defense: 12, healPower: 0, moveRange: 4, attackRange: 2, speed: 15 },
+    { name: 'Imp', role: 'dps', position: { x: 8, y: 2 }, hp: 60, attackPower: 18, defense: 7, healPower: 0, moveRange: 5, attackRange: 3, speed: 16 },
+    { name: 'Imp', role: 'dps', position: { x: 8, y: 8 }, hp: 60, attackPower: 18, defense: 7, healPower: 0, moveRange: 5, attackRange: 3, speed: 16 },
+  ],
+}
+
 /**
  * Execution encounter: absurdly overtuned, meant to wipe the party on
  * purpose. Its attack power ramps every round it's still fighting, so no

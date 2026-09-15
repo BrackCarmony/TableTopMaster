@@ -3,6 +3,13 @@ import { useGameStore } from '../game/store'
 import type { CombatLogEvent } from '../game/combat/types'
 import type { AdventureModule, Table } from '../game/types'
 
+function describeDangerLevel(attempts: number): string {
+  if (attempts >= 8) return 'now a near-unrecognizable apex horror.'
+  if (attempts >= 5) return 'monstrously empowered.'
+  if (attempts >= 3) return 'considerably stronger.'
+  return 'a little stronger.'
+}
+
 export function ModulePickerModal({
   table,
   onClose,
@@ -75,19 +82,27 @@ export function ModulePickerModal({
 
         <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-rose-400">Execution Contracts</h3>
         <div className="flex flex-col gap-2">
-          {executionModules.map((moduleDef) => (
-            <button
-              key={moduleDef.id}
-              onClick={() => handleAssign(moduleDef)}
-              className="rounded-md border border-rose-900 bg-rose-950/40 px-3 py-2 text-left transition hover:border-rose-600 hover:bg-rose-950/70"
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-rose-200">{moduleDef.name}</span>
-                <span className="text-xs text-rose-400">Guaranteed TPK</span>
-              </div>
-              <p className="mt-1 text-xs text-rose-300/80">{moduleDef.description}</p>
-            </button>
-          ))}
+          {executionModules.map((moduleDef) => {
+            const attempts = dm.executionAttempts[moduleDef.id] ?? 0
+            return (
+              <button
+                key={moduleDef.id}
+                onClick={() => handleAssign(moduleDef)}
+                className="rounded-md border border-rose-900 bg-rose-950/40 px-3 py-2 text-left transition hover:border-rose-600 hover:bg-rose-950/70"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-rose-200">{moduleDef.name}</span>
+                  <span className="text-xs text-rose-400">Guaranteed TPK</span>
+                </div>
+                <p className="mt-1 text-xs text-rose-300/80">{moduleDef.description}</p>
+                {attempts > 0 && (
+                  <p className="mt-1 text-xs font-medium text-rose-400">
+                    Fed {attempts} {attempts === 1 ? 'party' : 'parties'} already — {describeDangerLevel(attempts)}
+                  </p>
+                )}
+              </button>
+            )
+          })}
         </div>
       </div>
     </div>

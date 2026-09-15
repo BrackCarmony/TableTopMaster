@@ -1,6 +1,7 @@
 import type { RngFn } from './rng'
 import { applyXp, toCombatUnit } from './characters'
 import { runEncounter } from './combat/simulate'
+import type { EncounterTemplate, EnemySpawn } from './combat/types'
 import { getModuleById } from './data/modules'
 import { getUpgradeById } from './data/upgrades'
 import { dominantTrait } from './personality'
@@ -80,6 +81,27 @@ function freshCooldown(multipliers: Multipliers): number {
   return Math.max(MIN_COOLDOWN_MS, Math.round(BASE_COOLDOWN_MS * multipliers.cooldown))
 }
 
+/** Each attempt at an execution module makes it 40% deadlier than the last, so a party can't out-level it into a fair fight. */
+const EXECUTION_GROWTH_RATE = 1.4
+
+function scaleEnemySpawn(spawn: EnemySpawn, multiplier: number): EnemySpawn {
+  if (multiplier === 1) return spawn
+  return {
+    ...spawn,
+    hp: Math.round(spawn.hp * multiplier),
+    attackPower: Math.round(spawn.attackPower * multiplier),
+    defense: Math.round(spawn.defense * multiplier),
+    attackPowerRampPerRound:
+      spawn.attackPowerRampPerRound !== undefined ? Math.round(spawn.attackPowerRampPerRound * multiplier) : undefined,
+  }
+}
+
+function scaleEncounterForAttempt(template: EncounterTemplate, attempts: number): EncounterTemplate {
+  const multiplier = EXECUTION_GROWTH_RATE ** attempts
+  if (multiplier === 1) return template
+  return { ...template, enemies: template.enemies.map((spawn) => scaleEnemySpawn(spawn, multiplier)) }
+}
+
 /**
  * Resolves the table's currently-assigned encounter exactly once against its
  * seated players. Any player whose character isn't among the survivors is
@@ -91,13 +113,20 @@ function freshCooldown(multipliers: Multipliers): number {
 export function resolveEncounter(
   table: Table,
   seatedPlayers: Player[],
-  dm: DMState,
+  initialDm: DMState,
   rng: RngFn,
 ): { table: Table; players: Player[]; dm: DMState } {
   const moduleDef = table.assignedModuleId ? getModuleById(table.assignedModuleId) : undefined
-  if (!moduleDef) return { table, players: seatedPlayers, dm }
+  if (!moduleDef) return { table, players: seatedPlayers, dm: initialDm }
 
-  const encounterTemplate = moduleDef.encounters[table.encounterIndex % moduleDef.encounters.length]
+  let dm = initialDm
+  let encounterTemplate = moduleDef.encounters[table.encounterIndex % moduleDef.encounters.length]
+  if (moduleDef.kind === 'execution') {
+    const attempts = dm.executionAttempts[moduleDef.id] ?? 0
+    encounterTemplate = scaleEncounterForAttempt(encounterTemplate, attempts)
+    dm = { ...dm, executionAttempts: { ...dm.executionAttempts, [moduleDef.id]: attempts + 1 } }
+  }
+
   const partyUnits = seatedPlayers.map((p) => toCombatUnit(p.character!, dominantTrait(p.personality)))
   const result = runEncounter(partyUnits, encounterTemplate, rng)
   const multipliers = computeMultipliers(dm)

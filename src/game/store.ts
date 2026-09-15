@@ -38,6 +38,7 @@ function createInitialDm(): DMState {
     unlockedModuleIds: ['goblin-ambush', 'tarrasque-execution'],
     purchasedUpgradeIds: [],
     tableSlots: 1,
+    executionAttempts: {},
   }
 }
 
@@ -232,9 +233,16 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: 'tabletopmaster-save',
-      version: 2,
+      version: 3,
       partialize: (state) => ({ dm: state.dm, players: state.players, tables: state.tables, lastTickAt: state.lastTickAt }),
-      migrate: (_persisted, version) => (version < 2 ? freshGameState() : (_persisted as GameState)),
+      migrate: (persisted, version) => {
+        if (version < 2) return freshGameState()
+        const state = persisted as GameState
+        if (version < 3) {
+          return { ...state, dm: { ...state.dm, executionAttempts: state.dm.executionAttempts ?? {} } }
+        }
+        return state
+      },
     },
   ),
 )

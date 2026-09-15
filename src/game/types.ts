@@ -83,6 +83,8 @@ export interface DMState {
   unlockedModuleIds: string[]
   purchasedUpgradeIds: string[]
   tableSlots: number
+  /** How many times each execution module has been run, keyed by module id — each attempt makes that module more dangerous. */
+  executionAttempts: Record<string, number>
 }
 
 export interface GameState {
