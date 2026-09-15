@@ -1,3 +1,5 @@
+import { ATTACK_FLAVOR, HEAL_FLAVOR, MOVE_FLAVOR, pickFlavorLine, renderFlavorTemplate } from '../data/flavorText'
+import type { DominantTrait } from '../personality'
 import type { CombatLogEvent, CombatUnit } from './types'
 
 /** Reconstructs unit positions/hp/alive state as of a given step index into the log. */
@@ -46,21 +48,55 @@ export function getEncounterGridSize(log: CombatLogEvent[]): { width: number; he
   return { width: start.gridWidth, height: start.gridHeight }
 }
 
-export function describeEvent(event: CombatLogEvent, nameById: Map<string, string>): string {
-  const nameOf = (id: string) => nameById.get(id) ?? id
+export interface UnitInfo {
+  name: string
+  flavor: DominantTrait | null
+}
+
+export function describeEvent(event: CombatLogEvent, unitsById: Map<string, UnitInfo>, eventIndex: number): string {
+  const infoOf = (id: string): UnitInfo => unitsById.get(id) ?? { name: id, flavor: null }
+  const nameOf = (id: string) => infoOf(id).name
+  const seed = (suffix: string) => `${eventIndex}:${suffix}`
+
   switch (event.type) {
     case 'encounter_start':
       return `The battle begins: ${event.units.map((u) => u.name).join(', ')}.`
-    case 'move':
-      return `${nameOf(event.unitId)} moves in.`
-    case 'attack':
+    case 'move': {
+      const info = infoOf(event.unitId)
+      if (info.flavor) {
+        const template = pickFlavorLine(MOVE_FLAVOR[info.flavor], seed(event.unitId))
+        return `${renderFlavorTemplate(template, info.name)}.`
+      }
+      return `${info.name} moves in.`
+    }
+    case 'attack': {
+      const attacker = infoOf(event.attackerId)
+      const targetName = nameOf(event.targetId)
+      if (attacker.flavor) {
+        const template = pickFlavorLine(ATTACK_FLAVOR[attacker.flavor], seed(`${event.attackerId}:${event.targetId}`))
+        const line = renderFlavorTemplate(template, attacker.name, targetName)
+        return event.hit
+          ? `${line} for ${event.damage} damage (${event.targetHpAfter} HP left).`
+          : `${line}, but misses.`
+      }
       return event.hit
-        ? `${nameOf(event.attackerId)} hits ${nameOf(event.targetId)} for ${event.damage} damage (${event.targetHpAfter} HP left).`
-        : `${nameOf(event.attackerId)} attacks ${nameOf(event.targetId)} and misses.`
-    case 'heal':
-      return `${nameOf(event.healerId)} heals ${nameOf(event.targetId)} for ${event.amount} (${event.targetHpAfter} HP).`
+        ? `${attacker.name} hits ${targetName} for ${event.damage} damage (${event.targetHpAfter} HP left).`
+        : `${attacker.name} attacks ${targetName} and misses.`
+    }
+    case 'heal': {
+      const healer = infoOf(event.healerId)
+      const targetName = nameOf(event.targetId)
+      if (healer.flavor) {
+        const template = pickFlavorLine(HEAL_FLAVOR[healer.flavor], seed(`${event.healerId}:${event.targetId}`))
+        const line = renderFlavorTemplate(template, healer.name, targetName)
+        return `${line} for ${event.amount} (${event.targetHpAfter} HP).`
+      }
+      return `${healer.name} heals ${targetName} for ${event.amount} (${event.targetHpAfter} HP).`
+    }
     case 'death':
       return `${nameOf(event.unitId)} falls.`
+    case 'enrage':
+      return `${nameOf(event.unitId)} grows more ferocious!`
     case 'encounter_end':
       if (event.outcome === 'victory') return 'Victory! The party stands over the fallen.'
       if (event.outcome === 'defeat') return 'Total party kill. Nothing survived.'
@@ -70,11 +106,11 @@ export function describeEvent(event: CombatLogEvent, nameById: Map<string, strin
   }
 }
 
-export function buildNameLookup(log: CombatLogEvent[]): Map<string, string> {
+export function buildUnitLookup(log: CombatLogEvent[]): Map<string, UnitInfo> {
   const start = log[0]
-  const map = new Map<string, string>()
+  const map = new Map<string, UnitInfo>()
   if (start && start.type === 'encounter_start') {
-    for (const u of start.units) map.set(u.id, u.name)
+    for (const u of start.units) map.set(u.id, { name: u.name, flavor: u.flavor })
   }
   return map
 }

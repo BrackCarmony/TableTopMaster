@@ -1,31 +1,48 @@
 import type { RngFn } from './rng'
-import type { CombatUnit } from './combat/types'
-import { rollClass } from './data/classes'
-import { rollName, rollRace } from './data/names'
-import type { Character } from './types'
+import type { CombatUnit, Role } from './combat/types'
+import { getClassTier, rollClassName, rollRole } from './data/classes'
+import { rollName, rollPlayerName, rollRace } from './data/names'
+import { rollPersonality, type DominantTrait } from './personality'
+import type { Character, Player } from './types'
 
 let nextCharacterId = 1
 function generateId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${(nextCharacterId++).toString(36)}`
 }
 
-export function createCharacter(rng: RngFn): Character {
-  const cls = rollClass(rng)
+/** `existingNames` are the current roster's names, so a new player doesn't collide with an active one. */
+export function createPlayer(rng: RngFn, existingNames: string[] = []): Player {
+  return {
+    id: generateId('player'),
+    name: rollPlayerName(rng, existingNames),
+    recruitedAt: Date.now(),
+    roleTiers: { tank: 1, dps: 1, healer: 1 },
+    personality: rollPersonality(rng),
+    tableId: null,
+    character: null,
+  }
+}
+
+export function createCharacterForPlayer(player: Player, rng: RngFn): Character {
+  const role: Role = rollRole(rng, player.roleTiers)
+  const tierDef = getClassTier(role, player.roleTiers[role])
   return {
     id: generateId('char'),
+    // Fantasy name, distinct from the player's own — recycling names across
+    // characters/lives is fine (that's how real tables work too).
     name: rollName(rng),
     race: rollRace(rng),
-    className: cls.className,
-    role: cls.role,
+    className: rollClassName(tierDef.names, rng),
+    role,
     level: 1,
     xp: 0,
-    maxHp: cls.baseMaxHp,
-    attackPower: cls.baseAttackPower,
-    defense: cls.baseDefense,
-    healPower: cls.baseHealPower,
-    moveRange: cls.moveRange,
-    attackRange: cls.attackRange,
-    speed: cls.speed,
+    maxHp: tierDef.baseMaxHp,
+    attackPower: tierDef.baseAttackPower,
+    defense: tierDef.baseDefense,
+    healPower: tierDef.baseHealPower,
+    moveRange: tierDef.moveRange,
+    attackRange: tierDef.attackRange,
+    speed: tierDef.speed,
   }
 }
 
@@ -64,7 +81,7 @@ export function applyXp(character: Character, xp: number): Character {
   return next
 }
 
-export function toCombatUnit(character: Character): CombatUnit {
+export function toCombatUnit(character: Character, flavor: DominantTrait | null): CombatUnit {
   return {
     id: character.id,
     name: character.name,
@@ -81,13 +98,10 @@ export function toCombatUnit(character: Character): CombatUnit {
     attackRange: character.attackRange,
     speed: character.speed,
     alive: true,
+    flavor,
   }
 }
 
 export function generateTableId(): string {
   return generateId('table')
-}
-
-export function generatePlayerId(): string {
-  return generateId('player')
 }

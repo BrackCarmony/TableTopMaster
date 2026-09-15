@@ -1,10 +1,20 @@
 import { MODULES } from '../game/data/modules'
 import { useGameStore } from '../game/store'
+import type { CombatLogEvent } from '../game/combat/types'
 import type { AdventureModule, Table } from '../game/types'
 
-export function ModulePickerModal({ table, onClose }: { table: Table; onClose: () => void }) {
+export function ModulePickerModal({
+  table,
+  onClose,
+  onExecuted,
+}: {
+  table: Table
+  onClose: () => void
+  onExecuted: (log: CombatLogEvent[], moduleName: string) => void
+}) {
   const dm = useGameStore((s) => s.dm)
   const assignModule = useGameStore((s) => s.assignModule)
+  const executeModuleNow = useGameStore((s) => s.executeModuleNow)
 
   const campaignModules = MODULES.filter((m) => m.kind === 'campaign')
   const executionModules = MODULES.filter((m) => m.kind === 'execution')
@@ -15,6 +25,15 @@ export function ModulePickerModal({ table, onClose }: { table: Table; onClose: (
         `Send ${table.name}'s party to "${moduleDef.name}"? This is an execution contract — nothing is expected to survive.`,
       )
       if (!confirmed) return
+      // A deliberate, one-off fight — resolve it right now and show it
+      // happening, rather than letting it resolve silently on the next tick.
+      executeModuleNow(table.id, moduleDef.id)
+      const resolvedTable = useGameStore.getState().tables.find((t) => t.id === table.id)
+      if (resolvedTable?.lastBattleLog) {
+        onExecuted(resolvedTable.lastBattleLog, resolvedTable.lastBattleModuleName ?? moduleDef.name)
+      }
+      onClose()
+      return
     }
     assignModule(table.id, moduleDef.id)
     onClose()

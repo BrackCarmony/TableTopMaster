@@ -29,6 +29,8 @@ function buildEnemyUnits(template: EncounterTemplate): CombatUnit[] {
     attackRange: spawn.attackRange,
     speed: spawn.speed,
     alive: true,
+    flavor: null,
+    attackPowerRampPerRound: spawn.attackPowerRampPerRound,
   }))
 }
 
@@ -132,6 +134,14 @@ export function runEncounter(partyUnits: CombatUnit[], template: EncounterTempla
       }
     }
     if (!outcome) outcome = checkOutcome(units)
+
+    if (!outcome) {
+      for (const unit of units) {
+        if (!unit.alive || !unit.attackPowerRampPerRound) continue
+        unit.attackPower += unit.attackPowerRampPerRound
+        log.push({ type: 'enrage', unitId: unit.id, attackPower: unit.attackPower })
+      }
+    }
   }
 
   if (!outcome) outcome = 'stalemate'

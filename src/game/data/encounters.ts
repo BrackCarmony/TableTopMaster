@@ -59,7 +59,12 @@ export const BANDIT_HIDEOUT_2: EncounterTemplate = {
   ],
 }
 
-/** Execution encounter: absurdly overtuned, meant to wipe the party on purpose. */
+/**
+ * Execution encounter: absurdly overtuned, meant to wipe the party on
+ * purpose. Its attack power ramps every round it's still fighting, so no
+ * matter how leveled/healer-sustained a party gets, the fight can't stall
+ * out into a stalemate — it always eventually one-shots its way through.
+ */
 export const TARRASQUE_AWAITS: EncounterTemplate = {
   id: 'tarrasque-awaits',
   name: 'The Tarrasque',
@@ -67,6 +72,18 @@ export const TARRASQUE_AWAITS: EncounterTemplate = {
   gridHeight: 8,
   partyStartPositions: PARTY_START,
   enemies: [
-    { name: 'The Tarrasque', role: 'dps', position: { x: 5, y: 3 }, hp: 900, attackPower: 60, defense: 15, healPower: 0, moveRange: 4, attackRange: 2, speed: 20 },
+    {
+      name: 'Tarrasque',
+      role: 'dps',
+      position: { x: 5, y: 3 },
+      hp: 2600,
+      attackPower: 60,
+      defense: 22,
+      healPower: 0,
+      moveRange: 4,
+      attackRange: 2,
+      speed: 20,
+      attackPowerRampPerRound: 25,
+    },
   ],
 }

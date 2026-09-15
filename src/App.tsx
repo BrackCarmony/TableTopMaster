@@ -3,6 +3,7 @@ import { useGameLoop } from './hooks/useGameLoop'
 import { TopBar } from './components/TopBar'
 import { TableCard } from './components/TableCard'
 import { UpgradesPanel } from './components/UpgradesPanel'
+import { RosterPanel } from './components/RosterPanel'
 
 export default function App() {
   useGameLoop()
@@ -26,6 +27,7 @@ export default function App() {
             <TableCard key={table.id} table={table} />
           ))}
         </div>
+        <RosterPanel />
         <UpgradesPanel />
       </main>
     </div>

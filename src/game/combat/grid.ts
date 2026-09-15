@@ -16,10 +16,15 @@ export function isInBounds(c: GridCoord, width: number, height: number): boolean
   return c.x >= 0 && c.y >= 0 && c.x < width && c.y < height
 }
 
+/**
+ * Tiles no unit should path onto — including dead units' tiles. Corpses stay
+ * put as obstacles; otherwise a mover can step exactly onto a fallen unit's
+ * cell and silently hide it behind their own token in the grid view (the
+ * board only renders one unit per cell).
+ */
 export function occupiedTiles(units: CombatUnit[], excludeId?: string): Set<string> {
   const set = new Set<string>()
   for (const u of units) {
-    if (!u.alive) continue
     if (u.id === excludeId) continue
     set.add(coordKey(u.position))
   }

@@ -19,6 +19,7 @@ function makeUnit(overrides: Partial<CombatUnit>): CombatUnit {
     attackRange: 1,
     speed: 5,
     alive: true,
+    flavor: null,
     ...overrides,
   }
 }

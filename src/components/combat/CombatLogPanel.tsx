@@ -1,12 +1,12 @@
 import { useEffect, useRef } from 'react'
 import type { CombatLogEvent } from '../../game/combat/types'
-import { buildNameLookup, describeEvent } from '../../game/combat/replay'
+import { buildUnitLookup, describeEvent } from '../../game/combat/replay'
 
 export function CombatLogPanel({ log, upToStep }: { log: CombatLogEvent[]; upToStep: number }) {
-  const nameById = buildNameLookup(log)
+  const unitsById = buildUnitLookup(log)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const lines = log.slice(0, upToStep + 1).map((event, i) => ({ id: i, text: describeEvent(event, nameById) }))
+  const lines = log.slice(0, upToStep + 1).map((event, i) => ({ id: i, text: describeEvent(event, unitsById, i) }))
 
   useEffect(() => {
     if (containerRef.current) {

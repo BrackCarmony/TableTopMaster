@@ -1,15 +1,17 @@
 import type { CombatUnit } from '../../game/combat/types'
-
-const ROLE_ICON: Record<CombatUnit['role'], string> = {
-  tank: '🛡️',
-  dps: '⚔️',
-  healer: '✚',
-}
+import { ROLE_ICON } from '../icons'
 
 export function GridView({ units, width, height }: { units: CombatUnit[]; width: number; height: number }) {
+  // If two units ever end up sharing a cell, never let a dead one's token
+  // cover a living one — a hidden-but-alive unit reads as a far more
+  // confusing bug than one corpse being drawn over another.
   const byCell = new Map<string, CombatUnit>()
   for (const u of units) {
-    byCell.set(`${u.position.x},${u.position.y}`, u)
+    const key = `${u.position.x},${u.position.y}`
+    const existing = byCell.get(key)
+    if (!existing || (!existing.alive && u.alive)) {
+      byCell.set(key, u)
+    }
   }
 
   const cells = []

@@ -3,7 +3,8 @@ import { applyXp, toCombatUnit } from './characters'
 import { runEncounter } from './combat/simulate'
 import { getModuleById } from './data/modules'
 import { getUpgradeById } from './data/upgrades'
-import type { DMState, Table } from './types'
+import { dominantTrait } from './personality'
+import type { DMState, Player, Table } from './types'
 
 export const BASE_COOLDOWN_MS = 5000
 export const MIN_COOLDOWN_MS = 1000
@@ -68,9 +69,9 @@ export function effectiveTableSlots(dm: DMState): number {
   return BASE_TABLE_SLOTS + tableSlotBonus(dm)
 }
 
-export function computeInfamyReward(table: Table, multipliers: Multipliers): number {
-  const base = Math.floor(Math.sqrt(table.lifetimeGold / 10))
-  const minFromParty = Math.max(1, table.players.length)
+export function computeInfamyReward(lifetimeGold: number, partyCount: number, multipliers: Multipliers): number {
+  const base = Math.floor(Math.sqrt(lifetimeGold / 10))
+  const minFromParty = Math.max(1, partyCount)
   const amount = Math.max(base, minFromParty)
   return Math.max(1, Math.round(amount * multipliers.infamy))
 }
@@ -80,29 +81,47 @@ function freshCooldown(multipliers: Multipliers): number {
 }
 
 /**
- * Resolves the table's currently-assigned encounter exactly once. Any
- * character not among the survivors is permanently removed. If that leaves
- * the table empty, it's a full-party wipe: Infamy is granted and the table
- * resets — whether that wipe came from an execution module or bad luck on a
- * winnable one.
+ * Resolves the table's currently-assigned encounter exactly once against its
+ * seated players. Any player whose character isn't among the survivors is
+ * benched (character cleared, tableId cleared) — they aren't deleted, just
+ * pulled off this table until reseated. If that leaves nobody seated, it's a
+ * full-party wipe: Infamy is granted and the table resets — whether that
+ * wipe came from an execution module or bad luck on a winnable one.
  */
-export function resolveEncounter(table: Table, dm: DMState, rng: RngFn): { table: Table; dm: DMState } {
+export function resolveEncounter(
+  table: Table,
+  seatedPlayers: Player[],
+  dm: DMState,
+  rng: RngFn,
+): { table: Table; players: Player[]; dm: DMState } {
   const moduleDef = table.assignedModuleId ? getModuleById(table.assignedModuleId) : undefined
-  if (!moduleDef) return { table, dm }
+  if (!moduleDef) return { table, players: seatedPlayers, dm }
 
   const encounterTemplate = moduleDef.encounters[table.encounterIndex % moduleDef.encounters.length]
-  const partyUnits = table.players.map((p) => toCombatUnit(p.character))
+  const partyUnits = seatedPlayers.map((p) => toCombatUnit(p.character!, dominantTrait(p.personality)))
   const result = runEncounter(partyUnits, encounterTemplate, rng)
   const multipliers = computeMultipliers(dm)
+  const survivorCharIds = new Set(result.survivorIds)
 
-  const survivors = table.players.filter((p) => result.survivorIds.includes(p.character.id))
+  const updatedPlayers = seatedPlayers.map((p) => {
+    if (!p.character) return p
+    if (!survivorCharIds.has(p.character.id)) {
+      return { ...p, character: null, tableId: null }
+    }
+    if (result.outcome === 'victory') {
+      const xpGain = Math.round(result.xpReward * multipliers.xp)
+      return { ...p, character: applyXp(p.character, xpGain) }
+    }
+    return p
+  })
 
-  if (survivors.length === 0) {
-    const infamyGain = computeInfamyReward(table, multipliers)
+  const stillSeatedCount = updatedPlayers.filter((p) => p.tableId === table.id).length
+
+  if (stillSeatedCount === 0) {
+    const infamyGain = computeInfamyReward(table.lifetimeGold, seatedPlayers.length, multipliers)
     const nextDm: DMState = { ...dm, infamy: dm.infamy + infamyGain }
     const nextTable: Table = {
       ...table,
-      players: [],
       assignedModuleId: null,
       encounterIndex: 0,
       cooldownRemaining: freshCooldown(multipliers),
@@ -110,41 +129,46 @@ export function resolveEncounter(table: Table, dm: DMState, rng: RngFn): { table
       lastBattleLog: result.log,
       lastBattleModuleName: moduleDef.name,
     }
-    return { table: nextTable, dm: nextDm }
+    return { table: nextTable, players: updatedPlayers, dm: nextDm }
   }
 
   let nextDm = dm
-  let nextPlayers = survivors
   let nextEncounterIndex = table.encounterIndex
   let nextLifetimeGold = table.lifetimeGold
 
   if (result.outcome === 'victory') {
     const goldGain = Math.round(result.goldReward * multipliers.gold)
-    const xpGain = Math.round(result.xpReward * multipliers.xp)
     nextDm = { ...dm, gold: dm.gold + goldGain }
     nextLifetimeGold += goldGain
-    nextPlayers = survivors.map((p) => ({ ...p, character: applyXp(p.character, xpGain) }))
     nextEncounterIndex = (table.encounterIndex + 1) % moduleDef.encounters.length
   }
 
   const nextTable: Table = {
     ...table,
-    players: nextPlayers,
     encounterIndex: nextEncounterIndex,
     lifetimeGold: nextLifetimeGold,
     cooldownRemaining: freshCooldown(multipliers),
     lastBattleLog: result.log,
     lastBattleModuleName: moduleDef.name,
   }
-  return { table: nextTable, dm: nextDm }
+  return { table: nextTable, players: updatedPlayers, dm: nextDm }
 }
 
 /**
  * Advances a single table by `dtMs` of wall-clock time, resolving as many
- * encounters as fit (used for both live ticks and offline catch-up).
+ * encounters as fit (used for both live ticks and offline catch-up). Reads
+ * and writes back into the full player roster since table membership is
+ * derived (players whose `tableId` matches), not owned by the table.
  */
-export function tickTable(table: Table, dm: DMState, dtMs: number, rng: RngFn): { table: Table; dm: DMState } {
+export function tickTable(
+  table: Table,
+  players: Player[],
+  dm: DMState,
+  dtMs: number,
+  rng: RngFn,
+): { table: Table; players: Player[]; dm: DMState } {
   let t = table
+  let allPlayers = players
   let d = dm
   let remaining = dtMs
   let iterations = 0
@@ -156,21 +180,33 @@ export function tickTable(table: Table, dm: DMState, dtMs: number, rng: RngFn): 
       break
     }
     remaining -= t.cooldownRemaining
-    const resolved = resolveEncounter(t, d, rng)
+
+    const seated = allPlayers.filter((p) => p.tableId === t.id)
+    const resolved = resolveEncounter(t, seated, d, rng)
     t = resolved.table
     d = resolved.dm
+    const updatedById = new Map(resolved.players.map((p) => [p.id, p]))
+    allPlayers = allPlayers.map((p) => updatedById.get(p.id) ?? p)
     iterations++
   }
 
-  return { table: t, dm: d }
+  return { table: t, players: allPlayers, dm: d }
 }
 
-export function tickTables(tables: Table[], dm: DMState, dtMs: number, rng: RngFn): { tables: Table[]; dm: DMState } {
+export function tickTables(
+  tables: Table[],
+  players: Player[],
+  dm: DMState,
+  dtMs: number,
+  rng: RngFn,
+): { tables: Table[]; players: Player[]; dm: DMState } {
   let d = dm
+  let allPlayers = players
   const nextTables = tables.map((table) => {
-    const result = tickTable(table, d, dtMs, rng)
+    const result = tickTable(table, allPlayers, d, dtMs, rng)
     d = result.dm
+    allPlayers = result.players
     return result.table
   })
-  return { tables: nextTables, dm: d }
+  return { tables: nextTables, players: allPlayers, dm: d }
 }

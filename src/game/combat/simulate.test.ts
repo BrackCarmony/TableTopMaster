@@ -20,6 +20,7 @@ function makeUnit(overrides: Partial<CombatUnit>): CombatUnit {
     attackRange: 1,
     speed: 5,
     alive: true,
+    flavor: null,
     ...overrides,
   }
 }
@@ -75,6 +76,54 @@ describe('runEncounter', () => {
     expect(result.outcome).toBe('defeat')
     expect(result.survivorIds).toEqual([])
     expect(result.goldReward).toBe(0)
+  })
+
+  it('ramps an enraging boss enemy until it eventually wins a fight that would otherwise stalemate', () => {
+    const enrageTemplate: EncounterTemplate = {
+      id: 'enrage-test',
+      name: 'Enrage Test',
+      gridWidth: 8,
+      gridHeight: 8,
+      partyStartPositions: [{ x: 0, y: 0 }],
+      enemies: [
+        {
+          name: 'Boss',
+          role: 'dps',
+          position: { x: 1, y: 0 },
+          hp: 50000,
+          attackPower: 5,
+          defense: 1000,
+          healPower: 0,
+          moveRange: 1,
+          attackRange: 1,
+          speed: 1,
+          attackPowerRampPerRound: 40,
+        },
+      ],
+    }
+    const party = [makeUnit({ id: 'hero', name: 'Hero', hp: 500, maxHp: 500, defense: 0, attackPower: 10, attackRange: 1 })]
+
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const result = runEncounter(party, enrageTemplate, createRng(seed))
+      expect(result.outcome).toBe('defeat')
+      expect(result.log.some((e) => e.type === 'enrage')).toBe(true)
+    }
+  })
+
+  it('without a ramp, the same overmatched-on-defense boss just stalemates instead', () => {
+    const noRampTemplate: EncounterTemplate = {
+      id: 'no-ramp-test',
+      name: 'No Ramp Test',
+      gridWidth: 8,
+      gridHeight: 8,
+      partyStartPositions: [{ x: 0, y: 0 }],
+      enemies: [
+        { name: 'Boss', role: 'dps', position: { x: 1, y: 0 }, hp: 50000, attackPower: 5, defense: 1000, healPower: 0, moveRange: 1, attackRange: 1, speed: 1 },
+      ],
+    }
+    const party = [makeUnit({ id: 'hero', name: 'Hero', hp: 500, maxHp: 500, defense: 0, attackPower: 10, attackRange: 1 })]
+    const result = runEncounter(party, noRampTemplate, createRng(1))
+    expect(result.outcome).toBe('stalemate')
   })
 
   it('calls a stalemate when neither side can reach or hit the other', () => {

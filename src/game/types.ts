@@ -1,4 +1,7 @@
 import type { CombatLogEvent, EncounterTemplate, Role } from './combat/types'
+import type { PersonalityTraits } from './personality'
+
+export type { Role } from './combat/types'
 
 export interface Character {
   id: string
@@ -21,7 +24,13 @@ export interface Player {
   id: string
   name: string
   recruitedAt: number
-  character: Character
+  /** 1-based unlocked tier per role, independent of which role their current character happens to be. */
+  roleTiers: Record<Role, number>
+  personality: PersonalityTraits
+  /** Table this player is currently seated at, or null if benched. */
+  tableId: string | null
+  /** Null while benched (between lives). */
+  character: Character | null
 }
 
 export type ModuleKind = 'campaign' | 'execution'
@@ -39,8 +48,6 @@ export interface AdventureModule {
 export interface Table {
   id: string
   name: string
-  capacity: number
-  players: Player[]
   assignedModuleId: string | null
   encounterIndex: number
   cooldownRemaining: number
@@ -80,6 +87,7 @@ export interface DMState {
 
 export interface GameState {
   dm: DMState
+  players: Player[]
   tables: Table[]
   lastTickAt: number
 }
