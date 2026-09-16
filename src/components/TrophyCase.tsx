@@ -1,3 +1,4 @@
+import { formatNumber } from '../format'
 import { useGameStore } from '../game/store'
 
 export function TrophyCase() {
@@ -17,7 +18,7 @@ export function TrophyCase() {
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-base font-semibold text-amber-200">Trophy Case</h2>
         <span className="text-xs text-slate-500">
-          {parts.length} part{parts.length === 1 ? '' : 's'} collected &middot; {trophies.length} total
+          {formatNumber(parts.length)} part{parts.length === 1 ? '' : 's'} collected &middot; {formatNumber(trophies.length)} total
         </span>
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

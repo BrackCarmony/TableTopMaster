@@ -1,3 +1,4 @@
+import { formatNumber } from '../format'
 import { UPGRADES } from '../game/data/upgrades'
 import { useGameStore } from '../game/store'
 import type { Upgrade } from '../game/types'
@@ -26,7 +27,7 @@ function UpgradeRow({ upgrade }: { upgrade: Upgrade }) {
               : 'bg-rose-800 text-rose-50 hover:bg-rose-700 disabled:bg-slate-700 disabled:text-slate-400'
         }`}
       >
-        {purchased ? 'Owned' : `${upgrade.cost} ${upgrade.currency === 'gold' ? 'g' : 'infamy'}`}
+        {purchased ? 'Owned' : `${formatNumber(upgrade.cost)} ${upgrade.currency === 'gold' ? 'g' : 'infamy'}`}
       </button>
     </div>
   )

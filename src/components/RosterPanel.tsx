@@ -1,4 +1,5 @@
 import { ROLE_ICON, TRAIT_ICON, TRAIT_LABEL } from './icons'
+import { formatNumber } from '../format'
 import { getClassTier, maxTier } from '../game/data/classes'
 import { legacyTierCost } from '../game/data/legacy'
 import { dominantTrait } from '../game/personality'
@@ -18,13 +19,13 @@ function LegacyTierButton({ player }: { player: Player }) {
       className="flex items-center justify-between gap-2 rounded bg-rose-950/40 px-2 py-1 text-xs"
       title="Permanent stat bonus that survives every death and reroll, regardless of what role they roll next. Never caps."
     >
-      <span className="text-rose-300">💀 Veteran Tier {player.legacyTier}</span>
+      <span className="text-rose-300">💀 Veteran Tier {formatNumber(player.legacyTier)}</span>
       <button
         disabled={!affordable}
         onClick={() => upgradePlayerLegacyTier(player.id)}
         className="rounded bg-rose-700 px-2 py-0.5 font-medium text-rose-50 hover:bg-rose-600 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-500"
       >
-        Upgrade &middot; {nextCost} Infamy
+        Upgrade &middot; {formatNumber(nextCost)} Infamy
       </button>
     </div>
   )
@@ -51,7 +52,7 @@ function TierButton({ player, role }: { player: Player; role: Role }) {
           onClick={() => unlockPlayerTier(player.id, role)}
           className="rounded bg-amber-700 px-2 py-0.5 font-medium text-amber-50 hover:bg-amber-600 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-500"
         >
-          Unlock T{tier + 1} &middot; {nextCost}g
+          Unlock T{tier + 1} &middot; {formatNumber(nextCost!)}g
         </button>
       )}
     </div>
@@ -81,7 +82,7 @@ export function RosterPanel() {
               </div>
               {player.character && (
                 <p className="mt-0.5 text-xs text-slate-500">
-                  Currently: {player.character.className} (Lv {player.character.level})
+                  Currently: {player.character.className} (Lv {formatNumber(player.character.level)})
                 </p>
               )}
               <div className="mt-2">

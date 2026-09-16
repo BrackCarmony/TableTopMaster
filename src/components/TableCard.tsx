@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { formatNumber } from '../format'
 import { getModuleById } from '../game/data/modules'
 import { effectiveTableCapacity } from '../game/engine'
 import { useGameStore } from '../game/store'
@@ -46,7 +47,7 @@ export function TableCard({ table }: { table: Table }) {
                 ({p.character!.race} {p.character!.className})
               </span>
             </span>
-            <span className="text-xs text-slate-400">Lv {p.character!.level}</span>
+            <span className="text-xs text-slate-400">Lv {formatNumber(p.character!.level)}</span>
           </div>
         ))}
         {Array.from({ length: openSeats }).map((_, i) => (

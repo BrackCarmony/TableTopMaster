@@ -1,3 +1,4 @@
+import { formatNumber } from '../../format'
 import { ATTACK_FLAVOR, HEAL_FLAVOR, MOVE_FLAVOR, pickFlavorLine, renderFlavorTemplate } from '../data/flavorText'
 import type { DominantTrait } from '../personality'
 import type { CombatLogEvent, CombatUnit } from './types'
@@ -76,11 +77,11 @@ export function describeEvent(event: CombatLogEvent, unitsById: Map<string, Unit
         const template = pickFlavorLine(ATTACK_FLAVOR[attacker.flavor], seed(`${event.attackerId}:${event.targetId}`))
         const line = renderFlavorTemplate(template, attacker.name, targetName)
         return event.hit
-          ? `${line} for ${event.damage} damage (${event.targetHpAfter} HP left).`
+          ? `${line} for ${formatNumber(event.damage)} damage (${formatNumber(event.targetHpAfter)} HP left).`
           : `${line}, but misses.`
       }
       return event.hit
-        ? `${attacker.name} hits ${targetName} for ${event.damage} damage (${event.targetHpAfter} HP left).`
+        ? `${attacker.name} hits ${targetName} for ${formatNumber(event.damage)} damage (${formatNumber(event.targetHpAfter)} HP left).`
         : `${attacker.name} attacks ${targetName} and misses.`
     }
     case 'heal': {
@@ -89,9 +90,9 @@ export function describeEvent(event: CombatLogEvent, unitsById: Map<string, Unit
       if (healer.flavor) {
         const template = pickFlavorLine(HEAL_FLAVOR[healer.flavor], seed(`${event.healerId}:${event.targetId}`))
         const line = renderFlavorTemplate(template, healer.name, targetName)
-        return `${line} for ${event.amount} (${event.targetHpAfter} HP).`
+        return `${line} for ${formatNumber(event.amount)} (${formatNumber(event.targetHpAfter)} HP).`
       }
-      return `${healer.name} heals ${targetName} for ${event.amount} (${event.targetHpAfter} HP).`
+      return `${healer.name} heals ${targetName} for ${formatNumber(event.amount)} (${formatNumber(event.targetHpAfter)} HP).`
     }
     case 'death':
       return `${nameOf(event.unitId)} falls.`

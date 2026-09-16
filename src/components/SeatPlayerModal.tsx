@@ -1,4 +1,5 @@
 import { ROLE_ICON, ROLE_LABEL, TRAIT_ICON, TRAIT_LABEL } from './icons'
+import { formatNumber } from '../format'
 import { newPlayerCost, useGameStore } from '../game/store'
 import { hasRoleSelectionUnlock } from '../game/engine'
 import { dominantTrait } from '../game/personality'
@@ -39,7 +40,7 @@ export function SeatPlayerModal({ table, onClose }: { table: Table; onClose: () 
         >
           <div className="flex items-center justify-between">
             <span className="font-medium text-rose-200">Recruit New Player</span>
-            <span className="text-xs text-rose-400">{cost} infamy</span>
+            <span className="text-xs text-rose-400">{formatNumber(cost)} infamy</span>
           </div>
           <p className="mt-1 text-xs text-rose-300/80">Grow your roster. New recruits start on the bench.</p>
         </button>

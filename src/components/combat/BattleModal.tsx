@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { formatNumber } from '../../format'
 import type { CombatLogEvent } from '../../game/combat/types'
 import { computeBoardStateAtStep, getEncounterGridSize } from '../../game/combat/replay'
 import type { BattleRewards } from '../../game/types'
@@ -21,9 +22,9 @@ const OUTCOME_LABEL: Record<BattleRewards['outcome'], string> = {
 
 function BattleSummaryBanner({ rewards }: { rewards: BattleRewards }) {
   const parts: string[] = []
-  if (rewards.xp > 0) parts.push(`+${rewards.xp} XP`)
-  if (rewards.gold > 0) parts.push(`+${rewards.gold} Gold`)
-  if (rewards.infamy > 0) parts.push(`+${rewards.infamy} Infamy`)
+  if (rewards.xp > 0) parts.push(`+${formatNumber(rewards.xp)} XP`)
+  if (rewards.gold > 0) parts.push(`+${formatNumber(rewards.gold)} Gold`)
+  if (rewards.infamy > 0) parts.push(`+${formatNumber(rewards.infamy)} Infamy`)
 
   return (
     <div className={`mt-3 rounded-md border px-3 py-2 text-sm font-medium ${OUTCOME_STYLE[rewards.outcome]}`}>

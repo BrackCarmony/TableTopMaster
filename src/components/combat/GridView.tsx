@@ -1,3 +1,4 @@
+import { formatNumber } from '../../format'
 import type { CombatUnit } from '../../game/combat/types'
 import { ROLE_ICON } from '../icons'
 
@@ -32,12 +33,12 @@ export function GridView({ units, width, height }: { units: CombatUnit[]; width:
                   ? 'border border-emerald-500 bg-emerald-900/70 text-emerald-100'
                   : 'border border-rose-600 bg-rose-950/70 text-rose-100'
               }`}
-              title={`${unit.name} (${unit.hp}/${unit.maxHp} HP)`}
+              title={`${unit.name} (${formatNumber(unit.hp)}/${formatNumber(unit.maxHp)} HP)`}
             >
               <span>{ROLE_ICON[unit.role]}</span>
               <span className="w-full truncate px-0.5 text-center">{unit.name.split(' ')[0]}</span>
               <span className="text-[9px] text-slate-300">
-                {unit.hp}/{unit.maxHp}
+                {formatNumber(unit.hp)}/{formatNumber(unit.maxHp)}
               </span>
             </div>
           )}
