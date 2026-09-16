@@ -166,12 +166,12 @@ describe('runEncounter', () => {
       gridWidth: 10,
       gridHeight: 10,
       partyStartPositions: [
-        { x: 0, y: 5 }, // farthest from the enemy (distance 9)
-        { x: 5, y: 5 }, // middle distance (4)
-        { x: 8, y: 5 }, // closest (1)
+        { x: 1, y: 0 }, // distance 10 from the enemy — farthest
+        { x: 1, y: 3 }, // distance 7 — closest
+        { x: 1, y: 7 }, // distance 11 — farthest
       ],
       enemies: [
-        { name: 'Target', role: 'dps', position: { x: 9, y: 5 }, hp: 999, attackPower: 1, defense: 0, healPower: 0, moveRange: 0, attackRange: 0, speed: 1 },
+        { name: 'Target', role: 'dps', position: { x: 8, y: 3 }, hp: 999, attackPower: 1, defense: 0, healPower: 0, moveRange: 0, attackRange: 0, speed: 1 },
       ],
     }
     // Deliberately seated in the "wrong" order — healer first, tank last —
@@ -186,9 +186,14 @@ describe('runEncounter', () => {
     if (start.type !== 'encounter_start') throw new Error('expected encounter_start')
     const posById = new Map(start.units.filter((u) => u.side === 'party').map((u) => [u.id, u.position]))
 
-    expect(posById.get('tank')).toEqual({ x: 8, y: 5 })
-    expect(posById.get('dps')).toEqual({ x: 5, y: 5 })
-    expect(posById.get('healer')).toEqual({ x: 0, y: 5 })
+    // Row: tank claims the row nearest the enemies (y=3), dps the next
+    // row (y=0, the first "farthest" entry), healer the last (y=7).
+    // Column: on top of that, the tank steps one column toward the
+    // enemies and the healer one column away — an actual front/back line
+    // instead of everyone sharing column x=1.
+    expect(posById.get('tank')).toEqual({ x: 2, y: 3 })
+    expect(posById.get('dps')).toEqual({ x: 1, y: 0 })
+    expect(posById.get('healer')).toEqual({ x: 0, y: 7 })
   })
 
   it('calls a stalemate when neither side can reach or hit the other', () => {

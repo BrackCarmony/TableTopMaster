@@ -44,10 +44,18 @@ function buildEnemyUnits(template: EncounterTemplate): CombatUnit[] {
 }
 
 const ROLE_FRONT_PRIORITY: Record<Role, number> = { tank: 0, dps: 1, healer: 2 }
+// Tanks step one column toward the enemies, healers one column away from
+// them, dps stay put — an actual front line instead of everyone sharing one
+// column and only differing by row.
+const ROLE_COLUMN_OFFSET: Record<Role, number> = { tank: 1, dps: 0, healer: -1 }
 
 function averagePosition(positions: GridCoord[]): GridCoord {
   const sum = positions.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 })
   return { x: sum.x / positions.length, y: sum.y / positions.length }
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value))
 }
 
 /**
@@ -57,23 +65,31 @@ function averagePosition(positions: GridCoord[]): GridCoord {
  * targeting uses) to the enemies, dps take the next-closest, and healers
  * land farthest back. Otherwise a tank stuck in a back row can't draw
  * aggro, and a squishier ally standing closer eats the hits meant for it.
+ * On top of that row choice, tanks then push one column toward the
+ * enemies and healers pull one column back, so the party isn't just a
+ * single-file line — it has an actual front and back.
  */
 function positionParty(partyUnits: CombatUnit[], template: EncounterTemplate): CombatUnit[] {
   const enemyPositions = template.enemies.map((e) => e.position)
+  const hasEnemies = enemyPositions.length > 0
+  const enemyCentroid = hasEnemies ? averagePosition(enemyPositions) : null
   const orderedPositions =
-    enemyPositions.length === 0
+    enemyCentroid === null
       ? template.partyStartPositions
-      : [...template.partyStartPositions].sort((a, b) => {
-          const centroid = averagePosition(enemyPositions)
-          return manhattanDistance(a, centroid) - manhattanDistance(b, centroid)
-        })
+      : [...template.partyStartPositions].sort(
+          (a, b) => manhattanDistance(a, enemyCentroid) - manhattanDistance(b, enemyCentroid),
+        )
 
   const orderedUnits = [...partyUnits].sort((a, b) => ROLE_FRONT_PRIORITY[a.role] - ROLE_FRONT_PRIORITY[b.role])
   const positionById = new Map(orderedUnits.map((u, i) => [u.id, orderedPositions[i % orderedPositions.length]]))
 
+  const partyBaseX = averagePosition(template.partyStartPositions).x
+  const towardEnemies = enemyCentroid === null || enemyCentroid.x === partyBaseX ? 1 : Math.sign(enemyCentroid.x - partyBaseX)
+
   return partyUnits.map((u) => {
     const pos = positionById.get(u.id)!
-    return { ...u, position: { ...pos }, hp: u.maxHp, alive: true }
+    const x = clamp(pos.x + towardEnemies * ROLE_COLUMN_OFFSET[u.role], 0, template.gridWidth - 1)
+    return { ...u, position: { x, y: pos.y }, hp: u.maxHp, alive: true }
   })
 }
 
