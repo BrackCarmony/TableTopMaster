@@ -1,12 +1,21 @@
 import type { RngFn } from '../rng'
 import { inRange } from './grid'
 import { planTurn } from './ai'
-import type { CombatLogEvent, CombatUnit, EncounterResult, EncounterTemplate } from './types'
+import type { CombatLogEvent, CombatUnit, EncounterResult, EncounterTemplate, EnemySpawn } from './types'
 
 const MAX_ROUNDS = 50
 const HIT_CHANCE = 0.85
-const GOLD_PER_ENEMY = 15
-const XP_PER_ENEMY = 10
+
+// Reward scales with how tough the enemies actually were, not just their
+// count — otherwise a 3-goblin fight and a 3-demon-prince-court fight pay
+// the same XP/gold, and a flat per-kill reward is never enough to level up
+// more than once regardless of which module you're grinding.
+const XP_PER_POWER = 1.5
+const GOLD_PER_POWER = 2.5
+
+function enemyPower(spawn: EnemySpawn): number {
+  return spawn.hp / 10 + spawn.attackPower + spawn.defense + spawn.healPower
+}
 
 function cloneUnits(units: CombatUnit[]): CombatUnit[] {
   return units.map((u) => ({ ...u, position: { ...u.position } }))
@@ -149,9 +158,9 @@ export function runEncounter(partyUnits: CombatUnit[], template: EncounterTempla
   const survivorIds = units.filter((u) => u.side === 'party' && u.alive).map((u) => u.id)
   log.push({ type: 'encounter_end', outcome, survivorIds })
 
-  const enemyCount = template.enemies.length
-  const goldReward = outcome === 'victory' ? enemyCount * GOLD_PER_ENEMY : 0
-  const xpReward = outcome === 'victory' ? enemyCount * XP_PER_ENEMY : 0
+  const totalPower = template.enemies.reduce((sum, spawn) => sum + enemyPower(spawn), 0)
+  const goldReward = outcome === 'victory' ? Math.round(totalPower * GOLD_PER_POWER) : 0
+  const xpReward = outcome === 'victory' ? Math.round(totalPower * XP_PER_POWER) : 0
 
   return { log, outcome, survivorIds, goldReward, xpReward }
 }

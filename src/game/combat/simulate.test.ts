@@ -64,6 +64,35 @@ describe('runEncounter', () => {
     expect(result.goldReward).toBeGreaterThan(0)
   })
 
+  it('scales gold/XP reward with enemy power (hp+attack+defense+heal), not just enemy count', () => {
+    const party = [makeUnit({ id: 'hero', name: 'Hero', attackPower: 999, hp: 999, maxHp: 999 })]
+
+    const weakTemplate: EncounterTemplate = {
+      ...basicTemplate,
+      enemies: [{ name: 'Weak', role: 'dps', position: { x: 1, y: 0 }, hp: 10, attackPower: 1, defense: 0, healPower: 0, moveRange: 1, attackRange: 1, speed: 1 }],
+    }
+    const toughTemplate: EncounterTemplate = {
+      ...basicTemplate,
+      enemies: [{ name: 'Tough', role: 'dps', position: { x: 1, y: 0 }, hp: 500, attackPower: 30, defense: 15, healPower: 5, moveRange: 1, attackRange: 1, speed: 1 }],
+    }
+
+    const weak = runEncounter(party, weakTemplate, createRng(1))
+    const tough = runEncounter(party, toughTemplate, createRng(1))
+
+    expect(weak.outcome).toBe('victory')
+    expect(tough.outcome).toBe('victory')
+    expect(tough.goldReward).toBeGreaterThan(weak.goldReward)
+    expect(tough.xpReward).toBeGreaterThan(weak.xpReward)
+
+    // power = hp/10 + attackPower + defense + healPower
+    const expectedWeakPower = 10 / 10 + 1 + 0 + 0
+    const expectedToughPower = 500 / 10 + 30 + 15 + 5
+    expect(weak.goldReward).toBe(Math.round(expectedWeakPower * 2.5))
+    expect(weak.xpReward).toBe(Math.round(expectedWeakPower * 1.5))
+    expect(tough.goldReward).toBe(Math.round(expectedToughPower * 2.5))
+    expect(tough.xpReward).toBe(Math.round(expectedToughPower * 1.5))
+  })
+
   it('resolves an overwhelming enemy as a party defeat', () => {
     const party = [makeUnit({ id: 'hero', name: 'Hero', hp: 5, maxHp: 5, defense: 0 })]
     const brutalTemplate: EncounterTemplate = {
