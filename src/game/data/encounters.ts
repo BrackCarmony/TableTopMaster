@@ -1,10 +1,19 @@
 import type { EncounterTemplate } from '../combat/types'
 
+// Covers every seat a table can ever have (base 4 + every stacking
+// tableCapacityBonus upgrade) so extra players from capacity upgrades never
+// wrap around and land on top of an earlier party member — see
+// data/upgrades.test.ts's positional-capacity guard. y=0..7 fits every
+// current grid (the smallest is 8 tall).
 const PARTY_START = [
+  { x: 1, y: 0 },
+  { x: 1, y: 1 },
   { x: 1, y: 2 },
   { x: 1, y: 3 },
   { x: 1, y: 4 },
   { x: 1, y: 5 },
+  { x: 1, y: 6 },
+  { x: 1, y: 7 },
 ]
 
 export const GOBLIN_AMBUSH_1: EncounterTemplate = {
@@ -134,6 +143,136 @@ export const ABYSSAL_RIFT_2: EncounterTemplate = {
     { name: 'Demon Prince', role: 'tank', position: { x: 8, y: 5 }, hp: 160, attackPower: 24, defense: 12, healPower: 0, moveRange: 4, attackRange: 2, speed: 15 },
     { name: 'Imp', role: 'dps', position: { x: 8, y: 2 }, hp: 60, attackPower: 18, defense: 7, healPower: 0, moveRange: 5, attackRange: 3, speed: 16 },
     { name: 'Imp', role: 'dps', position: { x: 8, y: 8 }, hp: 60, attackPower: 18, defense: 7, healPower: 0, moveRange: 5, attackRange: 3, speed: 16 },
+  ],
+}
+
+export const FROZEN_WASTES_1: EncounterTemplate = {
+  id: 'frozen-wastes-1',
+  name: 'Wastes Ambush',
+  gridWidth: 10,
+  gridHeight: 10,
+  partyStartPositions: PARTY_START,
+  enemies: [
+    { name: 'Ice Wraith', role: 'dps', position: { x: 8, y: 2 }, hp: 70, attackPower: 24, defense: 10, healPower: 0, moveRange: 4, attackRange: 2, speed: 15 },
+    { name: 'Ice Wraith', role: 'dps', position: { x: 8, y: 5 }, hp: 70, attackPower: 24, defense: 10, healPower: 0, moveRange: 4, attackRange: 2, speed: 15 },
+    { name: 'Ice Wraith', role: 'dps', position: { x: 8, y: 8 }, hp: 70, attackPower: 24, defense: 10, healPower: 0, moveRange: 4, attackRange: 2, speed: 15 },
+  ],
+}
+
+export const FROZEN_WASTES_2: EncounterTemplate = {
+  id: 'frozen-wastes-2',
+  name: "The Frost Giant's Lair",
+  gridWidth: 10,
+  gridHeight: 10,
+  partyStartPositions: PARTY_START,
+  enemies: [
+    { name: 'Frost Giant', role: 'tank', position: { x: 8, y: 5 }, hp: 230, attackPower: 32, defense: 16, healPower: 0, moveRange: 3, attackRange: 1, speed: 10 },
+    { name: 'Ice Wraith', role: 'dps', position: { x: 8, y: 2 }, hp: 70, attackPower: 24, defense: 10, healPower: 0, moveRange: 4, attackRange: 2, speed: 15 },
+    { name: 'Ice Wraith', role: 'dps', position: { x: 8, y: 8 }, hp: 70, attackPower: 24, defense: 10, healPower: 0, moveRange: 4, attackRange: 2, speed: 15 },
+  ],
+}
+
+export const CLOCKWORK_VAULT_1: EncounterTemplate = {
+  id: 'clockwork-vault-1',
+  name: 'Sentinel Line',
+  gridWidth: 10,
+  gridHeight: 10,
+  partyStartPositions: PARTY_START,
+  enemies: [
+    { name: 'Clockwork Sentinel', role: 'tank', position: { x: 8, y: 2 }, hp: 150, attackPower: 28, defense: 22, healPower: 0, moveRange: 3, attackRange: 1, speed: 10 },
+    { name: 'Clockwork Sentinel', role: 'tank', position: { x: 8, y: 5 }, hp: 150, attackPower: 28, defense: 22, healPower: 0, moveRange: 3, attackRange: 1, speed: 10 },
+    { name: 'Clockwork Sentinel', role: 'tank', position: { x: 8, y: 8 }, hp: 150, attackPower: 28, defense: 22, healPower: 0, moveRange: 3, attackRange: 1, speed: 10 },
+  ],
+}
+
+export const CLOCKWORK_VAULT_2: EncounterTemplate = {
+  id: 'clockwork-vault-2',
+  name: 'The Iron Golem Core',
+  gridWidth: 10,
+  gridHeight: 10,
+  partyStartPositions: PARTY_START,
+  enemies: [
+    { name: 'Iron Golem', role: 'tank', position: { x: 8, y: 5 }, hp: 330, attackPower: 42, defense: 30, healPower: 0, moveRange: 2, attackRange: 1, speed: 7 },
+    { name: 'Clockwork Sentinel', role: 'tank', position: { x: 8, y: 2 }, hp: 150, attackPower: 28, defense: 22, healPower: 0, moveRange: 3, attackRange: 1, speed: 10 },
+    { name: 'Repair Drone', role: 'healer', position: { x: 8, y: 8 }, hp: 100, attackPower: 15, defense: 15, healPower: 35, moveRange: 4, attackRange: 2, speed: 12 },
+  ],
+}
+
+export const VOID_BETWEEN_STARS_1: EncounterTemplate = {
+  id: 'void-between-stars-1',
+  name: 'Star Spawn Swarm',
+  gridWidth: 10,
+  gridHeight: 10,
+  partyStartPositions: PARTY_START,
+  enemies: [
+    { name: 'Star Spawn', role: 'dps', position: { x: 8, y: 2 }, hp: 220, attackPower: 48, defense: 20, healPower: 0, moveRange: 5, attackRange: 3, speed: 20 },
+    { name: 'Star Spawn', role: 'dps', position: { x: 8, y: 5 }, hp: 220, attackPower: 48, defense: 20, healPower: 0, moveRange: 5, attackRange: 3, speed: 20 },
+    { name: 'Star Spawn', role: 'dps', position: { x: 8, y: 8 }, hp: 220, attackPower: 48, defense: 20, healPower: 0, moveRange: 5, attackRange: 3, speed: 20 },
+  ],
+}
+
+export const VOID_BETWEEN_STARS_2: EncounterTemplate = {
+  id: 'void-between-stars-2',
+  name: "The Void Horror's Maw",
+  gridWidth: 10,
+  gridHeight: 10,
+  partyStartPositions: PARTY_START,
+  enemies: [
+    { name: 'Void Horror', role: 'tank', position: { x: 8, y: 5 }, hp: 475, attackPower: 55, defense: 28, healPower: 0, moveRange: 4, attackRange: 3, speed: 16 },
+    { name: 'Star Spawn', role: 'dps', position: { x: 8, y: 2 }, hp: 220, attackPower: 48, defense: 20, healPower: 0, moveRange: 5, attackRange: 3, speed: 20 },
+    { name: 'Star Spawn', role: 'dps', position: { x: 8, y: 8 }, hp: 220, attackPower: 48, defense: 20, healPower: 0, moveRange: 5, attackRange: 3, speed: 20 },
+  ],
+}
+
+export const TITANS_FORGE_1: EncounterTemplate = {
+  id: 'titans-forge-1',
+  name: 'Molten Sentries',
+  gridWidth: 10,
+  gridHeight: 10,
+  partyStartPositions: PARTY_START,
+  enemies: [
+    { name: 'Ember Wraith', role: 'dps', position: { x: 8, y: 2 }, hp: 320, attackPower: 62, defense: 32, healPower: 0, moveRange: 4, attackRange: 2, speed: 18 },
+    { name: 'Ember Wraith', role: 'dps', position: { x: 8, y: 5 }, hp: 320, attackPower: 62, defense: 32, healPower: 0, moveRange: 4, attackRange: 2, speed: 18 },
+    { name: 'Ember Wraith', role: 'dps', position: { x: 8, y: 8 }, hp: 320, attackPower: 62, defense: 32, healPower: 0, moveRange: 4, attackRange: 2, speed: 18 },
+  ],
+}
+
+export const TITANS_FORGE_2: EncounterTemplate = {
+  id: 'titans-forge-2',
+  name: "The Fire Titan's Anvil",
+  gridWidth: 10,
+  gridHeight: 10,
+  partyStartPositions: PARTY_START,
+  enemies: [
+    { name: 'Fire Titan', role: 'tank', position: { x: 8, y: 5 }, hp: 685, attackPower: 72, defense: 37, healPower: 0, moveRange: 3, attackRange: 1, speed: 12 },
+    { name: 'Ember Wraith', role: 'dps', position: { x: 8, y: 2 }, hp: 320, attackPower: 62, defense: 32, healPower: 0, moveRange: 4, attackRange: 2, speed: 18 },
+    { name: 'Ember Wraith', role: 'dps', position: { x: 8, y: 8 }, hp: 320, attackPower: 62, defense: 32, healPower: 0, moveRange: 4, attackRange: 2, speed: 18 },
+  ],
+}
+
+export const UNDYING_COURT_1: EncounterTemplate = {
+  id: 'undying-court-1',
+  name: 'The Deathless Guard',
+  gridWidth: 10,
+  gridHeight: 10,
+  partyStartPositions: PARTY_START,
+  enemies: [
+    { name: 'Deathless Knight', role: 'tank', position: { x: 8, y: 2 }, hp: 450, attackPower: 75, defense: 45, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Deathless Knight', role: 'tank', position: { x: 8, y: 7 }, hp: 450, attackPower: 75, defense: 45, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Wraith Chancellor', role: 'healer', position: { x: 8, y: 5 }, hp: 350, attackPower: 40, defense: 30, healPower: 90, moveRange: 4, attackRange: 3, speed: 16 },
+  ],
+}
+
+export const UNDYING_COURT_2: EncounterTemplate = {
+  id: 'undying-court-2',
+  name: "The Undying King's Throne",
+  gridWidth: 10,
+  gridHeight: 10,
+  partyStartPositions: PARTY_START,
+  enemies: [
+    { name: 'The Undying King', role: 'tank', position: { x: 8, y: 5 }, hp: 985, attackPower: 94, defense: 49, healPower: 0, moveRange: 4, attackRange: 2, speed: 18 },
+    { name: 'Deathless Knight', role: 'tank', position: { x: 8, y: 2 }, hp: 450, attackPower: 75, defense: 45, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Wraith Chancellor', role: 'healer', position: { x: 8, y: 8 }, hp: 350, attackPower: 40, defense: 30, healPower: 90, moveRange: 4, attackRange: 3, speed: 16 },
   ],
 }
 
