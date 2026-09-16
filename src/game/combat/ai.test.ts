@@ -89,4 +89,20 @@ describe('planTurn', () => {
     const action = planTurn(a, [a, b, enemy], 8, 8)
     expect(action.kind).toBe('move')
   })
+
+  it('still advances when only a small gap separates it from a couple of higher-level allies', () => {
+    // Regression case: 5 dps at level 1450 next to a tank and healer at 1560
+    // each — the old average-based rule flagged every 1450 as "the weak
+    // link" (1450 < ~1487 average) even though the gap is under 3%.
+    const dps = makeUnit({ id: 'dps', name: 'DPS', level: 1450, position: { x: 0, y: 0 }, attackRange: 1, moveRange: 3 })
+    const dps2 = makeUnit({ id: 'dps2', name: 'DPS2', level: 1450, position: { x: 0, y: 1 } })
+    const dps3 = makeUnit({ id: 'dps3', name: 'DPS3', level: 1450, position: { x: 0, y: 2 } })
+    const dps4 = makeUnit({ id: 'dps4', name: 'DPS4', level: 1450, position: { x: 0, y: 3 } })
+    const tank = makeUnit({ id: 'tank', name: 'Tank', role: 'tank', level: 1560, position: { x: 0, y: 4 } })
+    const healer = makeUnit({ id: 'healer', name: 'Healer', role: 'healer', level: 1560, position: { x: 0, y: 5 } })
+    const enemy = makeUnit({ id: 'e', name: 'E', side: 'enemy', position: { x: 5, y: 0 } })
+
+    const action = planTurn(dps, [dps, dps2, dps3, dps4, tank, healer, enemy], 10, 10)
+    expect(action.kind).toBe('move')
+  })
 })

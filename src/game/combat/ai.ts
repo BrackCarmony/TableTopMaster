@@ -8,12 +8,18 @@ export type TurnAction =
   | { kind: 'attack'; targetId: string }
   | { kind: 'move'; path: GridCoord[]; targetId: string }
 
-/** True if this unit is under-leveled compared to its own living allies — the weak link who should hold position instead of wading in. */
+// A unit must be below HALF its strongest living ally's level to count as
+// "the weak link" — a fresh level-1 rookie next to a level-60 veteran
+// should hold back, but two characters a tier or two apart (say level 1450
+// vs. 1560) are both plenty combat-ready and shouldn't trigger this at all.
+const UNDERLEVELED_THRESHOLD = 0.5
+
+/** True if this unit is dramatically behind its own living allies' best — the weak link who should hold position instead of wading in. */
 function isUnderleveled(unit: CombatUnit, units: CombatUnit[]): boolean {
   const allies = units.filter((u) => u.alive && u.side === unit.side && u.id !== unit.id)
   if (allies.length === 0) return false
-  const avgAllyLevel = allies.reduce((sum, u) => sum + u.level, 0) / allies.length
-  return unit.level < avgAllyLevel
+  const maxAllyLevel = Math.max(...allies.map((u) => u.level))
+  return unit.level < maxAllyLevel * UNDERLEVELED_THRESHOLD
 }
 
 /**
