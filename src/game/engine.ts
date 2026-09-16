@@ -173,6 +173,7 @@ export function resolveEncounter(
       lifetimeGold: 0,
       lastBattleLog: result.log,
       lastBattleModuleName: moduleDef.name,
+      lastBattleRewards: { outcome: result.outcome, xp: 0, gold: 0, infamy: infamyGain },
     }
     return { table: nextTable, players: updatedPlayers, dm: nextDm }
   }
@@ -180,9 +181,13 @@ export function resolveEncounter(
   let nextDm = dm
   let nextEncounterIndex = table.encounterIndex
   let nextLifetimeGold = table.lifetimeGold
+  let xpGain = 0
+  let goldGain = 0
+  let infamyBonus = 0
 
   if (result.outcome === 'victory') {
-    const goldGain = Math.round(result.goldReward * multipliers.gold)
+    xpGain = Math.round(result.xpReward * multipliers.xp)
+    goldGain = Math.round(result.goldReward * multipliers.gold)
     nextDm = { ...dm, gold: dm.gold + goldGain }
     nextLifetimeGold += goldGain
     nextEncounterIndex = (table.encounterIndex + 1) % moduleDef.encounters.length
@@ -197,7 +202,7 @@ export function resolveEncounter(
         tierDefeated: executionTier,
         earnedAt: Date.now(),
       }
-      const infamyBonus = TROPHY_BASE_INFAMY + executionTier * TROPHY_INFAMY_PER_TIER
+      infamyBonus = TROPHY_BASE_INFAMY + executionTier * TROPHY_INFAMY_PER_TIER
       nextDm = {
         ...nextDm,
         infamy: nextDm.infamy + infamyBonus,
@@ -214,6 +219,7 @@ export function resolveEncounter(
     cooldownRemaining: freshCooldown(multipliers),
     lastBattleLog: result.log,
     lastBattleModuleName: moduleDef.name,
+    lastBattleRewards: { outcome: result.outcome, xp: xpGain, gold: goldGain, infamy: infamyBonus },
   }
   return { table: nextTable, players: updatedPlayers, dm: nextDm }
 }

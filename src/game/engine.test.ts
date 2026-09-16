@@ -79,6 +79,7 @@ function makeTable(overrides: Partial<Table> = {}): Table {
     lifetimeGold: 0,
     lastBattleLog: null,
     lastBattleModuleName: null,
+    lastBattleRewards: null,
     ...overrides,
   }
 }

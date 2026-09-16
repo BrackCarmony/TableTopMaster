@@ -1,7 +1,7 @@
 import { MODULES } from '../game/data/modules'
 import { useGameStore } from '../game/store'
 import type { CombatLogEvent } from '../game/combat/types'
-import type { AdventureModule, Table } from '../game/types'
+import type { AdventureModule, BattleRewards, Table } from '../game/types'
 
 function describeDangerLevel(tier: number): string {
   if (tier >= 8) return 'now a near-unrecognizable apex horror.'
@@ -17,7 +17,7 @@ export function ModulePickerModal({
 }: {
   table: Table
   onClose: () => void
-  onExecuted: (log: CombatLogEvent[], moduleName: string) => void
+  onExecuted: (log: CombatLogEvent[], moduleName: string, rewards: BattleRewards | null) => void
 }) {
   const dm = useGameStore((s) => s.dm)
   const assignModule = useGameStore((s) => s.assignModule)
@@ -37,7 +37,11 @@ export function ModulePickerModal({
       executeModuleNow(table.id, moduleDef.id)
       const resolvedTable = useGameStore.getState().tables.find((t) => t.id === table.id)
       if (resolvedTable?.lastBattleLog) {
-        onExecuted(resolvedTable.lastBattleLog, resolvedTable.lastBattleModuleName ?? moduleDef.name)
+        onExecuted(
+          resolvedTable.lastBattleLog,
+          resolvedTable.lastBattleModuleName ?? moduleDef.name,
+          resolvedTable.lastBattleRewards ?? null,
+        )
       }
       onClose()
       return

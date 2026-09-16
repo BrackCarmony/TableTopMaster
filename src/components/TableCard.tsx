@@ -3,7 +3,7 @@ import { getModuleById } from '../game/data/modules'
 import { effectiveTableCapacity } from '../game/engine'
 import { useGameStore } from '../game/store'
 import type { CombatLogEvent } from '../game/combat/types'
-import type { Table } from '../game/types'
+import type { BattleRewards, Table } from '../game/types'
 import { ROLE_ICON } from './icons'
 import { ModulePickerModal } from './ModulePickerModal'
 import { SeatPlayerModal } from './SeatPlayerModal'
@@ -12,6 +12,7 @@ import { BattleModal } from './combat/BattleModal'
 interface BattleSnapshot {
   log: CombatLogEvent[]
   moduleName: string | null
+  rewards: BattleRewards | null
 }
 
 export function TableCard({ table }: { table: Table }) {
@@ -84,7 +85,11 @@ export function TableCard({ table }: { table: Table }) {
           disabled={!table.lastBattleLog}
           onClick={() =>
             table.lastBattleLog &&
-            setBattleSnapshot({ log: table.lastBattleLog, moduleName: table.lastBattleModuleName })
+            setBattleSnapshot({
+              log: table.lastBattleLog,
+              moduleName: table.lastBattleModuleName,
+              rewards: table.lastBattleRewards ?? null,
+            })
           }
         >
           View Battle
@@ -95,12 +100,17 @@ export function TableCard({ table }: { table: Table }) {
         <ModulePickerModal
           table={table}
           onClose={() => setPickerOpen(false)}
-          onExecuted={(log, moduleName) => setBattleSnapshot({ log, moduleName })}
+          onExecuted={(log, moduleName, rewards) => setBattleSnapshot({ log, moduleName, rewards })}
         />
       )}
       {seatOpen && <SeatPlayerModal table={table} onClose={() => setSeatOpen(false)} />}
       {battleSnapshot && (
-        <BattleModal log={battleSnapshot.log} moduleName={battleSnapshot.moduleName} onClose={() => setBattleSnapshot(null)} />
+        <BattleModal
+          log={battleSnapshot.log}
+          moduleName={battleSnapshot.moduleName}
+          rewards={battleSnapshot.rewards}
+          onClose={() => setBattleSnapshot(null)}
+        />
       )}
     </div>
   )

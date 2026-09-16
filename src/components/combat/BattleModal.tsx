@@ -1,18 +1,47 @@
 import { useEffect, useState } from 'react'
 import type { CombatLogEvent } from '../../game/combat/types'
 import { computeBoardStateAtStep, getEncounterGridSize } from '../../game/combat/replay'
+import type { BattleRewards } from '../../game/types'
 import { GridView } from './GridView'
 import { CombatLogPanel } from './CombatLogPanel'
 
 const SPEED_OPTIONS = [1, 2, 4] as const
 
+const OUTCOME_STYLE: Record<BattleRewards['outcome'], string> = {
+  victory: 'border-emerald-800 bg-emerald-950/50 text-emerald-300',
+  defeat: 'border-rose-800 bg-rose-950/50 text-rose-300',
+  stalemate: 'border-amber-800 bg-amber-950/50 text-amber-300',
+}
+
+const OUTCOME_LABEL: Record<BattleRewards['outcome'], string> = {
+  victory: 'Victory',
+  defeat: 'Defeat',
+  stalemate: 'Stalemate',
+}
+
+function BattleSummaryBanner({ rewards }: { rewards: BattleRewards }) {
+  const parts: string[] = []
+  if (rewards.xp > 0) parts.push(`+${rewards.xp} XP`)
+  if (rewards.gold > 0) parts.push(`+${rewards.gold} Gold`)
+  if (rewards.infamy > 0) parts.push(`+${rewards.infamy} Infamy`)
+
+  return (
+    <div className={`mt-3 rounded-md border px-3 py-2 text-sm font-medium ${OUTCOME_STYLE[rewards.outcome]}`}>
+      {OUTCOME_LABEL[rewards.outcome]}
+      {parts.length > 0 ? ` — ${parts.join(', ')}` : ' — no rewards earned'}
+    </div>
+  )
+}
+
 export function BattleModal({
   log,
   moduleName,
+  rewards,
   onClose,
 }: {
   log: CombatLogEvent[]
   moduleName: string | null
+  rewards: BattleRewards | null
   onClose: () => void
 }) {
   const [step, setStep] = useState(0)
@@ -83,6 +112,8 @@ export function BattleModal({
             Skip to end
           </button>
         </div>
+
+        {rewards && step >= lastStep && <BattleSummaryBanner rewards={rewards} />}
 
         <div className="mt-3">
           <CombatLogPanel log={log} upToStep={step} />

@@ -27,6 +27,7 @@ function createTable(name: string): Table {
     lifetimeGold: 0,
     lastBattleLog: null,
     lastBattleModuleName: null,
+    lastBattleRewards: null,
   }
 }
 

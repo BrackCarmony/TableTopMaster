@@ -47,6 +47,13 @@ export interface AdventureModule {
   trophyParts?: string[]
 }
 
+export interface BattleRewards {
+  outcome: 'victory' | 'defeat' | 'stalemate'
+  xp: number
+  gold: number
+  infamy: number
+}
+
 export interface Table {
   id: string
   name: string
@@ -56,6 +63,7 @@ export interface Table {
   lifetimeGold: number
   lastBattleLog: CombatLogEvent[] | null
   lastBattleModuleName: string | null
+  lastBattleRewards: BattleRewards | null
 }
 
 export type UpgradeCurrency = 'gold' | 'infamy'
