@@ -31,6 +31,8 @@ export interface Player {
   tableId: string | null
   /** Null while benched (between lives). */
   character: Character | null
+  /** Infamy-funded permanent stat tier — survives every death and reroll, unlike roleTiers' gold-funded per-role unlocks. Never caps. */
+  legacyTier: number
 }
 
 export type ModuleKind = 'campaign' | 'execution'

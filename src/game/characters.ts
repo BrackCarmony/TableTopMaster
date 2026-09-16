@@ -1,6 +1,7 @@
 import type { RngFn } from './rng'
 import type { CombatUnit, Role } from './combat/types'
 import { getClassTier, rollClassName, rollRole } from './data/classes'
+import { legacyStatMultiplier } from './data/legacy'
 import { rollName, rollPlayerName, rollRace } from './data/names'
 import { rollPersonality, type DominantTrait } from './personality'
 import type { Character, Player } from './types'
@@ -20,12 +21,16 @@ export function createPlayer(rng: RngFn, existingNames: string[] = []): Player {
     personality: rollPersonality(rng),
     tableId: null,
     character: null,
+    legacyTier: 0,
   }
 }
 
 export function createCharacterForPlayer(player: Player, rng: RngFn, forcedRole?: Role): Character {
   const role: Role = forcedRole ?? rollRole(rng, player.roleTiers)
   const tierDef = getClassTier(role, player.roleTiers[role])
+  // Applies regardless of role — a player's accumulated legacy tier makes
+  // every future life stronger, not just the role they happened to roll.
+  const legacyMultiplier = legacyStatMultiplier(player.legacyTier)
   return {
     id: generateId('char'),
     // Fantasy name, distinct from the player's own — recycling names across
@@ -36,10 +41,10 @@ export function createCharacterForPlayer(player: Player, rng: RngFn, forcedRole?
     role,
     level: 1,
     xp: 0,
-    maxHp: tierDef.baseMaxHp,
-    attackPower: tierDef.baseAttackPower,
-    defense: tierDef.baseDefense,
-    healPower: tierDef.baseHealPower,
+    maxHp: Math.round(tierDef.baseMaxHp * legacyMultiplier),
+    attackPower: Math.round(tierDef.baseAttackPower * legacyMultiplier),
+    defense: Math.round(tierDef.baseDefense * legacyMultiplier),
+    healPower: Math.round(tierDef.baseHealPower * legacyMultiplier),
     moveRange: tierDef.moveRange,
     attackRange: tierDef.attackRange,
     speed: tierDef.speed,

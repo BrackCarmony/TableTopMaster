@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { createCharacterForPlayer, createPlayer, generateTableId } from './characters'
 import { getClassTier, maxTier } from './data/classes'
+import { legacyTierCost } from './data/legacy'
 import {
   MAX_OFFLINE_MS,
   effectiveTableCapacity,
@@ -76,6 +77,7 @@ interface GameStore extends GameState {
   seatPlayer: (playerId: string, tableId: string, forcedRole?: Role) => void
   recruitNewPlayer: () => void
   unlockPlayerTier: (playerId: string, role: Role) => void
+  upgradePlayerLegacyTier: (playerId: string) => void
   assignModule: (tableId: string, moduleId: string) => void
   executeModuleNow: (tableId: string, moduleId: string) => void
   buyUpgrade: (upgradeId: string) => void
@@ -143,6 +145,19 @@ export const useGameStore = create<GameStore>()(
             players: state.players.map((p) =>
               p.id === playerId ? { ...p, roleTiers: { ...p.roleTiers, [role]: currentTier + 1 } } : p,
             ),
+          }
+        }),
+
+      upgradePlayerLegacyTier: (playerId) =>
+        set((state) => {
+          const player = state.players.find((p) => p.id === playerId)
+          if (!player) return state
+          const cost = legacyTierCost(player.legacyTier)
+          if (state.dm.infamy < cost) return state
+
+          return {
+            dm: { ...state.dm, infamy: state.dm.infamy - cost },
+            players: state.players.map((p) => (p.id === playerId ? { ...p, legacyTier: p.legacyTier + 1 } : p)),
           }
         }),
 
@@ -239,7 +254,7 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: 'tabletopmaster-save',
-      version: 5,
+      version: 6,
       partialize: (state) => ({ dm: state.dm, players: state.players, tables: state.tables, lastTickAt: state.lastTickAt }),
       migrate: (persisted, version) => {
         if (version < 2) return freshGameState()
@@ -257,6 +272,10 @@ export const useGameStore = create<GameStore>()(
           // Old trophies can't be mapped onto the new shape, so they're dropped —
           // executionTier (the real progress) is untouched.
           state.dm = { ...state.dm, trophies: [] }
+        }
+        if (version < 6) {
+          // v6 adds the Infamy-funded legacyTier — new field, no bonus yet.
+          state.players = state.players.map((p) => ({ ...p, legacyTier: (p as Player).legacyTier ?? 0 }))
         }
         return state
       },
