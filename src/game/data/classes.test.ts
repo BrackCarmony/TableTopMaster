@@ -37,11 +37,11 @@ describe('rollRole', () => {
 })
 
 describe('class tiers', () => {
-  it('has at least 5 tiers per role, each strictly stronger than the last, with escalating unlock cost', () => {
+  it('has exactly 10 tiers per role, each strictly stronger than the last, with escalating unlock cost', () => {
     for (const role of ['tank', 'dps', 'healer'] as const) {
       const tiers = CLASS_TIERS[role]
-      expect(tiers.length).toBeGreaterThanOrEqual(5)
-      expect(maxTier(role)).toBe(tiers.length)
+      expect(tiers.length).toBe(10)
+      expect(maxTier(role)).toBe(10)
       for (let i = 1; i < tiers.length; i++) {
         const prev = tiers[i - 1]
         const cur = tiers[i]
@@ -49,6 +49,15 @@ describe('class tiers', () => {
         const prevPower = prev.baseMaxHp + prev.baseAttackPower + prev.baseDefense + prev.baseHealPower
         const curPower = cur.baseMaxHp + cur.baseAttackPower + cur.baseDefense + cur.baseHealPower
         expect(curPower).toBeGreaterThan(prevPower)
+      }
+    }
+  })
+
+  it('names every tier with at least one non-empty flavor name', () => {
+    for (const role of ['tank', 'dps', 'healer'] as const) {
+      for (const tierDef of CLASS_TIERS[role]) {
+        expect(tierDef.names.length).toBeGreaterThan(0)
+        for (const name of tierDef.names) expect(name.trim().length).toBeGreaterThan(0)
       }
     }
   })
