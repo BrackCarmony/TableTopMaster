@@ -159,8 +159,11 @@ export function runEncounter(partyUnits: CombatUnit[], template: EncounterTempla
   log.push({ type: 'encounter_end', outcome, survivorIds })
 
   const totalPower = template.enemies.reduce((sum, spawn) => sum + enemyPower(spawn), 0)
+  // A stalemate still teaches the party something even without a kill, but
+  // only a real victory pays out loot — otherwise grinding out an unwinnable
+  // fight forever would be a free gold pump.
   const goldReward = outcome === 'victory' ? Math.round(totalPower * GOLD_PER_POWER) : 0
-  const xpReward = outcome === 'victory' ? Math.round(totalPower * XP_PER_POWER) : 0
+  const xpReward = outcome === 'victory' || outcome === 'stalemate' ? Math.round(totalPower * XP_PER_POWER) : 0
 
   return { log, outcome, survivorIds, goldReward, xpReward }
 }

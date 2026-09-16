@@ -189,6 +189,45 @@ describe('resolveEncounter execution-module tier scaling', () => {
   })
 })
 
+describe('resolveEncounter stalemates', () => {
+  it('grants XP but no gold when a fight stalls out at the round cap', () => {
+    const table = makeTable({ assignedModuleId: 'goblin-ambush' })
+    const rng = createRng(1)
+    const player = createPlayer(rng)
+    // Unreachable (range 0) so it can never land or take a killing blow —
+    // guarantees neither side is ever wiped out, forcing a stalemate.
+    const unreachableCharacter: Character = {
+      id: 'unreachable-char',
+      name: player.name,
+      race: 'Human',
+      className: 'Statue',
+      role: 'tank',
+      level: 1,
+      xp: 0,
+      maxHp: 999_999,
+      attackPower: 0,
+      defense: 999_999,
+      healPower: 0,
+      moveRange: 0,
+      attackRange: 0,
+      speed: 1,
+    }
+    const seated: Player = { ...player, tableId: table.id, character: unreachableCharacter }
+    const dm = makeDm({ unlockedModuleIds: ['goblin-ambush'] })
+
+    const result = resolveEncounter(table, [seated], dm, createRng(2))
+
+    const end = result.table.lastBattleLog?.find((e) => e.type === 'encounter_end')
+    expect(end && end.type === 'encounter_end' && end.outcome).toBe('stalemate')
+    expect(result.table.lastBattleRewards).toEqual({ outcome: 'stalemate', xp: expect.any(Number), gold: 0, infamy: 0 })
+    expect(result.table.lastBattleRewards!.xp).toBeGreaterThan(0)
+    expect(result.dm.gold).toBe(dm.gold)
+
+    const updatedPlayer = result.players.find((p) => p.id === seated.id)
+    expect(updatedPlayer?.character?.xp).toBeGreaterThan(0)
+  })
+})
+
 describe('hasRoleSelectionUnlock', () => {
   it('is false until the upgrade is purchased', () => {
     expect(hasRoleSelectionUnlock(makeDm())).toBe(false)

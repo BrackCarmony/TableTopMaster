@@ -153,6 +153,10 @@ describe('runEncounter', () => {
     const party = [makeUnit({ id: 'hero', name: 'Hero', hp: 500, maxHp: 500, defense: 0, attackPower: 10, attackRange: 1 })]
     const result = runEncounter(party, noRampTemplate, createRng(1))
     expect(result.outcome).toBe('stalemate')
+    // A stalemate still teaches the party something even without a kill, but
+    // grinding an unwinnable fight forever must never pay out loot.
+    expect(result.xpReward).toBeGreaterThan(0)
+    expect(result.goldReward).toBe(0)
   })
 
   it('calls a stalemate when neither side can reach or hit the other', () => {
@@ -169,6 +173,7 @@ describe('runEncounter', () => {
     const party = [makeUnit({ id: 'hero', name: 'Hero', moveRange: 0, attackRange: 0 })]
     const result = runEncounter(party, frozenTemplate, createRng(9))
     expect(result.outcome).toBe('stalemate')
+    expect(result.xpReward).toBeGreaterThan(0)
     expect(result.goldReward).toBe(0)
   })
 })

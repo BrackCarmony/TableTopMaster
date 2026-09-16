@@ -147,14 +147,18 @@ export function resolveEncounter(
   const result = runEncounter(partyUnits, encounterTemplate, rng)
   const multipliers = computeMultipliers(dm)
   const survivorCharIds = new Set(result.survivorIds)
+  // A stalemate still teaches the party something even without a kill, so it
+  // grants XP same as a win — but never gold, or grinding an unwinnable fight
+  // forever would be a free loot pump. runEncounter already zeroes xpReward
+  // for an outright defeat.
+  const xpGain = Math.round(result.xpReward * multipliers.xp)
 
   const updatedPlayers = seatedPlayers.map((p) => {
     if (!p.character) return p
     if (!survivorCharIds.has(p.character.id)) {
       return { ...p, character: null, tableId: null }
     }
-    if (result.outcome === 'victory') {
-      const xpGain = Math.round(result.xpReward * multipliers.xp)
+    if (xpGain > 0) {
       return { ...p, character: applyXp(p.character, xpGain) }
     }
     return p
@@ -181,12 +185,10 @@ export function resolveEncounter(
   let nextDm = dm
   let nextEncounterIndex = table.encounterIndex
   let nextLifetimeGold = table.lifetimeGold
-  let xpGain = 0
   let goldGain = 0
   let infamyBonus = 0
 
   if (result.outcome === 'victory') {
-    xpGain = Math.round(result.xpReward * multipliers.xp)
     goldGain = Math.round(result.goldReward * multipliers.gold)
     nextDm = { ...dm, gold: dm.gold + goldGain }
     nextLifetimeGold += goldGain
