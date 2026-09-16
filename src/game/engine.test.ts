@@ -253,7 +253,27 @@ describe('resolveEncounter partial casualties', () => {
       speed: 5,
     }
     const fragilePlayer: Player = { ...createPlayer(rng), tableId: table.id, character: fragileTank }
-    const unstoppable = makeUnstoppableSeatedPlayer(table.id, rng)
+    // Same level as the fragile tank (even though wildly stronger in raw
+    // stats) so the under-leveled-holds-back AI rule doesn't kick in and
+    // change this ally's behavior — it needs to actively advance and clear
+    // the encounter, not sit back.
+    const unstoppableChar: Character = {
+      id: 'unstoppable-char',
+      name: 'Unstoppable',
+      race: 'Human',
+      className: 'Godslayer',
+      role: 'dps',
+      level: 1,
+      xp: 0,
+      maxHp: 999_999,
+      attackPower: 999_999,
+      defense: 999_999,
+      healPower: 0,
+      moveRange: 5,
+      attackRange: 5,
+      speed: 99,
+    }
+    const unstoppable: Player = { ...createPlayer(rng), tableId: table.id, character: unstoppableChar }
     const dm = makeDm({ unlockedModuleIds: ['goblin-ambush'] })
 
     const result = resolveEncounter(table, [fragilePlayer, unstoppable], dm, rng)

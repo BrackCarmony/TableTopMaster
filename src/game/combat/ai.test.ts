@@ -62,4 +62,31 @@ describe('planTurn', () => {
     expect(action.kind).toBe('move')
     if (action.kind === 'move') expect(action.targetId).toBe('e')
   })
+
+  it('holds position instead of advancing when under-leveled next to its allies', () => {
+    const rookie = makeUnit({ id: 'rookie', name: 'Rookie', level: 1, position: { x: 0, y: 0 }, attackRange: 1, moveRange: 3 })
+    const veteran = makeUnit({ id: 'veteran', name: 'Veteran', level: 40, position: { x: 0, y: 1 } })
+    const enemy = makeUnit({ id: 'e', name: 'E', side: 'enemy', position: { x: 5, y: 0 } })
+
+    const action = planTurn(rookie, [rookie, veteran, enemy], 8, 8)
+    expect(action.kind).toBe('idle')
+  })
+
+  it('still attacks when an under-leveled unit already has a target in range without moving', () => {
+    const rookie = makeUnit({ id: 'rookie', name: 'Rookie', level: 1, position: { x: 0, y: 0 }, attackRange: 1, moveRange: 3 })
+    const veteran = makeUnit({ id: 'veteran', name: 'Veteran', level: 40, position: { x: 0, y: 1 } })
+    const enemy = makeUnit({ id: 'e', name: 'E', side: 'enemy', position: { x: 1, y: 0 } })
+
+    const action = planTurn(rookie, [rookie, veteran, enemy], 8, 8)
+    expect(action.kind).toBe('attack')
+  })
+
+  it('advances normally when everyone in the party is the same level', () => {
+    const a = makeUnit({ id: 'a', name: 'A', level: 5, position: { x: 0, y: 0 }, attackRange: 1, moveRange: 3 })
+    const b = makeUnit({ id: 'b', name: 'B', level: 5, position: { x: 0, y: 1 } })
+    const enemy = makeUnit({ id: 'e', name: 'E', side: 'enemy', position: { x: 5, y: 0 } })
+
+    const action = planTurn(a, [a, b, enemy], 8, 8)
+    expect(action.kind).toBe('move')
+  })
 })
