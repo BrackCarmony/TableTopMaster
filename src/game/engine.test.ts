@@ -3,7 +3,15 @@ import { createCharacterForPlayer, createPlayer } from './characters'
 import type { CombatLogEvent } from './combat/types'
 import { getModuleById } from './data/modules'
 import { getTrophyQuality } from './data/trophies'
-import { computeInfamyReward, hasRoleSelectionUnlock, resolveEncounter } from './engine'
+import { UPGRADES } from './data/upgrades'
+import {
+  BASE_COOLDOWN_MS,
+  MIN_COOLDOWN_MS,
+  computeInfamyReward,
+  computeMultipliers,
+  hasRoleSelectionUnlock,
+  resolveEncounter,
+} from './engine'
 import { createRng } from './rng'
 import type { Character, DMState, Player, Table } from './types'
 
@@ -27,6 +35,22 @@ describe('computeInfamyReward', () => {
   it('never returns less than 1', () => {
     const amount = computeInfamyReward(0, 0, { gold: 1, xp: 1, cooldown: 1, infamy: 1 })
     expect(amount).toBeGreaterThanOrEqual(1)
+  })
+})
+
+describe('cooldownMultiplier stacking', () => {
+  it('every purchasable Faster Sessions tier still meaningfully reduces cooldown, not silently swallowed by the floor', () => {
+    const cooldownUpgradeIds = UPGRADES.filter((u) => u.effect.kind === 'cooldownMultiplier').map((u) => u.id)
+    expect(cooldownUpgradeIds.length).toBeGreaterThan(1) // otherwise this test proves nothing about stacking
+
+    const dm = makeDm({ purchasedUpgradeIds: cooldownUpgradeIds })
+    const multipliers = computeMultipliers(dm)
+    const stackedCooldown = Math.max(MIN_COOLDOWN_MS, Math.round(BASE_COOLDOWN_MS * multipliers.cooldown))
+
+    // Meaningfully above the floor, not just barely clipped to it — if a
+    // future tier pushes this to (or near) MIN_COOLDOWN_MS, that tier is a
+    // silent no-op and should be dropped or rebalanced instead of added.
+    expect(stackedCooldown).toBeGreaterThan(MIN_COOLDOWN_MS * 1.5)
   })
 })
 
