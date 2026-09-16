@@ -188,9 +188,20 @@ export function resolveEncounter(
   let goldGain = 0
   let infamyBonus = 0
 
+  // A character who dies still earns Infamy even when the rest of the table
+  // lives on — death is what Infamy is for, not just a full-party wipe.
+  const casualtyCount = seatedPlayers.reduce(
+    (n, p) => n + (p.character && !survivorCharIds.has(p.character.id) ? 1 : 0),
+    0,
+  )
+  if (casualtyCount > 0) {
+    infamyBonus += computeInfamyReward(table.lifetimeGold, casualtyCount, multipliers)
+    nextDm = { ...nextDm, infamy: nextDm.infamy + infamyBonus }
+  }
+
   if (result.outcome === 'victory') {
     goldGain = Math.round(result.goldReward * multipliers.gold)
-    nextDm = { ...dm, gold: dm.gold + goldGain }
+    nextDm = { ...nextDm, gold: nextDm.gold + goldGain }
     nextLifetimeGold += goldGain
     nextEncounterIndex = (table.encounterIndex + 1) % moduleDef.encounters.length
 
@@ -204,10 +215,11 @@ export function resolveEncounter(
         tierDefeated: executionTier,
         earnedAt: Date.now(),
       }
-      infamyBonus = TROPHY_BASE_INFAMY + executionTier * TROPHY_INFAMY_PER_TIER
+      const trophyInfamy = TROPHY_BASE_INFAMY + executionTier * TROPHY_INFAMY_PER_TIER
+      infamyBonus += trophyInfamy
       nextDm = {
         ...nextDm,
-        infamy: nextDm.infamy + infamyBonus,
+        infamy: nextDm.infamy + trophyInfamy,
         executionTier: { ...nextDm.executionTier, [moduleDef.id]: executionTier + 1 },
         trophies: [...nextDm.trophies, trophy],
       }

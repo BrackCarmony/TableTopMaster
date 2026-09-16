@@ -228,6 +228,30 @@ describe('resolveEncounter stalemates', () => {
   })
 })
 
+describe('resolveEncounter partial casualties', () => {
+  it('grants Infamy for a character who dies even when the table does not wipe', () => {
+    const rng = createRng(2)
+    const table = makeTable({ assignedModuleId: 'goblin-ambush' })
+    // Two ordinary rolled characters (fragile at level 1) plus one unkillable
+    // ally who single-handedly clears the encounter — guarantees the table
+    // survives (the ally never dies) while leaving real odds that a weak
+    // party member dies along the way, without an outright wipe.
+    const weak1 = makeSeatedPlayer(table.id, rng)
+    const weak2 = makeSeatedPlayer(table.id, rng)
+    const unstoppable = makeUnstoppableSeatedPlayer(table.id, rng)
+    const dm = makeDm({ unlockedModuleIds: ['goblin-ambush'] })
+
+    const result = resolveEncounter(table, [weak1, weak2, unstoppable], dm, rng)
+
+    const stillSeated = result.players.filter((p) => p.tableId === table.id)
+    expect(stillSeated.length).toBeGreaterThan(0) // not a full wipe
+    expect(stillSeated.length).toBeLessThan(3) // but somebody did die
+
+    expect(result.dm.infamy).toBeGreaterThan(dm.infamy)
+    expect(result.table.lastBattleRewards!.infamy).toBe(result.dm.infamy - dm.infamy)
+  })
+})
+
 describe('hasRoleSelectionUnlock', () => {
   it('is false until the upgrade is purchased', () => {
     expect(hasRoleSelectionUnlock(makeDm())).toBe(false)
