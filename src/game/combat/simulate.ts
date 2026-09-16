@@ -1,7 +1,7 @@
 import type { RngFn } from '../rng'
-import { inRange } from './grid'
+import { inRange, manhattanDistance } from './grid'
 import { planTurn } from './ai'
-import type { CombatLogEvent, CombatUnit, EncounterResult, EncounterTemplate, EnemySpawn } from './types'
+import type { CombatLogEvent, CombatUnit, EncounterResult, EncounterTemplate, EnemySpawn, GridCoord, Role } from './types'
 
 const MAX_ROUNDS = 50
 const HIT_CHANCE = 0.85
@@ -43,9 +43,36 @@ function buildEnemyUnits(template: EncounterTemplate): CombatUnit[] {
   }))
 }
 
+const ROLE_FRONT_PRIORITY: Record<Role, number> = { tank: 0, dps: 1, healer: 2 }
+
+function averagePosition(positions: GridCoord[]): GridCoord {
+  const sum = positions.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 })
+  return { x: sum.x / positions.length, y: sum.y / positions.length }
+}
+
+/**
+ * Fills the template's start positions role-first instead of in whatever
+ * order units happen to be listed: tanks land on whichever positions are
+ * actually closest (by the same Manhattan metric the AI's nearest-enemy
+ * targeting uses) to the enemies, dps take the next-closest, and healers
+ * land farthest back. Otherwise a tank stuck in a back row can't draw
+ * aggro, and a squishier ally standing closer eats the hits meant for it.
+ */
 function positionParty(partyUnits: CombatUnit[], template: EncounterTemplate): CombatUnit[] {
-  return partyUnits.map((u, index) => {
-    const pos = template.partyStartPositions[index % template.partyStartPositions.length]
+  const enemyPositions = template.enemies.map((e) => e.position)
+  const orderedPositions =
+    enemyPositions.length === 0
+      ? template.partyStartPositions
+      : [...template.partyStartPositions].sort((a, b) => {
+          const centroid = averagePosition(enemyPositions)
+          return manhattanDistance(a, centroid) - manhattanDistance(b, centroid)
+        })
+
+  const orderedUnits = [...partyUnits].sort((a, b) => ROLE_FRONT_PRIORITY[a.role] - ROLE_FRONT_PRIORITY[b.role])
+  const positionById = new Map(orderedUnits.map((u, i) => [u.id, orderedPositions[i % orderedPositions.length]]))
+
+  return partyUnits.map((u) => {
+    const pos = positionById.get(u.id)!
     return { ...u, position: { ...pos }, hp: u.maxHp, alive: true }
   })
 }

@@ -159,6 +159,38 @@ describe('runEncounter', () => {
     expect(result.goldReward).toBe(0)
   })
 
+  it('places tanks closest to the enemies and healers farthest back, regardless of seating order', () => {
+    const positionTemplate: EncounterTemplate = {
+      id: 'position-test',
+      name: 'Position Test',
+      gridWidth: 10,
+      gridHeight: 10,
+      partyStartPositions: [
+        { x: 0, y: 5 }, // farthest from the enemy (distance 9)
+        { x: 5, y: 5 }, // middle distance (4)
+        { x: 8, y: 5 }, // closest (1)
+      ],
+      enemies: [
+        { name: 'Target', role: 'dps', position: { x: 9, y: 5 }, hp: 999, attackPower: 1, defense: 0, healPower: 0, moveRange: 0, attackRange: 0, speed: 1 },
+      ],
+    }
+    // Deliberately seated in the "wrong" order — healer first, tank last —
+    // to prove placement is role-driven, not just seating order.
+    const party = [
+      makeUnit({ id: 'healer', role: 'healer' }),
+      makeUnit({ id: 'dps', role: 'dps' }),
+      makeUnit({ id: 'tank', role: 'tank' }),
+    ]
+    const result = runEncounter(party, positionTemplate, createRng(1))
+    const start = result.log[0]
+    if (start.type !== 'encounter_start') throw new Error('expected encounter_start')
+    const posById = new Map(start.units.filter((u) => u.side === 'party').map((u) => [u.id, u.position]))
+
+    expect(posById.get('tank')).toEqual({ x: 8, y: 5 })
+    expect(posById.get('dps')).toEqual({ x: 5, y: 5 })
+    expect(posById.get('healer')).toEqual({ x: 0, y: 5 })
+  })
+
   it('calls a stalemate when neither side can reach or hit the other', () => {
     const frozenTemplate: EncounterTemplate = {
       id: 'frozen',

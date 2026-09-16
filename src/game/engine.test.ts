@@ -230,22 +230,37 @@ describe('resolveEncounter stalemates', () => {
 
 describe('resolveEncounter partial casualties', () => {
   it('grants Infamy for a character who dies even when the table does not wipe', () => {
-    const rng = createRng(2)
+    const rng = createRng(4)
     const table = makeTable({ assignedModuleId: 'goblin-ambush' })
-    // Two ordinary rolled characters (fragile at level 1) plus one unkillable
-    // ally who single-handedly clears the encounter — guarantees the table
-    // survives (the ally never dies) while leaving real odds that a weak
-    // party member dies along the way, without an outright wipe.
-    const weak1 = makeSeatedPlayer(table.id, rng)
-    const weak2 = makeSeatedPlayer(table.id, rng)
+    // A one-hp tank (guaranteed to die to any landed hit, and placed in
+    // front by role-aware positioning so it's the one goblins actually
+    // reach) alongside an unkillable ally who single-handedly clears the
+    // encounter — guarantees the table survives without an outright wipe.
+    const fragileTank: Character = {
+      id: 'fragile-tank-char',
+      name: 'Fragile Tank',
+      race: 'Human',
+      className: 'Cannon Fodder',
+      role: 'tank',
+      level: 1,
+      xp: 0,
+      maxHp: 1,
+      attackPower: 1,
+      defense: 0,
+      healPower: 0,
+      moveRange: 3,
+      attackRange: 1,
+      speed: 5,
+    }
+    const fragilePlayer: Player = { ...createPlayer(rng), tableId: table.id, character: fragileTank }
     const unstoppable = makeUnstoppableSeatedPlayer(table.id, rng)
     const dm = makeDm({ unlockedModuleIds: ['goblin-ambush'] })
 
-    const result = resolveEncounter(table, [weak1, weak2, unstoppable], dm, rng)
+    const result = resolveEncounter(table, [fragilePlayer, unstoppable], dm, rng)
 
     const stillSeated = result.players.filter((p) => p.tableId === table.id)
-    expect(stillSeated.length).toBeGreaterThan(0) // not a full wipe
-    expect(stillSeated.length).toBeLessThan(3) // but somebody did die
+    expect(stillSeated.length).toBe(1) // the fragile tank died, the unstoppable ally didn't
+    expect(stillSeated[0].character?.id).toBe('unstoppable-char')
 
     expect(result.dm.infamy).toBeGreaterThan(dm.infamy)
     expect(result.table.lastBattleRewards!.infamy).toBe(result.dm.infamy - dm.infamy)
