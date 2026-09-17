@@ -1,6 +1,6 @@
 import type { RngFn } from './rng'
 import type { CombatUnit, Role } from './combat/types'
-import { getClassTier, rollClassName, rollRole } from './data/classes'
+import { getClassTier, rollClassName, rollRole, type ClassTierDef } from './data/classes'
 import { legacyStatMultiplier } from './data/legacy'
 import { rollName, rollPlayerName, rollRace } from './data/names'
 import { rollPersonality, type DominantTrait } from './personality'
@@ -82,6 +82,40 @@ function applyLevelUpStats(character: Character): void {
       character.healPower += 1
       break
   }
+}
+
+export interface LevelStatsProjection {
+  maxHp: number
+  attackPower: number
+  defense: number
+  healPower: number
+}
+
+/**
+ * Projects a class tier's stats at a given level without needing a live
+ * Character — reuses the exact same per-level growth as real play
+ * (applyLevelUpStats), so the class reference screen can never drift from
+ * what a character actually gets when it levels up for real.
+ */
+export function projectStatsAtLevel(role: Role, tierDef: ClassTierDef, level: number): LevelStatsProjection {
+  const character: Character = {
+    id: '',
+    name: '',
+    race: '',
+    className: '',
+    role,
+    level: 1,
+    xp: 0,
+    maxHp: tierDef.baseMaxHp,
+    attackPower: tierDef.baseAttackPower,
+    defense: tierDef.baseDefense,
+    healPower: tierDef.baseHealPower,
+    moveRange: tierDef.moveRange,
+    attackRange: tierDef.attackRange,
+    speed: tierDef.speed,
+  }
+  for (let i = 1; i < level; i++) applyLevelUpStats(character)
+  return { maxHp: character.maxHp, attackPower: character.attackPower, defense: character.defense, healPower: character.healPower }
 }
 
 /** Mutates a clone of the character, applying XP and any resulting level-ups. */

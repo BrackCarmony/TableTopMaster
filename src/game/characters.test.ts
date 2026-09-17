@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createCharacterForPlayer } from './characters'
+import { createCharacterForPlayer, projectStatsAtLevel } from './characters'
 import { getClassTier } from './data/classes'
 import { legacyStatMultiplier } from './data/legacy'
 import { createRng } from './rng'
@@ -70,6 +70,36 @@ describe('createCharacterForPlayer', () => {
     for (let seed = 0; seed < 20; seed++) {
       const character = createCharacterForPlayer(player, createRng(seed), 'tank')
       expect(character.role).toBe('tank')
+    }
+  })
+})
+
+describe('projectStatsAtLevel', () => {
+  it('matches the tier base stats exactly at level 1', () => {
+    const tierDef = getClassTier('healer', 3)
+    const projected = projectStatsAtLevel('healer', tierDef, 1)
+    expect(projected).toEqual({
+      maxHp: tierDef.baseMaxHp,
+      attackPower: tierDef.baseAttackPower,
+      defense: tierDef.baseDefense,
+      healPower: tierDef.baseHealPower,
+    })
+  })
+
+  it('matches createCharacterForPlayer + repeated leveling for an arbitrary level, for every role', () => {
+    for (const role of ['tank', 'dps', 'healer'] as const) {
+      const tierDef = getClassTier(role, 4)
+      const projected = projectStatsAtLevel(role, tierDef, 12)
+
+      const player = makePlayer({ roleTiers: { tank: 4, dps: 4, healer: 4 } })
+      const leveled = createCharacterForPlayer(player, createRng(1), role, 11) // 1 + 11 bonus levels = level 12
+
+      expect(projected).toEqual({
+        maxHp: leveled.maxHp,
+        attackPower: leveled.attackPower,
+        defense: leveled.defense,
+        healPower: leveled.healPower,
+      })
     }
   })
 })
