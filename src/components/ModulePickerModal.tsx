@@ -21,13 +21,16 @@ export function ModulePickerModal({
   onExecuted: (log: CombatLogEvent[], moduleName: string, rewards: BattleRewards | null) => void
 }) {
   const dm = useGameStore((s) => s.dm)
+  const seatedCount = useGameStore((s) => s.players.filter((p) => p.tableId === table.id).length)
   const assignModule = useGameStore((s) => s.assignModule)
   const executeModuleNow = useGameStore((s) => s.executeModuleNow)
 
   const campaignModules = MODULES.filter((m) => m.kind === 'campaign')
   const executionModules = MODULES.filter((m) => m.kind === 'execution')
+  const hasSeatedParty = seatedCount > 0
 
   function handleAssign(moduleDef: AdventureModule) {
+    if (!hasSeatedParty) return // nobody to send — the picker already disables this, but don't act on a stale click
     if (moduleDef.kind === 'execution') {
       const confirmed = window.confirm(
         `Send ${table.name}'s party to "${moduleDef.name}"? This is an execution contract — nothing is expected to survive.`,
@@ -61,6 +64,13 @@ export function ModulePickerModal({
           </button>
         </div>
 
+        {!hasSeatedParty && (
+          <p className="mb-4 rounded-md border border-amber-800 bg-amber-950/30 px-3 py-2 text-xs text-amber-300">
+            No one's seated at this table — close this and seat a player first. Assigning a module with an empty
+            table does nothing.
+          </p>
+        )}
+
         <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-400">Campaign Modules</h3>
         <div className="mb-6 flex flex-col gap-2">
           {campaignModules.map((moduleDef) => {
@@ -69,7 +79,7 @@ export function ModulePickerModal({
             return (
               <button
                 key={moduleDef.id}
-                disabled={!affordable}
+                disabled={!affordable || !hasSeatedParty}
                 onClick={() => handleAssign(moduleDef)}
                 className="rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-left transition hover:border-emerald-600 hover:bg-slate-750 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -92,12 +102,13 @@ export function ModulePickerModal({
             return (
               <button
                 key={moduleDef.id}
+                disabled={!hasSeatedParty}
                 onClick={() => handleAssign(moduleDef)}
-                className="rounded-md border border-rose-900 bg-rose-950/40 px-3 py-2 text-left transition hover:border-rose-600 hover:bg-rose-950/70"
+                className="rounded-md border border-rose-900 bg-rose-950/40 px-3 py-2 text-left transition hover:border-rose-600 hover:bg-rose-950/70 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-rose-200">{moduleDef.name}</span>
-                  <span className="text-xs text-rose-400">Guaranteed TPK</span>
+                  <span className="text-xs text-rose-400">{hasSeatedParty ? 'Guaranteed TPK' : 'No one seated'}</span>
                 </div>
                 <p className="mt-1 text-xs text-rose-300/80">{moduleDef.description}</p>
                 {tier > 0 && (
