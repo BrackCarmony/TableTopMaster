@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createCharacterForPlayer, projectStatsAtLevel } from './characters'
+import { computeGrowthPerLevel, createCharacterForPlayer, projectStatsAtLevel } from './characters'
 import { getClassTier } from './data/classes'
 import { legacyStatMultiplier } from './data/legacy'
 import { createRng } from './rng'
@@ -71,6 +71,80 @@ describe('createCharacterForPlayer', () => {
       const character = createCharacterForPlayer(player, createRng(seed), 'tank')
       expect(character.role).toBe('tank')
     }
+  })
+
+  it('a higher class tier stays proportionally stronger at high level instead of diluting away', () => {
+    // This is the exact scenario that motivated proportional growth: a
+    // level-1 tier-1 Acolyte vs. a level-1 tier-10 Hand of the Divine used
+    // to differ hugely, but by level 100 the old flat +4/level growth
+    // swamped that gap almost entirely. Growth scaling with each tier's own
+    // base now keeps the tier-10 advantage intact at any level.
+    const rookiePlayer = makePlayer({ roleTiers: { tank: 1, dps: 1, healer: 1 } })
+    const veteranPlayer = makePlayer({ roleTiers: { tank: 10, dps: 10, healer: 10 } })
+
+    const level1Rookie = createCharacterForPlayer(rookiePlayer, createRng(1), 'healer')
+    const level1Veteran = createCharacterForPlayer(veteranPlayer, createRng(1), 'healer')
+    const level1Ratio = level1Veteran.maxHp / level1Rookie.maxHp
+
+    const level100Rookie = createCharacterForPlayer(rookiePlayer, createRng(1), 'healer', 99)
+    const level100Veteran = createCharacterForPlayer(veteranPlayer, createRng(1), 'healer', 99)
+    const level100Ratio = level100Veteran.maxHp / level100Rookie.maxHp
+
+    expect(level1Ratio).toBeGreaterThan(2) // tier 10 starts substantially ahead
+    // The old flat-growth formula let this ratio collapse toward 1 at high
+    // level; it should now stay close to the level-1 ratio instead.
+    expect(level100Ratio).toBeGreaterThan(level1Ratio * 0.8)
+  })
+
+  it('a higher Veteran (legacy) Tier also grows faster per level, not just a bigger starting base', () => {
+    const rookie = makePlayer({ roleTiers: { tank: 5, dps: 5, healer: 5 }, legacyTier: 0 })
+    const veteran = makePlayer({ roleTiers: { tank: 5, dps: 5, healer: 5 }, legacyTier: 10 })
+
+    const rookieChar = createCharacterForPlayer(rookie, createRng(1), 'tank')
+    const veteranChar = createCharacterForPlayer(veteran, createRng(1), 'tank')
+
+    expect(veteranChar.maxHp).toBeGreaterThan(rookieChar.maxHp) // bigger base, as before
+    // The fix: growthPerLevel itself should also be bigger, not identical.
+    expect(veteranChar.growthPerLevel.maxHp).toBeGreaterThan(rookieChar.growthPerLevel.maxHp)
+  })
+})
+
+describe('computeGrowthPerLevel', () => {
+  it('reproduces the exact old flat per-level growth at tier 1 for every role', () => {
+    const oldFlatGrowth: Record<string, { maxHp: number; attackPower: number; defense: number; healPower: number }> = {
+      tank: { maxHp: 6, attackPower: 1, defense: 1, healPower: 0 },
+      dps: { maxHp: 3, attackPower: 2, defense: 0, healPower: 0 },
+      healer: { maxHp: 4, attackPower: 1, defense: 0, healPower: 1 },
+    }
+    for (const role of ['tank', 'dps', 'healer'] as const) {
+      const tierDef = getClassTier(role, 1)
+      const growth = computeGrowthPerLevel(role, {
+        maxHp: tierDef.baseMaxHp,
+        attackPower: tierDef.baseAttackPower,
+        defense: tierDef.baseDefense,
+        healPower: tierDef.baseHealPower,
+      })
+      expect(growth).toEqual(oldFlatGrowth[role])
+    }
+  })
+
+  it('scales up proportionally for a higher tier instead of staying flat', () => {
+    const tier1 = getClassTier('dps', 1)
+    const tier10 = getClassTier('dps', 10)
+    const growth1 = computeGrowthPerLevel('dps', {
+      maxHp: tier1.baseMaxHp,
+      attackPower: tier1.baseAttackPower,
+      defense: tier1.baseDefense,
+      healPower: tier1.baseHealPower,
+    })
+    const growth10 = computeGrowthPerLevel('dps', {
+      maxHp: tier10.baseMaxHp,
+      attackPower: tier10.baseAttackPower,
+      defense: tier10.baseDefense,
+      healPower: tier10.baseHealPower,
+    })
+    expect(growth10.maxHp).toBeGreaterThan(growth1.maxHp)
+    expect(growth10.attackPower).toBeGreaterThan(growth1.attackPower)
   })
 })
 

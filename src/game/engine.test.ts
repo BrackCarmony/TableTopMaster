@@ -108,6 +108,7 @@ function makeUnstoppableSeatedPlayer(tableId: string, rng: ReturnType<typeof cre
     moveRange: 5,
     attackRange: 5,
     speed: 99,
+    growthPerLevel: { maxHp: 0, attackPower: 0, defense: 0, healPower: 0 },
   }
   return { ...player, tableId, character }
 }
@@ -212,6 +213,7 @@ describe('resolveEncounter stalemates', () => {
       moveRange: 0,
       attackRange: 0,
       speed: 1,
+      growthPerLevel: { maxHp: 0, attackPower: 0, defense: 0, healPower: 0 },
     }
     const seated: Player = { ...player, tableId: table.id, character: unreachableCharacter }
     const dm = makeDm({ unlockedModuleIds: ['goblin-ambush'] })
@@ -266,6 +268,7 @@ describe('resolveEncounter cooldown scales with fight length', () => {
       moveRange: 0,
       attackRange: 0,
       speed: 1,
+      growthPerLevel: { maxHp: 0, attackPower: 0, defense: 0, healPower: 0 },
     }
     const seated: Player = { ...player, tableId: table.id, character: unreachableCharacter }
     const dm = makeDm({ unlockedModuleIds: ['goblin-ambush'] })
@@ -302,6 +305,7 @@ describe('resolveEncounter partial casualties', () => {
       moveRange: 3,
       attackRange: 1,
       speed: 5,
+      growthPerLevel: { maxHp: 0, attackPower: 0, defense: 0, healPower: 0 },
     }
     const fragilePlayer: Player = { ...createPlayer(rng), tableId: table.id, character: fragileTank }
     // Same level as the fragile tank (even though wildly stronger in raw
@@ -323,6 +327,7 @@ describe('resolveEncounter partial casualties', () => {
       moveRange: 5,
       attackRange: 5,
       speed: 99,
+      growthPerLevel: { maxHp: 0, attackPower: 0, defense: 0, healPower: 0 },
     }
     const unstoppable: Player = { ...createPlayer(rng), tableId: table.id, character: unstoppableChar }
     const dm = makeDm({ unlockedModuleIds: ['goblin-ambush'] })

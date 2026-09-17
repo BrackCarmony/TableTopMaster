@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { createCharacterForPlayer, createPlayer, generateTableId } from './characters'
+import { createCharacterForPlayer, createPlayer, generateTableId, LEGACY_FLAT_GROWTH } from './characters'
 import { getClassTier, maxTier } from './data/classes'
 import { legacyTierCost } from './data/legacy'
 import { trophyStartingLevelBonus } from './data/trophies'
@@ -15,7 +15,7 @@ import {
 import { createRng } from './rng'
 import { getModuleById } from './data/modules'
 import { getUpgradeById } from './data/upgrades'
-import type { DMState, GameState, Player, Role, Table } from './types'
+import type { Character, DMState, GameState, Player, Role, Table } from './types'
 
 const rng = createRng(Date.now() ^ 0x9e3779b9)
 
@@ -274,7 +274,7 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: 'tabletopmaster-save',
-      version: 6,
+      version: 7,
       partialize: (state) => ({ dm: state.dm, players: state.players, tables: state.tables, lastTickAt: state.lastTickAt }),
       migrate: (persisted, version) => {
         if (version < 2) return freshGameState()
@@ -296,6 +296,20 @@ export const useGameStore = create<GameStore>()(
         if (version < 6) {
           // v6 adds the Infamy-funded legacyTier — new field, no bonus yet.
           state.players = state.players.map((p) => ({ ...p, legacyTier: (p as Player).legacyTier ?? 0 }))
+        }
+        if (version < 7) {
+          // v7 switched from flat, tier-independent per-level growth to
+          // growth proportional to a character's own base stats — but that
+          // rate is now baked onto the character at creation. An existing
+          // live character never had one computed, so give it the old flat
+          // rate for its role and let it keep leveling exactly as it always
+          // has; only a freshly-rolled character (on its next death/reroll)
+          // gets the new proportional growth.
+          state.players = state.players.map((p) => {
+            const character = p.character as (Character & { growthPerLevel?: Character['growthPerLevel'] }) | null
+            if (!character || character.growthPerLevel) return p
+            return { ...p, character: { ...character, growthPerLevel: LEGACY_FLAT_GROWTH[character.role] } }
+          })
         }
         return state
       },

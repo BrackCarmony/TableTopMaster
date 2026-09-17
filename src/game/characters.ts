@@ -25,6 +25,56 @@ export function createPlayer(rng: RngFn, existingNames: string[] = []): Player {
   }
 }
 
+export interface StatBlock {
+  maxHp: number
+  attackPower: number
+  defense: number
+  healPower: number
+}
+
+/**
+ * Per-level growth is a fixed PERCENTAGE of a character's own base stats,
+ * baked in once at creation — not a flat, tier-independent amount. A flat
+ * rate meant a tier or Veteran Tier investment only bought a head start
+ * that any real amount of leveling eventually swamped (a level-100 tier-1
+ * Acolyte and a level-100 tier-10 Hand of the Divine end up nearly
+ * identical). Scaling growth off the base instead means a higher base
+ * (from tier OR Veteran Tier) also grows faster in absolute terms, so the
+ * advantage holds proportionally at level 1 and at level 1000.
+ *
+ * Rates are chosen to exactly reproduce each role's old flat tier-1 growth
+ * (e.g. tank's 6/26 reproduces the old flat +6/level on a tier-1 base of
+ * 26), so a tier-1 character's leveling feels identical to before — every
+ * tier above that now grows proportionally faster instead of flatlining.
+ */
+const ROLE_GROWTH_RATE: Record<Role, StatBlock> = {
+  tank: { maxHp: 6 / 26, attackPower: 1 / 4, defense: 1 / 3, healPower: 0 },
+  dps: { maxHp: 3 / 16, attackPower: 2 / 6, defense: 0, healPower: 0 },
+  healer: { maxHp: 4 / 18, attackPower: 1 / 3, defense: 0, healPower: 1 / 5 },
+}
+
+export function growthRateFor(role: Role): StatBlock {
+  return ROLE_GROWTH_RATE[role]
+}
+
+/** The fixed per-level stat increments for a character with these base stats — computed once at creation and never recomputed, so leveling stays simple addition. */
+export function computeGrowthPerLevel(role: Role, base: StatBlock): StatBlock {
+  const rate = ROLE_GROWTH_RATE[role]
+  return {
+    maxHp: Math.round(base.maxHp * rate.maxHp),
+    attackPower: Math.round(base.attackPower * rate.attackPower),
+    defense: Math.round(base.defense * rate.defense),
+    healPower: Math.round(base.healPower * rate.healPower),
+  }
+}
+
+/** Old flat, tier-independent per-level growth — kept only so existing saved characters (predating proportional growth) keep leveling the way they always have until they die and reroll. */
+export const LEGACY_FLAT_GROWTH: Record<Role, StatBlock> = {
+  tank: { maxHp: 6, attackPower: 1, defense: 1, healPower: 0 },
+  dps: { maxHp: 3, attackPower: 2, defense: 0, healPower: 0 },
+  healer: { maxHp: 4, attackPower: 1, defense: 0, healPower: 1 },
+}
+
 /**
  * `bonusLevels` (from the DM's trophy collection) skips the character
  * straight past its first few levels, so rebuilding a party after a wipe
@@ -36,6 +86,12 @@ export function createCharacterForPlayer(player: Player, rng: RngFn, forcedRole?
   // Applies regardless of role — a player's accumulated legacy tier makes
   // every future life stronger, not just the role they happened to roll.
   const legacyMultiplier = legacyStatMultiplier(player.legacyTier)
+  const base: StatBlock = {
+    maxHp: Math.round(tierDef.baseMaxHp * legacyMultiplier),
+    attackPower: Math.round(tierDef.baseAttackPower * legacyMultiplier),
+    defense: Math.round(tierDef.baseDefense * legacyMultiplier),
+    healPower: Math.round(tierDef.baseHealPower * legacyMultiplier),
+  }
   const character: Character = {
     id: generateId('char'),
     // Fantasy name, distinct from the player's own — recycling names across
@@ -46,13 +102,11 @@ export function createCharacterForPlayer(player: Player, rng: RngFn, forcedRole?
     role,
     level: 1,
     xp: 0,
-    maxHp: Math.round(tierDef.baseMaxHp * legacyMultiplier),
-    attackPower: Math.round(tierDef.baseAttackPower * legacyMultiplier),
-    defense: Math.round(tierDef.baseDefense * legacyMultiplier),
-    healPower: Math.round(tierDef.baseHealPower * legacyMultiplier),
+    ...base,
     moveRange: tierDef.moveRange,
     attackRange: tierDef.attackRange,
     speed: tierDef.speed,
+    growthPerLevel: computeGrowthPerLevel(role, base),
   }
   for (let i = 0; i < bonusLevels; i++) {
     character.level += 1
@@ -66,22 +120,10 @@ export function xpToNextLevel(level: number): number {
 }
 
 function applyLevelUpStats(character: Character): void {
-  switch (character.role) {
-    case 'tank':
-      character.maxHp += 6
-      character.attackPower += 1
-      character.defense += 1
-      break
-    case 'dps':
-      character.maxHp += 3
-      character.attackPower += 2
-      break
-    case 'healer':
-      character.maxHp += 4
-      character.attackPower += 1
-      character.healPower += 1
-      break
-  }
+  character.maxHp += character.growthPerLevel.maxHp
+  character.attackPower += character.growthPerLevel.attackPower
+  character.defense += character.growthPerLevel.defense
+  character.healPower += character.growthPerLevel.healPower
 }
 
 export interface LevelStatsProjection {
@@ -95,9 +137,16 @@ export interface LevelStatsProjection {
  * Projects a class tier's stats at a given level without needing a live
  * Character — reuses the exact same per-level growth as real play
  * (applyLevelUpStats), so the class reference screen can never drift from
- * what a character actually gets when it levels up for real.
+ * what a character actually gets when it levels up for real. Doesn't factor
+ * in any player's Veteran Tier, since this is a generic tier-only view.
  */
 export function projectStatsAtLevel(role: Role, tierDef: ClassTierDef, level: number): LevelStatsProjection {
+  const base: StatBlock = {
+    maxHp: tierDef.baseMaxHp,
+    attackPower: tierDef.baseAttackPower,
+    defense: tierDef.baseDefense,
+    healPower: tierDef.baseHealPower,
+  }
   const character: Character = {
     id: '',
     name: '',
@@ -106,13 +155,11 @@ export function projectStatsAtLevel(role: Role, tierDef: ClassTierDef, level: nu
     role,
     level: 1,
     xp: 0,
-    maxHp: tierDef.baseMaxHp,
-    attackPower: tierDef.baseAttackPower,
-    defense: tierDef.baseDefense,
-    healPower: tierDef.baseHealPower,
+    ...base,
     moveRange: tierDef.moveRange,
     attackRange: tierDef.attackRange,
     speed: tierDef.speed,
+    growthPerLevel: computeGrowthPerLevel(role, base),
   }
   for (let i = 1; i < level; i++) applyLevelUpStats(character)
   return { maxHp: character.maxHp, attackPower: character.attackPower, defense: character.defense, healPower: character.healPower }

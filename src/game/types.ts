@@ -18,6 +18,8 @@ export interface Character {
   moveRange: number
   attackRange: number
   speed: number
+  /** Fixed per-level stat increments, baked in at creation from this character's tier+Veteran-Tier-adjusted base stats — see characters.ts computeGrowthPerLevel. */
+  growthPerLevel: { maxHp: number; attackPower: number; defense: number; healPower: number }
 }
 
 export interface Player {
