@@ -277,41 +277,52 @@ export const useGameStore = create<GameStore>()(
       version: 7,
       partialize: (state) => ({ dm: state.dm, players: state.players, tables: state.tables, lastTickAt: state.lastTickAt }),
       migrate: (persisted, version) => {
-        if (version < 2) return freshGameState()
-        const state = persisted as GameState
-        if (version < 4) {
-          // v3's executionAttempts tracked attempts, not wins — the semantics
-          // changed (escalation now only happens on a win), so there's no
-          // sound way to carry old attempt counts forward; reset to base.
-          const dm = state.dm as DMState & { executionAttempts?: Record<string, number> }
-          const { executionAttempts: _executionAttempts, ...rest } = dm
-          state.dm = { ...rest, executionTier: {}, trophies: dm.trophies ?? [] }
+        // A save schema has changed almost every session — if a future
+        // migration step has a bug on some real save shape we didn't
+        // anticipate, that must never soft-lock the app on the loading
+        // screen forever. Falling back to a fresh game is a bad day, but a
+        // recoverable one; hanging on "Loading your dungeons..." forever
+        // with no way out is worse.
+        try {
+          if (version < 2) return freshGameState()
+          const state = persisted as GameState
+          if (version < 4) {
+            // v3's executionAttempts tracked attempts, not wins — the semantics
+            // changed (escalation now only happens on a win), so there's no
+            // sound way to carry old attempt counts forward; reset to base.
+            const dm = state.dm as DMState & { executionAttempts?: Record<string, number> }
+            const { executionAttempts: _executionAttempts, ...rest } = dm
+            state.dm = { ...rest, executionTier: {}, trophies: dm.trophies ?? [] }
+          }
+          if (version < 5) {
+            // v4 trophies were { name } only; v5 replaced that with { part, quality }.
+            // Old trophies can't be mapped onto the new shape, so they're dropped —
+            // executionTier (the real progress) is untouched.
+            state.dm = { ...state.dm, trophies: [] }
+          }
+          if (version < 6) {
+            // v6 adds the Infamy-funded legacyTier — new field, no bonus yet.
+            state.players = state.players.map((p) => ({ ...p, legacyTier: (p as Player).legacyTier ?? 0 }))
+          }
+          if (version < 7) {
+            // v7 switched from flat, tier-independent per-level growth to
+            // growth proportional to a character's own base stats — but that
+            // rate is now baked onto the character at creation. An existing
+            // live character never had one computed, so give it the old flat
+            // rate for its role and let it keep leveling exactly as it always
+            // has; only a freshly-rolled character (on its next death/reroll)
+            // gets the new proportional growth.
+            state.players = state.players.map((p) => {
+              const character = p.character as (Character & { growthPerLevel?: Character['growthPerLevel'] }) | null
+              if (!character || character.growthPerLevel) return p
+              return { ...p, character: { ...character, growthPerLevel: LEGACY_FLAT_GROWTH[character.role] } }
+            })
+          }
+          return state
+        } catch (err) {
+          console.error('Save migration failed — starting a fresh game instead of hanging forever:', err)
+          return freshGameState()
         }
-        if (version < 5) {
-          // v4 trophies were { name } only; v5 replaced that with { part, quality }.
-          // Old trophies can't be mapped onto the new shape, so they're dropped —
-          // executionTier (the real progress) is untouched.
-          state.dm = { ...state.dm, trophies: [] }
-        }
-        if (version < 6) {
-          // v6 adds the Infamy-funded legacyTier — new field, no bonus yet.
-          state.players = state.players.map((p) => ({ ...p, legacyTier: (p as Player).legacyTier ?? 0 }))
-        }
-        if (version < 7) {
-          // v7 switched from flat, tier-independent per-level growth to
-          // growth proportional to a character's own base stats — but that
-          // rate is now baked onto the character at creation. An existing
-          // live character never had one computed, so give it the old flat
-          // rate for its role and let it keep leveling exactly as it always
-          // has; only a freshly-rolled character (on its next death/reroll)
-          // gets the new proportional growth.
-          state.players = state.players.map((p) => {
-            const character = p.character as (Character & { growthPerLevel?: Character['growthPerLevel'] }) | null
-            if (!character || character.growthPerLevel) return p
-            return { ...p, character: { ...character, growthPerLevel: LEGACY_FLAT_GROWTH[character.role] } }
-          })
-        }
-        return state
       },
     },
   ),
@@ -319,8 +330,18 @@ export const useGameStore = create<GameStore>()(
 
 // Explicitly drive rehydration rather than relying solely on the
 // onRehydrateStorage callback, whose firing proved unreliable across
-// StrictMode's double module evaluation in dev.
-void useGameStore.persist.rehydrate()?.then(() => {
-  useGameStore.setState({ hasHydrated: true })
-  useGameStore.getState().catchUpOffline()
-})
+// StrictMode's double module evaluation in dev. The migrate() above already
+// guards against a bad save shape, but if rehydrate() itself ever rejects
+// (e.g. corrupted/unparsable localStorage JSON), still flip hasHydrated so
+// the app starts on a fresh game instead of sitting on the loading screen
+// forever with no way for the player to recover.
+void useGameStore.persist
+  .rehydrate()
+  ?.then(() => {
+    useGameStore.setState({ hasHydrated: true })
+    useGameStore.getState().catchUpOffline()
+  })
+  .catch((err) => {
+    console.error('Rehydration failed — starting a fresh game instead of hanging forever:', err)
+    useGameStore.setState({ hasHydrated: true })
+  })
