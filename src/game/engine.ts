@@ -1,6 +1,6 @@
 import type { RngFn } from './rng'
 import { applyXp, toCombatUnit } from './characters'
-import { MAX_ROUNDS, runEncounter } from './combat/simulate'
+import { runEncounter } from './combat/simulate'
 import type { EncounterTemplate, EnemySpawn } from './combat/types'
 import { getModuleById } from './data/modules'
 import { DEFAULT_TROPHY_PARTS, getTrophyQuality } from './data/trophies'
@@ -82,15 +82,23 @@ export function computeInfamyReward(lifetimeGold: number, partyCount: number, mu
   return Math.max(1, Math.round(amount * multipliers.infamy))
 }
 
+// A "par" clear (roughly what a competent-but-not-trivial fight should take)
+// lands right at the old flat cooldown. Faster than that earns a discount;
+// slower than that costs extra, capped at 2x so a truly ugly stalemate
+// doesn't spiral into an absurd wait. Tuned as a starting point — adjust
+// PAR_ROUNDS if the game ends up feeling too fast/slow in practice.
+export const PAR_ROUNDS = 7
+export const MAX_COOLDOWN_SCALE = 2
+
 /**
- * Cooldown scales with how long the fight actually took — a quick, clean
- * clear gets back to the next encounter fast, while a fight that drags out
- * toward the round cap earns the full cooldown. This is what actually
- * rewards a well-prepared party instead of every table grinding at the
- * exact same pace regardless of how well it's doing.
+ * Cooldown scales with how long the fight actually took relative to a par
+ * clear — a quick, clean win gets back to the next encounter faster than
+ * before, while a fight that drags on costs more than before. This is what
+ * actually rewards a well-prepared party instead of every table grinding at
+ * the exact same pace regardless of how well it's doing.
  */
 function freshCooldown(multipliers: Multipliers, roundsElapsed: number): number {
-  const paceScale = Math.min(1, roundsElapsed / MAX_ROUNDS)
+  const paceScale = Math.min(MAX_COOLDOWN_SCALE, roundsElapsed / PAR_ROUNDS)
   return Math.max(MIN_COOLDOWN_MS, Math.round(BASE_COOLDOWN_MS * multipliers.cooldown * paceScale))
 }
 

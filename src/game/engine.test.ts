@@ -6,6 +6,7 @@ import { getTrophyQuality } from './data/trophies'
 import { UPGRADES } from './data/upgrades'
 import {
   BASE_COOLDOWN_MS,
+  MAX_COOLDOWN_SCALE,
   MIN_COOLDOWN_MS,
   computeInfamyReward,
   computeMultipliers,
@@ -229,7 +230,7 @@ describe('resolveEncounter stalemates', () => {
 })
 
 describe('resolveEncounter cooldown scales with fight length', () => {
-  it('gives a fast, overwhelming win the minimum cooldown', () => {
+  it('gives a fast, overwhelming win a discount below the base cooldown', () => {
     const table = makeTable({ assignedModuleId: 'goblin-ambush' })
     const dm = makeDm({ unlockedModuleIds: ['goblin-ambush'] })
     const unstoppable = makeUnstoppableSeatedPlayer(table.id, createRng(1))
@@ -237,10 +238,14 @@ describe('resolveEncounter cooldown scales with fight length', () => {
     const result = resolveEncounter(table, [unstoppable], dm, createRng(2))
 
     expect(result.table.lastBattleRewards?.outcome).toBe('victory')
-    expect(result.table.cooldownRemaining).toBe(MIN_COOLDOWN_MS)
+    // A quick clear (well under PAR_ROUNDS) should cost noticeably less
+    // than the old flat cooldown, but not necessarily hit the exact floor —
+    // that depends on exactly how many rounds it took.
+    expect(result.table.cooldownRemaining).toBeGreaterThanOrEqual(MIN_COOLDOWN_MS)
+    expect(result.table.cooldownRemaining).toBeLessThan(BASE_COOLDOWN_MS)
   })
 
-  it('gives a fight that drags out to the round cap the full base cooldown', () => {
+  it('gives a fight that drags out to the round cap the capped maximum cooldown', () => {
     const table = makeTable({ assignedModuleId: 'goblin-ambush' })
     const rng = createRng(1)
     const player = createPlayer(rng)
@@ -268,7 +273,9 @@ describe('resolveEncounter cooldown scales with fight length', () => {
     const result = resolveEncounter(table, [seated], dm, createRng(2))
 
     expect(result.table.lastBattleRewards?.outcome).toBe('stalemate')
-    expect(result.table.cooldownRemaining).toBe(BASE_COOLDOWN_MS)
+    // A stalemate always maxes out roundsElapsed, which is far beyond
+    // PAR_ROUNDS — cooldown should hit the cap, not just the old flat value.
+    expect(result.table.cooldownRemaining).toBe(BASE_COOLDOWN_MS * MAX_COOLDOWN_SCALE)
   })
 })
 
