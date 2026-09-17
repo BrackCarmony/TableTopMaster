@@ -25,13 +25,18 @@ export function createPlayer(rng: RngFn, existingNames: string[] = []): Player {
   }
 }
 
-export function createCharacterForPlayer(player: Player, rng: RngFn, forcedRole?: Role): Character {
+/**
+ * `bonusLevels` (from the DM's trophy collection) skips the character
+ * straight past its first few levels, so rebuilding a party after a wipe
+ * doesn't mean re-grinding the earliest modules from scratch every time.
+ */
+export function createCharacterForPlayer(player: Player, rng: RngFn, forcedRole?: Role, bonusLevels = 0): Character {
   const role: Role = forcedRole ?? rollRole(rng, player.roleTiers)
   const tierDef = getClassTier(role, player.roleTiers[role])
   // Applies regardless of role — a player's accumulated legacy tier makes
   // every future life stronger, not just the role they happened to roll.
   const legacyMultiplier = legacyStatMultiplier(player.legacyTier)
-  return {
+  const character: Character = {
     id: generateId('char'),
     // Fantasy name, distinct from the player's own — recycling names across
     // characters/lives is fine (that's how real tables work too).
@@ -49,6 +54,11 @@ export function createCharacterForPlayer(player: Player, rng: RngFn, forcedRole?
     attackRange: tierDef.attackRange,
     speed: tierDef.speed,
   }
+  for (let i = 0; i < bonusLevels; i++) {
+    character.level += 1
+    applyLevelUpStats(character)
+  }
+  return character
 }
 
 export function xpToNextLevel(level: number): number {

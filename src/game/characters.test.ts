@@ -45,6 +45,24 @@ describe('createCharacterForPlayer', () => {
     expect(character.defense).toBe(Math.round(tierDef.baseDefense * multiplier))
   })
 
+  it('starts bonusLevels higher and grows stats for every skipped level, same as normal leveling', () => {
+    const player = makePlayer({ roleTiers: { tank: 1, dps: 1, healer: 1 } })
+    const tierDef = getClassTier('tank', 1)
+    const character = createCharacterForPlayer(player, createRng(1), 'tank', 5)
+
+    expect(character.level).toBe(6) // started at 1, skipped 5 levels
+    // tank grows +6 maxHp / +1 attackPower / +1 defense per level
+    expect(character.maxHp).toBe(tierDef.baseMaxHp + 6 * 5)
+    expect(character.attackPower).toBe(tierDef.baseAttackPower + 1 * 5)
+    expect(character.defense).toBe(tierDef.baseDefense + 1 * 5)
+  })
+
+  it('defaults to no bonus levels when none are passed', () => {
+    const player = makePlayer({ roleTiers: { tank: 1, dps: 1, healer: 1 } })
+    const character = createCharacterForPlayer(player, createRng(1), 'tank')
+    expect(character.level).toBe(1)
+  })
+
   it('honors an explicit forcedRole, bypassing the weighted roll entirely', () => {
     // roleTiers is all-healer weighted, so an unforced roll would almost
     // never land on tank — forcing it should still always land on tank.

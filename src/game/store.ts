@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import { createCharacterForPlayer, createPlayer, generateTableId } from './characters'
 import { getClassTier, maxTier } from './data/classes'
 import { legacyTierCost } from './data/legacy'
+import { trophyStartingLevelBonus } from './data/trophies'
 import {
   MAX_OFFLINE_MS,
   effectiveTableCapacity,
@@ -114,7 +115,8 @@ export const useGameStore = create<GameStore>()(
           // Trust the caller's forcedRole only if the unlock is actually
           // purchased — never take a role choice at face value from the UI.
           const allowedForcedRole = forcedRole && hasRoleSelectionUnlock(state.dm) ? forcedRole : undefined
-          const character = createCharacterForPlayer(player, rng, allowedForcedRole)
+          const bonusLevels = trophyStartingLevelBonus(state.dm.trophies.length)
+          const character = createCharacterForPlayer(player, rng, allowedForcedRole, bonusLevels)
           return {
             players: state.players.map((p) => (p.id === playerId ? { ...p, tableId, character } : p)),
           }

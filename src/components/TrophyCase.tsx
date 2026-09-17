@@ -1,4 +1,5 @@
 import { formatNumber } from '../format'
+import { trophyStartingLevelBonus } from '../game/data/trophies'
 import { useGameStore } from '../game/store'
 
 export function TrophyCase() {
@@ -12,15 +13,22 @@ export function TrophyCase() {
     byPart.get(t.part)!.add(t.quality)
   }
   const parts = [...byPart.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+  const startingLevelBonus = trophyStartingLevelBonus(trophies.length)
 
   return (
     <div className="rounded-lg border border-amber-900/60 bg-amber-950/10 p-4">
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-1 flex items-center justify-between">
         <h2 className="text-base font-semibold text-amber-200">Trophy Case</h2>
         <span className="text-xs text-slate-500">
           {formatNumber(parts.length)} part{parts.length === 1 ? '' : 's'} collected &middot; {formatNumber(trophies.length)} total
         </span>
       </div>
+      <p
+        className="mb-3 text-xs text-amber-300/80"
+        title="Every trophy in the case permanently raises the starting level of every character rolled from now on, for any player."
+      >
+        Every future character starts at Lv {formatNumber(1 + startingLevelBonus)} instead of Lv 1.
+      </p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {parts.map(([part, qualities]) => (
           <div key={part} className="rounded-md bg-slate-900/50 px-3 py-2">
