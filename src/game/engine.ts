@@ -303,10 +303,19 @@ export function tickTables(
   let d = dm
   let allPlayers = players
   const nextTables = tables.map((table) => {
-    const result = tickTable(table, allPlayers, d, dtMs, rng)
-    d = result.dm
-    allPlayers = result.players
-    return result.table
+    // One table's data throwing (a bad encounter, a corrupted character,
+    // anything) must never freeze every other table too — this used to be a
+    // single .map() with no isolation, so one bad table blocked the whole
+    // batch update forever, every tick, on every table, permanently.
+    try {
+      const result = tickTable(table, allPlayers, d, dtMs, rng)
+      d = result.dm
+      allPlayers = result.players
+      return result.table
+    } catch (err) {
+      console.error(`Table "${table.name}" (${table.id}) failed to tick — leaving it paused this tick:`, err)
+      return table
+    }
   })
   return { tables: nextTables, players: allPlayers, dm: d }
 }
