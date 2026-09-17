@@ -85,6 +85,7 @@ interface GameStore extends GameState {
   buyUpgrade: (upgradeId: string) => void
   tick: (dtMs: number) => void
   catchUpOffline: () => void
+  resetGame: () => void
 }
 
 function freshGameState(): GameState {
@@ -281,6 +282,13 @@ export const useGameStore = create<GameStore>()(
           const { tables, players, dm } = tickTables(state.tables, state.players, state.dm, elapsed, rng)
           return { tables, players, dm, lastTickAt: Date.now() }
         }),
+
+      // Replaces dm/players/tables/lastTickAt wholesale with a brand new
+      // game. Just clearing localStorage from the console doesn't work here
+      // — the game loop is still running against the OLD in-memory state,
+      // so persist's next write re-saves it right back. This actually
+      // resets the live store, so the reset itself gets persisted correctly.
+      resetGame: () => set(() => freshGameState()),
     }),
     {
       name: 'tabletopmaster-save',
