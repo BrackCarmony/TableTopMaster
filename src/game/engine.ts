@@ -1,6 +1,6 @@
 import type { RngFn } from './rng'
 import { applyXp, toCombatUnit } from './characters'
-import { runEncounter } from './combat/simulate'
+import { MAX_ROUNDS, runEncounter } from './combat/simulate'
 import type { EncounterTemplate, EnemySpawn } from './combat/types'
 import { getModuleById } from './data/modules'
 import { DEFAULT_TROPHY_PARTS, getTrophyQuality } from './data/trophies'
@@ -82,8 +82,16 @@ export function computeInfamyReward(lifetimeGold: number, partyCount: number, mu
   return Math.max(1, Math.round(amount * multipliers.infamy))
 }
 
-function freshCooldown(multipliers: Multipliers): number {
-  return Math.max(MIN_COOLDOWN_MS, Math.round(BASE_COOLDOWN_MS * multipliers.cooldown))
+/**
+ * Cooldown scales with how long the fight actually took — a quick, clean
+ * clear gets back to the next encounter fast, while a fight that drags out
+ * toward the round cap earns the full cooldown. This is what actually
+ * rewards a well-prepared party instead of every table grinding at the
+ * exact same pace regardless of how well it's doing.
+ */
+function freshCooldown(multipliers: Multipliers, roundsElapsed: number): number {
+  const paceScale = Math.min(1, roundsElapsed / MAX_ROUNDS)
+  return Math.max(MIN_COOLDOWN_MS, Math.round(BASE_COOLDOWN_MS * multipliers.cooldown * paceScale))
 }
 
 /**
@@ -173,7 +181,7 @@ export function resolveEncounter(
       ...table,
       assignedModuleId: null,
       encounterIndex: 0,
-      cooldownRemaining: freshCooldown(multipliers),
+      cooldownRemaining: freshCooldown(multipliers, result.roundsElapsed),
       lifetimeGold: 0,
       lastBattleLog: result.log,
       lastBattleModuleName: moduleDef.name,
@@ -230,7 +238,7 @@ export function resolveEncounter(
     ...table,
     encounterIndex: nextEncounterIndex,
     lifetimeGold: nextLifetimeGold,
-    cooldownRemaining: freshCooldown(multipliers),
+    cooldownRemaining: freshCooldown(multipliers, result.roundsElapsed),
     lastBattleLog: result.log,
     lastBattleModuleName: moduleDef.name,
     lastBattleRewards: { outcome: result.outcome, xp: xpGain, gold: goldGain, infamy: infamyBonus },

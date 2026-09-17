@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { runEncounter } from './simulate'
+import { MAX_ROUNDS, runEncounter } from './simulate'
 import { createRng } from '../rng'
 import type { CombatUnit, EncounterTemplate } from './types'
 
@@ -157,6 +157,28 @@ describe('runEncounter', () => {
     // grinding an unwinnable fight forever must never pay out loot.
     expect(result.xpReward).toBeGreaterThan(0)
     expect(result.goldReward).toBe(0)
+  })
+
+  it('reports roundsElapsed maxed out for a stalemate but low for a quick, overwhelming win', () => {
+    const noRampTemplate: EncounterTemplate = {
+      id: 'no-ramp-test-2',
+      name: 'No Ramp Test 2',
+      gridWidth: 8,
+      gridHeight: 8,
+      partyStartPositions: [{ x: 0, y: 0 }],
+      enemies: [
+        { name: 'Boss', role: 'dps', position: { x: 1, y: 0 }, hp: 50000, attackPower: 5, defense: 1000, healPower: 0, moveRange: 1, attackRange: 1, speed: 1 },
+      ],
+    }
+    const stalematingParty = [makeUnit({ id: 'hero', name: 'Hero', hp: 500, maxHp: 500, defense: 0, attackPower: 10, attackRange: 1 })]
+    const stalemate = runEncounter(stalematingParty, noRampTemplate, createRng(1))
+    expect(stalemate.outcome).toBe('stalemate')
+    expect(stalemate.roundsElapsed).toBe(MAX_ROUNDS)
+
+    const overwhelmingParty = [makeUnit({ id: 'hero', name: 'Hero', attackPower: 999, hp: 999, maxHp: 999 })]
+    const quickWin = runEncounter(overwhelmingParty, basicTemplate, createRng(7))
+    expect(quickWin.outcome).toBe('victory')
+    expect(quickWin.roundsElapsed).toBeLessThan(MAX_ROUNDS / 5)
   })
 
   it('places tanks closest to the enemies and healers farthest back, regardless of seating order', () => {

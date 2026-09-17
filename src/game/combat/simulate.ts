@@ -3,7 +3,7 @@ import { inRange, manhattanDistance } from './grid'
 import { planTurn } from './ai'
 import type { CombatLogEvent, CombatUnit, EncounterResult, EncounterTemplate, EnemySpawn, GridCoord, Role } from './types'
 
-const MAX_ROUNDS = 50
+export const MAX_ROUNDS = 50
 const HIT_CHANCE = 0.85
 
 // Reward scales with how tough the enemies actually were, not just their
@@ -150,8 +150,10 @@ export function runEncounter(partyUnits: CombatUnit[], template: EncounterTempla
   const initiativeOrder = [...units].sort((a, b) => b.speed - a.speed)
 
   let outcome: 'victory' | 'defeat' | 'stalemate' | null = null
+  let roundsElapsed = 0
 
   for (let round = 0; round < MAX_ROUNDS && outcome === null; round++) {
+    roundsElapsed = round + 1
     for (const unit of initiativeOrder) {
       if (!unit.alive) continue
       outcome = checkOutcome(units)
@@ -208,5 +210,5 @@ export function runEncounter(partyUnits: CombatUnit[], template: EncounterTempla
   const goldReward = outcome === 'victory' ? Math.round(totalPower * GOLD_PER_POWER) : 0
   const xpReward = outcome === 'victory' || outcome === 'stalemate' ? Math.round(totalPower * XP_PER_POWER) : 0
 
-  return { log, outcome, survivorIds, goldReward, xpReward }
+  return { log, outcome, survivorIds, goldReward, xpReward, roundsElapsed }
 }

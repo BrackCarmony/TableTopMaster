@@ -67,4 +67,6 @@ export interface EncounterResult {
   survivorIds: string[]
   goldReward: number
   xpReward: number
+  /** How many rounds the fight actually took (1-based) — a stalemate always maxes this out at MAX_ROUNDS. */
+  roundsElapsed: number
 }

@@ -228,6 +228,50 @@ describe('resolveEncounter stalemates', () => {
   })
 })
 
+describe('resolveEncounter cooldown scales with fight length', () => {
+  it('gives a fast, overwhelming win the minimum cooldown', () => {
+    const table = makeTable({ assignedModuleId: 'goblin-ambush' })
+    const dm = makeDm({ unlockedModuleIds: ['goblin-ambush'] })
+    const unstoppable = makeUnstoppableSeatedPlayer(table.id, createRng(1))
+
+    const result = resolveEncounter(table, [unstoppable], dm, createRng(2))
+
+    expect(result.table.lastBattleRewards?.outcome).toBe('victory')
+    expect(result.table.cooldownRemaining).toBe(MIN_COOLDOWN_MS)
+  })
+
+  it('gives a fight that drags out to the round cap the full base cooldown', () => {
+    const table = makeTable({ assignedModuleId: 'goblin-ambush' })
+    const rng = createRng(1)
+    const player = createPlayer(rng)
+    // Unreachable (range 0) so the fight always runs the full round cap —
+    // see the stalemate test above for why this guarantees that outcome.
+    const unreachableCharacter: Character = {
+      id: 'unreachable-char-2',
+      name: player.name,
+      race: 'Human',
+      className: 'Statue',
+      role: 'tank',
+      level: 1,
+      xp: 0,
+      maxHp: 999_999,
+      attackPower: 0,
+      defense: 999_999,
+      healPower: 0,
+      moveRange: 0,
+      attackRange: 0,
+      speed: 1,
+    }
+    const seated: Player = { ...player, tableId: table.id, character: unreachableCharacter }
+    const dm = makeDm({ unlockedModuleIds: ['goblin-ambush'] })
+
+    const result = resolveEncounter(table, [seated], dm, createRng(2))
+
+    expect(result.table.lastBattleRewards?.outcome).toBe('stalemate')
+    expect(result.table.cooldownRemaining).toBe(BASE_COOLDOWN_MS)
+  })
+})
+
 describe('resolveEncounter partial casualties', () => {
   it('grants Infamy for a character who dies even when the table does not wipe', () => {
     const rng = createRng(4)
