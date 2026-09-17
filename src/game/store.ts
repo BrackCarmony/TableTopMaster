@@ -79,6 +79,7 @@ interface GameStore extends GameState {
   recruitNewPlayer: () => void
   unlockPlayerTier: (playerId: string, role: Role) => void
   upgradePlayerLegacyTier: (playerId: string) => void
+  upgradeCheapestLegacyTier: () => void
   assignModule: (tableId: string, moduleId: string) => void
   executeModuleNow: (tableId: string, moduleId: string) => void
   buyUpgrade: (upgradeId: string) => void
@@ -160,6 +161,23 @@ export const useGameStore = create<GameStore>()(
           return {
             dm: { ...state.dm, infamy: state.dm.infamy - cost },
             players: state.players.map((p) => (p.id === playerId ? { ...p, legacyTier: p.legacyTier + 1 } : p)),
+          }
+        }),
+
+      // QoL: whoever has the lowest legacyTier always has the cheapest next
+      // purchase (cost is a pure function of current tier), so this lets the
+      // player keep clicking one button instead of hunting through the
+      // roster for whichever card currently shows the smallest cost.
+      upgradeCheapestLegacyTier: () =>
+        set((state) => {
+          if (state.players.length === 0) return state
+          const cheapest = state.players.reduce((min, p) => (p.legacyTier < min.legacyTier ? p : min))
+          const cost = legacyTierCost(cheapest.legacyTier)
+          if (state.dm.infamy < cost) return state
+
+          return {
+            dm: { ...state.dm, infamy: state.dm.infamy - cost },
+            players: state.players.map((p) => (p.id === cheapest.id ? { ...p, legacyTier: p.legacyTier + 1 } : p)),
           }
         }),
 

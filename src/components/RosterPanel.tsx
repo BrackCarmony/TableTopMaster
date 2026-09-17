@@ -59,6 +59,28 @@ function TierButton({ player, role }: { player: Player; role: Role }) {
   )
 }
 
+function BuyCheapestLegacyTierButton() {
+  const players = useGameStore((s) => s.players)
+  const infamy = useGameStore((s) => s.dm.infamy)
+  const upgradeCheapestLegacyTier = useGameStore((s) => s.upgradeCheapestLegacyTier)
+
+  if (players.length === 0) return null
+  const cheapest = players.reduce((min, p) => (p.legacyTier < min.legacyTier ? p : min))
+  const cost = legacyTierCost(cheapest.legacyTier)
+  const affordable = infamy >= cost
+
+  return (
+    <button
+      disabled={!affordable}
+      onClick={() => upgradeCheapestLegacyTier()}
+      title={`Upgrades whichever player currently has the lowest Veteran Tier (${cheapest.name}) — always the cheapest next purchase.`}
+      className="rounded-md bg-rose-700 px-3 py-1.5 text-sm font-medium text-rose-50 hover:bg-rose-600 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500"
+    >
+      💀 Upgrade Cheapest &middot; {formatNumber(cost)} Infamy
+    </button>
+  )
+}
+
 export function RosterPanel() {
   const players = useGameStore((s) => s.players)
   const tables = useGameStore((s) => s.tables)
@@ -67,7 +89,10 @@ export function RosterPanel() {
 
   return (
     <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
-      <h2 className="mb-3 text-base font-semibold text-slate-100">Roster</h2>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-base font-semibold text-slate-100">Roster</h2>
+        <BuyCheapestLegacyTierButton />
+      </div>
       <div className="flex flex-col gap-3">
         {players.map((player) => {
           const trait = dominantTrait(player.personality)
