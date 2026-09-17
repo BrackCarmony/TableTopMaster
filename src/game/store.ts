@@ -230,7 +230,17 @@ export const useGameStore = create<GameStore>()(
           }
 
           const preparedTable: Table = { ...table, assignedModuleId: moduleId, encounterIndex: 0, cooldownRemaining: 0 }
-          const resolved = resolveEncounter(preparedTable, seated, dm, rng)
+          // Same reasoning as tickTables' per-table isolation: a throw here
+          // used to abort the whole click with zero feedback — the confirm
+          // dialog fires, then apparently nothing happens, because the
+          // exception unwound past onExecuted/onClose in the component.
+          let resolved
+          try {
+            resolved = resolveEncounter(preparedTable, seated, dm, rng)
+          } catch (err) {
+            console.error(`executeModuleNow failed for table "${table.name}" (${tableId}) / module "${moduleId}":`, err)
+            return state
+          }
           const updatedById = new Map(resolved.players.map((p) => [p.id, p]))
 
           return {
