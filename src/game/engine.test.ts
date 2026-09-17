@@ -6,6 +6,8 @@ import { getTrophyQuality } from './data/trophies'
 import { UPGRADES } from './data/upgrades'
 import {
   BASE_COOLDOWN_MS,
+  EXECUTION_GROWTH_RATE,
+  EXECUTION_STARTING_TIER,
   MAX_COOLDOWN_SCALE,
   MIN_COOLDOWN_MS,
   computeInfamyReward,
@@ -154,15 +156,28 @@ describe('resolveEncounter execution-module tier scaling', () => {
 
     const end = result.table.lastBattleLog?.find((e) => e.type === 'encounter_end')
     expect(end && end.type === 'encounter_end' && end.outcome).toBe('victory')
-    expect(result.dm.executionTier['tarrasque-execution']).toBe(1)
+    // A never-yet-won execution module starts at EXECUTION_STARTING_TIER,
+    // not 0 — a fresh party can't just walk in and start racking up wins.
+    expect(result.dm.executionTier['tarrasque-execution']).toBe(EXECUTION_STARTING_TIER + 1)
     expect(result.dm.trophies).toHaveLength(1)
     expect(result.dm.trophies[0].moduleId).toBe('tarrasque-execution')
-    expect(result.dm.trophies[0].tierDefeated).toBe(0)
+    expect(result.dm.trophies[0].tierDefeated).toBe(EXECUTION_STARTING_TIER)
     expect(result.dm.infamy).toBeGreaterThan(dm.infamy)
 
     const tarrasque = getModuleById('tarrasque-execution')!
     expect(tarrasque.trophyParts).toContain(result.dm.trophies[0].part)
-    expect(result.dm.trophies[0].quality).toBe(getTrophyQuality(0))
+    expect(result.dm.trophies[0].quality).toBe(getTrophyQuality(EXECUTION_STARTING_TIER))
+  })
+
+  it('starts a never-yet-won module at EXECUTION_STARTING_TIER instead of tier 0', () => {
+    const table = makeTable()
+    const seated = makeSeatedPlayer(table.id, createRng(6))
+    // makeDm() defaults to an empty executionTier map — i.e. never won yet.
+    const result = resolveEncounter(table, [seated], makeDm(), createRng(7))
+
+    const freshEnemyHp = enemyMaxHpFromLog(result.table.lastBattleLog)
+    const baseHp = getModuleById('tarrasque-execution')!.encounters[0].enemies[0].hp
+    expect(freshEnemyHp).toBe(Math.round(baseHp * EXECUTION_GROWTH_RATE ** EXECUTION_STARTING_TIER))
   })
 
   it('scales the next fight up based on the tier just won, not merely attempted', () => {

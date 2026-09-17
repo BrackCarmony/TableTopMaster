@@ -108,7 +108,13 @@ function freshCooldown(multipliers: Multipliers, roundsElapsed: number): number 
  * don't fight it until you're ready" from being a viable way to dodge the
  * escalation: leaving it alone keeps it exactly as dangerous as it is now.
  */
-const EXECUTION_GROWTH_RATE = 1.4
+export const EXECUTION_GROWTH_RATE = 1.4
+// A never-yet-won execution module doesn't start at the very bottom of that
+// curve — it's already as tough as tier 3 would be, so a fresh party can't
+// just walk in and rack up several wins before it has a chance to escalate
+// on its own. Every further win still climbs by 1 tier from here, same as
+// always; this only raises the floor a first attempt starts from.
+export const EXECUTION_STARTING_TIER = 3
 const TROPHY_BASE_INFAMY = 25
 const TROPHY_INFAMY_PER_TIER = 15
 
@@ -154,7 +160,7 @@ export function resolveEncounter(
 
   const dm = initialDm
   const isExecution = moduleDef.kind === 'execution'
-  const executionTier = isExecution ? (dm.executionTier[moduleDef.id] ?? 0) : 0
+  const executionTier = isExecution ? (dm.executionTier[moduleDef.id] ?? EXECUTION_STARTING_TIER) : 0
   const encounterTemplate = isExecution
     ? scaleEncounterForTier(moduleDef.encounters[table.encounterIndex % moduleDef.encounters.length], executionTier)
     : moduleDef.encounters[table.encounterIndex % moduleDef.encounters.length]
