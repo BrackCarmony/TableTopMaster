@@ -25,9 +25,19 @@ export function ModulePickerModal({
   const assignModule = useGameStore((s) => s.assignModule)
   const executeModuleNow = useGameStore((s) => s.executeModuleNow)
 
-  const campaignModules = MODULES.filter((m) => m.kind === 'campaign')
+  const allCampaignModules = MODULES.filter((m) => m.kind === 'campaign')
   const executionModules = MODULES.filter((m) => m.kind === 'execution')
   const hasSeatedParty = seatedCount > 0
+
+  // Show every already-unlocked module plus just the next one to unlock —
+  // not all ten tiers at once. Otherwise the first-ever unlock (Goblin
+  // Ambush) buries the Tarrasque contract under nine locked modules with
+  // unlockCosts nobody can afford yet, and there's no reason to scroll past
+  // tiers you can't act on regardless. allCampaignModules is already in
+  // tier order, so the first locked entry is always the cheapest one.
+  const nextLockedIndex = allCampaignModules.findIndex((m) => !dm.unlockedModuleIds.includes(m.id))
+  const campaignModules = nextLockedIndex === -1 ? allCampaignModules : allCampaignModules.slice(0, nextLockedIndex + 1)
+  const hiddenLockedCount = allCampaignModules.length - campaignModules.length
 
   function handleAssign(moduleDef: AdventureModule) {
     if (!hasSeatedParty) return // nobody to send — the picker already disables this, but don't act on a stale click
@@ -72,7 +82,7 @@ export function ModulePickerModal({
         )}
 
         <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-400">Campaign Modules</h3>
-        <div className="mb-6 flex flex-col gap-2">
+        <div className={`flex flex-col gap-2 ${hiddenLockedCount > 0 ? 'mb-1' : 'mb-6'}`}>
           {campaignModules.map((moduleDef) => {
             const unlocked = dm.unlockedModuleIds.includes(moduleDef.id)
             const affordable = unlocked || dm.gold >= moduleDef.unlockCost
@@ -94,6 +104,12 @@ export function ModulePickerModal({
             )
           })}
         </div>
+        {hiddenLockedCount > 0 && (
+          <p className="mb-6 text-xs text-slate-500">
+            {hiddenLockedCount} higher {hiddenLockedCount === 1 ? 'tier is' : 'tiers are'} still locked beyond this —
+            unlock the one above to reveal the next.
+          </p>
+        )}
 
         <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-rose-400">Execution Contracts</h3>
         <div className="flex flex-col gap-2">
