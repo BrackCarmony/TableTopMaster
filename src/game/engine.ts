@@ -103,12 +103,16 @@ function freshCooldown(multipliers: Multipliers, roundsElapsed: number): number 
 }
 
 /**
- * Each time an execution module is actually WON, it comes back 40% deadlier
- * next time — never from merely attempting or losing. That keeps "just
- * don't fight it until you're ready" from being a viable way to dodge the
- * escalation: leaving it alone keeps it exactly as dangerous as it is now.
+ * Each time an execution module is actually WON, it comes back TWICE as
+ * deadly next time — never from merely attempting or losing. That keeps
+ * "just don't fight it until you're ready" from being a viable way to dodge
+ * the escalation: leaving it alone keeps it exactly as dangerous as it is
+ * now. Bumped up from 1.4x: at that rate, a party strong enough to win once
+ * was usually strong enough to win several tiers in a row before the curve
+ * caught up — beating it needs to feel like winning one specific fight, not
+ * unlocking a short run of free wins.
  */
-export const EXECUTION_GROWTH_RATE = 1.4
+export const EXECUTION_GROWTH_RATE = 2
 // A never-yet-won execution module doesn't start at the very bottom of that
 // curve — it's already as tough as tier 3 would be, so a fresh party can't
 // just walk in and rack up several wins before it has a chance to escalate
