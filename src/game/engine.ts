@@ -164,9 +164,17 @@ export function resolveEncounter(
 
   const dm = initialDm
   const isExecution = moduleDef.kind === 'execution'
-  const executionTier = isExecution ? (dm.executionTier[moduleDef.id] ?? EXECUTION_STARTING_TIER) : 0
+  // winCount is the honest "how many times has this actually been beaten"
+  // number — it drives trophy quality, the infamy bonus, and the "Defeated N
+  // times" display, and always starts at 0. difficultyTier is a SEPARATE,
+  // offset value used only to scale the fight itself: a fresh, never-won
+  // attempt is already as tough as EXECUTION_STARTING_TIER would imply, but
+  // that's purely about making the fight hard, not about pretending you've
+  // already earned tier-3 rewards for a win you haven't gotten yet.
+  const winCount = isExecution ? (dm.executionTier[moduleDef.id] ?? 0) : 0
+  const difficultyTier = isExecution ? winCount + EXECUTION_STARTING_TIER : 0
   const encounterTemplate = isExecution
-    ? scaleEncounterForTier(moduleDef.encounters[table.encounterIndex % moduleDef.encounters.length], executionTier)
+    ? scaleEncounterForTier(moduleDef.encounters[table.encounterIndex % moduleDef.encounters.length], difficultyTier)
     : moduleDef.encounters[table.encounterIndex % moduleDef.encounters.length]
 
   const partyUnits = seatedPlayers.map((p) => toCombatUnit(p.character!, dominantTrait(p.personality)))
@@ -237,16 +245,16 @@ export function resolveEncounter(
         id: generateTrophyId(),
         moduleId: moduleDef.id,
         part: parts[Math.floor(rng() * parts.length)],
-        quality: getTrophyQuality(executionTier),
-        tierDefeated: executionTier,
+        quality: getTrophyQuality(winCount),
+        tierDefeated: winCount,
         earnedAt: Date.now(),
       }
-      const trophyInfamy = TROPHY_BASE_INFAMY + executionTier * TROPHY_INFAMY_PER_TIER
+      const trophyInfamy = TROPHY_BASE_INFAMY + winCount * TROPHY_INFAMY_PER_TIER
       infamyBonus += trophyInfamy
       nextDm = {
         ...nextDm,
         infamy: nextDm.infamy + trophyInfamy,
-        executionTier: { ...nextDm.executionTier, [moduleDef.id]: executionTier + 1 },
+        executionTier: { ...nextDm.executionTier, [moduleDef.id]: winCount + 1 },
         trophies: [...nextDm.trophies, trophy],
       }
     }

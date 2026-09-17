@@ -156,20 +156,22 @@ describe('resolveEncounter execution-module tier scaling', () => {
 
     const end = result.table.lastBattleLog?.find((e) => e.type === 'encounter_end')
     expect(end && end.type === 'encounter_end' && end.outcome).toBe('victory')
-    // A never-yet-won execution module starts at EXECUTION_STARTING_TIER,
-    // not 0 — a fresh party can't just walk in and start racking up wins.
-    expect(result.dm.executionTier['tarrasque-execution']).toBe(EXECUTION_STARTING_TIER + 1)
+    // The FIGHT starts elevated (see the difficulty-scaling test below), but
+    // the very first real win still earns a first-rung reward — tier 0
+    // quality/infamy, not tier EXECUTION_STARTING_TIER's. Difficulty and
+    // reward are deliberately different numbers now.
+    expect(result.dm.executionTier['tarrasque-execution']).toBe(1)
     expect(result.dm.trophies).toHaveLength(1)
     expect(result.dm.trophies[0].moduleId).toBe('tarrasque-execution')
-    expect(result.dm.trophies[0].tierDefeated).toBe(EXECUTION_STARTING_TIER)
+    expect(result.dm.trophies[0].tierDefeated).toBe(0)
     expect(result.dm.infamy).toBeGreaterThan(dm.infamy)
 
     const tarrasque = getModuleById('tarrasque-execution')!
     expect(tarrasque.trophyParts).toContain(result.dm.trophies[0].part)
-    expect(result.dm.trophies[0].quality).toBe(getTrophyQuality(EXECUTION_STARTING_TIER))
+    expect(result.dm.trophies[0].quality).toBe(getTrophyQuality(0))
   })
 
-  it('starts a never-yet-won module at EXECUTION_STARTING_TIER instead of tier 0', () => {
+  it('starts a never-yet-won module at EXECUTION_STARTING_TIER worth of difficulty, but not reward', () => {
     const table = makeTable()
     const seated = makeSeatedPlayer(table.id, createRng(6))
     // makeDm() defaults to an empty executionTier map — i.e. never won yet.
