@@ -20,6 +20,11 @@ const PARTY_START = [
 // baseline (compounding, so tier 10 lands at 1.35^9 ≈ 14.9x tier 1) — steep
 // enough that the fight itself, not just a module's gold unlockCost, is what
 // actually gates progress into a new tier.
+//
+// Enemy headcount also grows with tier, from 2-4 early on up to a full 7 by
+// Undying Court — matching the up-to-7-seat table a fully-invested roster
+// can field, so the later fights actually look and feel like they're using
+// the extra chairs instead of staying a 3-enemy skirmish forever.
 export const GOBLIN_AMBUSH_1: EncounterTemplate = {
   id: 'goblin-ambush-1',
   name: 'Goblin Skirmishers',
@@ -108,6 +113,7 @@ export const DRAGONS_PEAK_1: EncounterTemplate = {
     { name: 'Wyrmling', role: 'dps', position: { x: 8, y: 2 }, hp: 135, attackPower: 37, defense: 15, healPower: 0, moveRange: 4, attackRange: 2, speed: 14 },
     { name: 'Wyrmling', role: 'dps', position: { x: 8, y: 5 }, hp: 135, attackPower: 37, defense: 15, healPower: 0, moveRange: 4, attackRange: 2, speed: 14 },
     { name: 'Wyrmling', role: 'dps', position: { x: 8, y: 8 }, hp: 135, attackPower: 37, defense: 15, healPower: 0, moveRange: 4, attackRange: 2, speed: 14 },
+    { name: 'Wyrmling', role: 'dps', position: { x: 8, y: 0 }, hp: 135, attackPower: 37, defense: 15, healPower: 0, moveRange: 4, attackRange: 2, speed: 14 },
   ],
 }
 
@@ -121,6 +127,7 @@ export const DRAGONS_PEAK_2: EncounterTemplate = {
     { name: 'Elder Wyrm', role: 'tank', position: { x: 8, y: 5 }, hp: 271, attackPower: 44, defense: 22, healPower: 0, moveRange: 4, attackRange: 2, speed: 13 },
     { name: 'Wyrmling', role: 'dps', position: { x: 8, y: 2 }, hp: 135, attackPower: 37, defense: 15, healPower: 0, moveRange: 4, attackRange: 2, speed: 14 },
     { name: 'Wyrmling', role: 'dps', position: { x: 8, y: 8 }, hp: 135, attackPower: 37, defense: 15, healPower: 0, moveRange: 4, attackRange: 2, speed: 14 },
+    { name: 'Wyrmling', role: 'dps', position: { x: 8, y: 0 }, hp: 135, attackPower: 37, defense: 15, healPower: 0, moveRange: 4, attackRange: 2, speed: 14 },
   ],
 }
 
@@ -134,6 +141,7 @@ export const ABYSSAL_RIFT_1: EncounterTemplate = {
     { name: 'Imp', role: 'dps', position: { x: 8, y: 2 }, hp: 199, attackPower: 60, defense: 23, healPower: 0, moveRange: 5, attackRange: 3, speed: 16 },
     { name: 'Hellhound', role: 'dps', position: { x: 8, y: 5 }, hp: 249, attackPower: 66, defense: 27, healPower: 0, moveRange: 5, attackRange: 1, speed: 18 },
     { name: 'Imp Shaman', role: 'healer', position: { x: 8, y: 8 }, hp: 183, attackPower: 33, defense: 20, healPower: 43, moveRange: 4, attackRange: 2, speed: 15 },
+    { name: 'Imp', role: 'dps', position: { x: 8, y: 0 }, hp: 199, attackPower: 60, defense: 23, healPower: 0, moveRange: 5, attackRange: 3, speed: 16 },
   ],
 }
 
@@ -147,6 +155,7 @@ export const ABYSSAL_RIFT_2: EncounterTemplate = {
     { name: 'Demon Prince', role: 'tank', position: { x: 8, y: 5 }, hp: 531, attackPower: 80, defense: 40, healPower: 0, moveRange: 4, attackRange: 2, speed: 15 },
     { name: 'Imp', role: 'dps', position: { x: 8, y: 2 }, hp: 199, attackPower: 60, defense: 23, healPower: 0, moveRange: 5, attackRange: 3, speed: 16 },
     { name: 'Imp', role: 'dps', position: { x: 8, y: 8 }, hp: 199, attackPower: 60, defense: 23, healPower: 0, moveRange: 5, attackRange: 3, speed: 16 },
+    { name: 'Imp', role: 'dps', position: { x: 8, y: 0 }, hp: 199, attackPower: 60, defense: 23, healPower: 0, moveRange: 5, attackRange: 3, speed: 16 },
   ],
 }
 
@@ -160,6 +169,8 @@ export const FROZEN_WASTES_1: EncounterTemplate = {
     { name: 'Ice Wraith', role: 'dps', position: { x: 8, y: 2 }, hp: 314, attackPower: 108, defense: 45, healPower: 0, moveRange: 4, attackRange: 2, speed: 15 },
     { name: 'Ice Wraith', role: 'dps', position: { x: 8, y: 5 }, hp: 314, attackPower: 108, defense: 45, healPower: 0, moveRange: 4, attackRange: 2, speed: 15 },
     { name: 'Ice Wraith', role: 'dps', position: { x: 8, y: 8 }, hp: 314, attackPower: 108, defense: 45, healPower: 0, moveRange: 4, attackRange: 2, speed: 15 },
+    { name: 'Ice Wraith', role: 'dps', position: { x: 8, y: 0 }, hp: 314, attackPower: 108, defense: 45, healPower: 0, moveRange: 4, attackRange: 2, speed: 15 },
+    { name: 'Ice Wraith', role: 'dps', position: { x: 8, y: 9 }, hp: 314, attackPower: 108, defense: 45, healPower: 0, moveRange: 4, attackRange: 2, speed: 15 },
   ],
 }
 
@@ -173,6 +184,8 @@ export const FROZEN_WASTES_2: EncounterTemplate = {
     { name: 'Frost Giant', role: 'tank', position: { x: 8, y: 5 }, hp: 1031, attackPower: 143, defense: 72, healPower: 0, moveRange: 3, attackRange: 1, speed: 10 },
     { name: 'Ice Wraith', role: 'dps', position: { x: 8, y: 2 }, hp: 314, attackPower: 108, defense: 45, healPower: 0, moveRange: 4, attackRange: 2, speed: 15 },
     { name: 'Ice Wraith', role: 'dps', position: { x: 8, y: 8 }, hp: 314, attackPower: 108, defense: 45, healPower: 0, moveRange: 4, attackRange: 2, speed: 15 },
+    { name: 'Ice Wraith', role: 'dps', position: { x: 8, y: 0 }, hp: 314, attackPower: 108, defense: 45, healPower: 0, moveRange: 4, attackRange: 2, speed: 15 },
+    { name: 'Ice Wraith', role: 'dps', position: { x: 8, y: 9 }, hp: 314, attackPower: 108, defense: 45, healPower: 0, moveRange: 4, attackRange: 2, speed: 15 },
   ],
 }
 
@@ -186,6 +199,8 @@ export const CLOCKWORK_VAULT_1: EncounterTemplate = {
     { name: 'Clockwork Sentinel', role: 'tank', position: { x: 8, y: 2 }, hp: 908, attackPower: 169, defense: 133, healPower: 0, moveRange: 3, attackRange: 1, speed: 10 },
     { name: 'Clockwork Sentinel', role: 'tank', position: { x: 8, y: 5 }, hp: 908, attackPower: 169, defense: 133, healPower: 0, moveRange: 3, attackRange: 1, speed: 10 },
     { name: 'Clockwork Sentinel', role: 'tank', position: { x: 8, y: 8 }, hp: 908, attackPower: 169, defense: 133, healPower: 0, moveRange: 3, attackRange: 1, speed: 10 },
+    { name: 'Clockwork Sentinel', role: 'tank', position: { x: 8, y: 0 }, hp: 908, attackPower: 169, defense: 133, healPower: 0, moveRange: 3, attackRange: 1, speed: 10 },
+    { name: 'Clockwork Sentinel', role: 'tank', position: { x: 8, y: 9 }, hp: 908, attackPower: 169, defense: 133, healPower: 0, moveRange: 3, attackRange: 1, speed: 10 },
   ],
 }
 
@@ -199,6 +214,8 @@ export const CLOCKWORK_VAULT_2: EncounterTemplate = {
     { name: 'Iron Golem', role: 'tank', position: { x: 8, y: 5 }, hp: 1998, attackPower: 254, defense: 182, healPower: 0, moveRange: 2, attackRange: 1, speed: 7 },
     { name: 'Clockwork Sentinel', role: 'tank', position: { x: 8, y: 2 }, hp: 908, attackPower: 169, defense: 133, healPower: 0, moveRange: 3, attackRange: 1, speed: 10 },
     { name: 'Repair Drone', role: 'healer', position: { x: 8, y: 8 }, hp: 605, attackPower: 91, defense: 91, healPower: 212, moveRange: 4, attackRange: 2, speed: 12 },
+    { name: 'Clockwork Sentinel', role: 'tank', position: { x: 8, y: 0 }, hp: 908, attackPower: 169, defense: 133, healPower: 0, moveRange: 3, attackRange: 1, speed: 10 },
+    { name: 'Clockwork Sentinel', role: 'tank', position: { x: 8, y: 9 }, hp: 908, attackPower: 169, defense: 133, healPower: 0, moveRange: 3, attackRange: 1, speed: 10 },
   ],
 }
 
@@ -212,6 +229,9 @@ export const VOID_BETWEEN_STARS_1: EncounterTemplate = {
     { name: 'Star Spawn', role: 'dps', position: { x: 8, y: 2 }, hp: 1798, attackPower: 392, defense: 163, healPower: 0, moveRange: 5, attackRange: 3, speed: 20 },
     { name: 'Star Spawn', role: 'dps', position: { x: 8, y: 5 }, hp: 1798, attackPower: 392, defense: 163, healPower: 0, moveRange: 5, attackRange: 3, speed: 20 },
     { name: 'Star Spawn', role: 'dps', position: { x: 8, y: 8 }, hp: 1798, attackPower: 392, defense: 163, healPower: 0, moveRange: 5, attackRange: 3, speed: 20 },
+    { name: 'Star Spawn', role: 'dps', position: { x: 8, y: 0 }, hp: 1798, attackPower: 392, defense: 163, healPower: 0, moveRange: 5, attackRange: 3, speed: 20 },
+    { name: 'Star Spawn', role: 'dps', position: { x: 8, y: 9 }, hp: 1798, attackPower: 392, defense: 163, healPower: 0, moveRange: 5, attackRange: 3, speed: 20 },
+    { name: 'Star Spawn', role: 'dps', position: { x: 9, y: 4 }, hp: 1798, attackPower: 392, defense: 163, healPower: 0, moveRange: 5, attackRange: 3, speed: 20 },
   ],
 }
 
@@ -225,6 +245,9 @@ export const VOID_BETWEEN_STARS_2: EncounterTemplate = {
     { name: 'Void Horror', role: 'tank', position: { x: 8, y: 5 }, hp: 3882, attackPower: 449, defense: 229, healPower: 0, moveRange: 4, attackRange: 3, speed: 16 },
     { name: 'Star Spawn', role: 'dps', position: { x: 8, y: 2 }, hp: 1798, attackPower: 392, defense: 163, healPower: 0, moveRange: 5, attackRange: 3, speed: 20 },
     { name: 'Star Spawn', role: 'dps', position: { x: 8, y: 8 }, hp: 1798, attackPower: 392, defense: 163, healPower: 0, moveRange: 5, attackRange: 3, speed: 20 },
+    { name: 'Star Spawn', role: 'dps', position: { x: 8, y: 0 }, hp: 1798, attackPower: 392, defense: 163, healPower: 0, moveRange: 5, attackRange: 3, speed: 20 },
+    { name: 'Star Spawn', role: 'dps', position: { x: 8, y: 9 }, hp: 1798, attackPower: 392, defense: 163, healPower: 0, moveRange: 5, attackRange: 3, speed: 20 },
+    { name: 'Star Spawn', role: 'dps', position: { x: 9, y: 4 }, hp: 1798, attackPower: 392, defense: 163, healPower: 0, moveRange: 5, attackRange: 3, speed: 20 },
   ],
 }
 
@@ -238,6 +261,9 @@ export const TITANS_FORGE_1: EncounterTemplate = {
     { name: 'Ember Wraith', role: 'dps', position: { x: 8, y: 2 }, hp: 3530, attackPower: 684, defense: 353, healPower: 0, moveRange: 4, attackRange: 2, speed: 18 },
     { name: 'Ember Wraith', role: 'dps', position: { x: 8, y: 5 }, hp: 3530, attackPower: 684, defense: 353, healPower: 0, moveRange: 4, attackRange: 2, speed: 18 },
     { name: 'Ember Wraith', role: 'dps', position: { x: 8, y: 8 }, hp: 3530, attackPower: 684, defense: 353, healPower: 0, moveRange: 4, attackRange: 2, speed: 18 },
+    { name: 'Ember Wraith', role: 'dps', position: { x: 8, y: 0 }, hp: 3530, attackPower: 684, defense: 353, healPower: 0, moveRange: 4, attackRange: 2, speed: 18 },
+    { name: 'Ember Wraith', role: 'dps', position: { x: 8, y: 9 }, hp: 3530, attackPower: 684, defense: 353, healPower: 0, moveRange: 4, attackRange: 2, speed: 18 },
+    { name: 'Ember Wraith', role: 'dps', position: { x: 9, y: 4 }, hp: 3530, attackPower: 684, defense: 353, healPower: 0, moveRange: 4, attackRange: 2, speed: 18 },
   ],
 }
 
@@ -251,6 +277,9 @@ export const TITANS_FORGE_2: EncounterTemplate = {
     { name: 'Fire Titan', role: 'tank', position: { x: 8, y: 5 }, hp: 7557, attackPower: 794, defense: 408, healPower: 0, moveRange: 3, attackRange: 1, speed: 12 },
     { name: 'Ember Wraith', role: 'dps', position: { x: 8, y: 2 }, hp: 3530, attackPower: 684, defense: 353, healPower: 0, moveRange: 4, attackRange: 2, speed: 18 },
     { name: 'Ember Wraith', role: 'dps', position: { x: 8, y: 8 }, hp: 3530, attackPower: 684, defense: 353, healPower: 0, moveRange: 4, attackRange: 2, speed: 18 },
+    { name: 'Ember Wraith', role: 'dps', position: { x: 8, y: 0 }, hp: 3530, attackPower: 684, defense: 353, healPower: 0, moveRange: 4, attackRange: 2, speed: 18 },
+    { name: 'Ember Wraith', role: 'dps', position: { x: 8, y: 9 }, hp: 3530, attackPower: 684, defense: 353, healPower: 0, moveRange: 4, attackRange: 2, speed: 18 },
+    { name: 'Ember Wraith', role: 'dps', position: { x: 9, y: 4 }, hp: 3530, attackPower: 684, defense: 353, healPower: 0, moveRange: 4, attackRange: 2, speed: 18 },
   ],
 }
 
@@ -264,6 +293,10 @@ export const UNDYING_COURT_1: EncounterTemplate = {
     { name: 'Deathless Knight', role: 'tank', position: { x: 8, y: 2 }, hp: 6702, attackPower: 1117, defense: 670, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
     { name: 'Deathless Knight', role: 'tank', position: { x: 8, y: 7 }, hp: 6702, attackPower: 1117, defense: 670, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
     { name: 'Wraith Chancellor', role: 'healer', position: { x: 8, y: 5 }, hp: 5213, attackPower: 596, defense: 447, healPower: 1340, moveRange: 4, attackRange: 3, speed: 16 },
+    { name: 'Deathless Knight', role: 'tank', position: { x: 8, y: 0 }, hp: 6702, attackPower: 1117, defense: 670, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Deathless Knight', role: 'tank', position: { x: 8, y: 9 }, hp: 6702, attackPower: 1117, defense: 670, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Deathless Knight', role: 'tank', position: { x: 9, y: 3 }, hp: 6702, attackPower: 1117, defense: 670, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Deathless Knight', role: 'tank', position: { x: 9, y: 6 }, hp: 6702, attackPower: 1117, defense: 670, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
   ],
 }
 
@@ -277,6 +310,10 @@ export const UNDYING_COURT_2: EncounterTemplate = {
     { name: 'The Undying King', role: 'tank', position: { x: 8, y: 5 }, hp: 14670, attackPower: 1400, defense: 730, healPower: 0, moveRange: 4, attackRange: 2, speed: 18 },
     { name: 'Deathless Knight', role: 'tank', position: { x: 8, y: 2 }, hp: 6702, attackPower: 1117, defense: 670, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
     { name: 'Wraith Chancellor', role: 'healer', position: { x: 8, y: 8 }, hp: 5213, attackPower: 596, defense: 447, healPower: 1340, moveRange: 4, attackRange: 3, speed: 16 },
+    { name: 'Deathless Knight', role: 'tank', position: { x: 8, y: 0 }, hp: 6702, attackPower: 1117, defense: 670, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Deathless Knight', role: 'tank', position: { x: 8, y: 9 }, hp: 6702, attackPower: 1117, defense: 670, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Deathless Knight', role: 'tank', position: { x: 9, y: 3 }, hp: 6702, attackPower: 1117, defense: 670, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Wraith Chancellor', role: 'healer', position: { x: 9, y: 6 }, hp: 5213, attackPower: 596, defense: 447, healPower: 1340, moveRange: 4, attackRange: 3, speed: 16 },
   ],
 }
 
