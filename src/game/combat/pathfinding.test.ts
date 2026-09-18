@@ -35,4 +35,25 @@ describe('findPathToward', () => {
     const path = findPathToward(start, target, 3, 8, 8, new Set())
     expect(path).toEqual([])
   })
+
+  it('passes through a noLand tile to reach what is beyond it, instead of treating it as a wall', () => {
+    const start = { x: 0, y: 0 }
+    const target = { x: 4, y: 0 }
+    // A corpse sitting at (2,0) — the only route — must not block reaching (3,0) and beyond.
+    const noLand = new Set(['2,0'])
+    const path = findPathToward(start, target, 5, 8, 8, new Set(), noLand)
+    expect(path.length).toBeGreaterThan(0)
+    const end = path[path.length - 1]
+    expect(noLand.has(`${end.x},${end.y}`)).toBe(false)
+    expect(manhattanDistance(end, target)).toBeLessThan(manhattanDistance(start, target))
+  })
+
+  it('never lands on a noLand tile even when it is the closest reachable one', () => {
+    const start = { x: 0, y: 0 }
+    const target = { x: 2, y: 0 }
+    const noLand = new Set(['2,0'])
+    const path = findPathToward(start, target, 5, 8, 8, new Set(), noLand)
+    const end = path[path.length - 1]
+    expect(noLand.has(`${end.x},${end.y}`)).toBe(false)
+  })
 })

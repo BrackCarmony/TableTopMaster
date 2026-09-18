@@ -17,15 +17,32 @@ export function isInBounds(c: GridCoord, width: number, height: number): boolean
 }
 
 /**
- * Tiles no unit should path onto — including dead units' tiles. Corpses stay
- * put as obstacles; otherwise a mover can step exactly onto a fallen unit's
- * cell and silently hide it behind their own token in the grid view (the
- * board only renders one unit per cell).
+ * Tiles no unit should land on — including dead units' tiles. Corpses stay
+ * put as no-land markers; otherwise a mover can step exactly onto a fallen
+ * unit's cell and silently hide it behind their own token in the grid view
+ * (the board only renders one unit per cell). Pass to `findPathToward`'s
+ * `noLand` param, not its `blocked` param — a corpse should stop a unit from
+ * stopping there, not wall off everything past it (see `livingOccupiedTiles`).
  */
 export function occupiedTiles(units: CombatUnit[], excludeId?: string): Set<string> {
   const set = new Set<string>()
   for (const u of units) {
     if (u.id === excludeId) continue
+    set.add(coordKey(u.position))
+  }
+  return set
+}
+
+/**
+ * Tiles that actually block movement — only living units. Used as
+ * `findPathToward`'s `blocked` param so a pile of corpses (which can never
+ * move once they fall) doesn't permanently wall off part of the grid and
+ * strand everyone in an unresolvable stalemate.
+ */
+export function livingOccupiedTiles(units: CombatUnit[], excludeId?: string): Set<string> {
+  const set = new Set<string>()
+  for (const u of units) {
+    if (u.id === excludeId || !u.alive) continue
     set.add(coordKey(u.position))
   }
   return set

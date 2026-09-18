@@ -1,5 +1,5 @@
 import type { CombatUnit, GridCoord } from './types'
-import { inRange, mostWoundedAllyInRange, nearestLivingEnemy, occupiedTiles } from './grid'
+import { inRange, livingOccupiedTiles, mostWoundedAllyInRange, nearestLivingEnemy, occupiedTiles } from './grid'
 import { findPathToward } from './pathfinding'
 
 export type TurnAction =
@@ -48,8 +48,9 @@ export function planTurn(unit: CombatUnit, units: CombatUnit[], gridWidth: numbe
 
   if (isUnderleveled(unit, units)) return { kind: 'idle' }
 
-  const occupied = occupiedTiles(units, unit.id)
-  const path = findPathToward(unit.position, target.position, unit.moveRange, gridWidth, gridHeight, occupied)
+  const blocked = livingOccupiedTiles(units, unit.id)
+  const noLand = occupiedTiles(units, unit.id)
+  const path = findPathToward(unit.position, target.position, unit.moveRange, gridWidth, gridHeight, blocked, noLand)
   if (path.length === 0) return { kind: 'idle' }
   return { kind: 'move', path, targetId: target.id }
 }
