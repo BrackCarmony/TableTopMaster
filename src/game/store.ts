@@ -342,7 +342,7 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: 'tabletopmaster-save',
-      version: 8,
+      version: 9,
       partialize: (state) => ({
         dm: state.dm,
         players: state.players,
@@ -400,6 +400,13 @@ export const useGameStore = create<GameStore>()(
             state.dm = { ...dm, discoveredArtifactIds: dm.discoveredArtifactIds ?? [] }
             const withShips = state as GameState & { ships?: Ship[] }
             state.ships = withShips.ships ?? []
+          }
+          if (version < 9) {
+            // v9 replaced the placeholder "Ship 1".."Ship 7" names with
+            // SHIP_NAMES — purely cosmetic (nothing reads a ship's name for
+            // gameplay), so existing ships get renamed by their fleet slot
+            // rather than keeping the old placeholder forever.
+            state.ships = state.ships.map((s, i) => ({ ...s, name: shipNameForIndex(i + 1) }))
           }
           return state
         } catch (err) {
