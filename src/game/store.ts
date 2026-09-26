@@ -4,6 +4,7 @@ import { createCharacterForPlayer, createPlayer, generateShipId, generateTableId
 import { getClassTier, maxTier } from './data/classes'
 import { getIslandById } from './data/islands'
 import { legacyTierCost } from './data/legacy'
+import { shipNameForIndex } from './data/names'
 import { trophyStartingLevelBonus } from './data/trophies'
 import {
   MAX_OFFLINE_MS,
@@ -54,7 +55,7 @@ function createInitialDm(): DMState {
 }
 
 function createShip(index: number): Ship {
-  return { id: generateShipId(), name: `Ship ${index}`, assignedIslandId: null, voyageRemaining: 0, lifetimeGold: 0 }
+  return { id: generateShipId(), name: shipNameForIndex(index), assignedIslandId: null, voyageRemaining: 0, lifetimeGold: 0 }
 }
 
 // First-pass balance guess, same as every other constant introduced this

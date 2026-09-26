@@ -27,6 +27,22 @@ export const RACES = [
   'Human', 'Elf', 'Dwarf', 'Halfling', 'Half-Orc', 'Tiefling', 'Gnome', 'Dragonborn',
 ]
 
+/** One name per fleet slot, in the order ships are bought (BASE_SHIP_SLOTS + all 6 more-ships tiers = 7 total) — a fixed roster, not a random roll, since a ship's name should stay tied to its place in the fleet. */
+export const SHIP_NAMES = [
+  'The Wandering Die',
+  'Critical Miss',
+  'Natural Twenty',
+  'Homebrew Voyager',
+  'Rolling Thunder',
+  "The DM's Screen",
+  'Nothing Left to Roll',
+]
+
+/** 1-based fleet slot index, e.g. the 1st ship bought is index 1. Falls back to a generic name past the named list. */
+export function shipNameForIndex(index: number): string {
+  return SHIP_NAMES[index - 1] ?? `Ship ${index}`
+}
+
 /** Fantasy character name — reused freely across lives/players, same as real tables recycle favorite names. */
 export function rollName(rng: () => number): string {
   const first = FIRST_NAMES[Math.floor(rng() * FIRST_NAMES.length)]
