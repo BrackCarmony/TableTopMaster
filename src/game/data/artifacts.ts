@@ -22,6 +22,48 @@ export const ARTIFACTS: Artifact[] = [
     role: 'dps',
     effect: { kind: 'dpsExtraRange', value: 1 },
   },
+  {
+    id: 'stoneskin',
+    name: 'Stoneskin',
+    description: 'Your tanks shrug off 15% of every hit they take.',
+    role: 'tank',
+    effect: { kind: 'tankDamageReduction', value: 0.15 },
+  },
+  {
+    id: 'armor-piercer',
+    name: 'Armor Piercer',
+    description: "Your dps units ignore 30% of a target's defense.",
+    role: 'dps',
+    effect: { kind: 'dpsDefensePierce', value: 0.3 },
+  },
+  {
+    id: 'overflowing-font',
+    name: 'Overflowing Font',
+    description: "Your healers' healing power is boosted by 30%.",
+    role: 'healer',
+    effect: { kind: 'healerHealPowerBonus', value: 0.3 },
+  },
+  {
+    id: 'juggernauts-hide',
+    name: "Juggernaut's Hide",
+    description: 'Your tanks shrug off another 25% of every hit they take.',
+    role: 'tank',
+    effect: { kind: 'tankDamageReduction', value: 0.25 },
+  },
+  {
+    id: 'ruinous-edge',
+    name: 'Ruinous Edge',
+    description: "Your dps units ignore another 50% of a target's defense.",
+    role: 'dps',
+    effect: { kind: 'dpsDefensePierce', value: 0.5 },
+  },
+  {
+    id: 'wellspring-of-life',
+    name: 'Wellspring of Life',
+    description: "Your healers' healing power is boosted by another 50%.",
+    role: 'healer',
+    effect: { kind: 'healerHealPowerBonus', value: 0.5 },
+  },
 ]
 
 export function getArtifactById(id: string): Artifact | undefined {

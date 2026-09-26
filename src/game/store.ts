@@ -51,6 +51,7 @@ function createInitialDm(): DMState {
     executionTier: {},
     trophies: [],
     discoveredArtifactIds: [],
+    unlockedIslandIds: ['sunken-reef'],
   }
 }
 
@@ -310,9 +311,21 @@ export const useGameStore = create<GameStore>()(
           const island = getIslandById(islandId)
           const ship = state.ships.find((s) => s.id === shipId)
           if (!island || !ship) return state
+
+          let dm = state.dm
+          if (!dm.unlockedIslandIds.includes(islandId)) {
+            if (island.unlockCost > 0 && dm.gold < island.unlockCost) return state
+            dm = {
+              ...dm,
+              gold: dm.gold - island.unlockCost,
+              unlockedIslandIds: [...dm.unlockedIslandIds, islandId],
+            }
+          }
+
           return {
+            dm,
             ships: state.ships.map((s) =>
-              s.id === shipId ? { ...s, assignedIslandId: islandId, voyageRemaining: voyageDuration(island, state.dm) } : s,
+              s.id === shipId ? { ...s, assignedIslandId: islandId, voyageRemaining: voyageDuration(island, dm) } : s,
             ),
           }
         }),
@@ -342,7 +355,7 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: 'tabletopmaster-save',
-      version: 9,
+      version: 10,
       partialize: (state) => ({
         dm: state.dm,
         players: state.players,
@@ -407,6 +420,14 @@ export const useGameStore = create<GameStore>()(
             // gameplay), so existing ships get renamed by their fleet slot
             // rather than keeping the old placeholder forever.
             state.ships = state.ships.map((s, i) => ({ ...s, name: shipNameForIndex(i + 1) }))
+          }
+          if (version < 10) {
+            // v10 adds more islands beyond the original free Sunken Reef,
+            // each gated behind its own unlockCost — new field, so anyone
+            // who already had Sailing unlocked keeps the one island they
+            // already had access to instead of it suddenly looking locked.
+            const dm = state.dm as DMState & { unlockedIslandIds?: string[] }
+            state.dm = { ...dm, unlockedIslandIds: dm.unlockedIslandIds ?? ['sunken-reef'] }
           }
           return state
         } catch (err) {

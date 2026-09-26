@@ -120,6 +120,8 @@ export interface Island {
   id: string
   name: string
   description: string
+  /** Gold cost to unlock this island. 0 means already unlocked (see store.ts createInitialDm). */
+  unlockCost: number
   baseGoldReward: number
   baseVoyageDurationMs: number
   /** Artifact ids this island can roll on a successful find. */
@@ -130,6 +132,9 @@ export type ArtifactEffect =
   | { kind: 'tankExtraTurnAtStart' }
   | { kind: 'healerReviveOnce'; hpFraction: number }
   | { kind: 'dpsExtraRange'; value: number }
+  | { kind: 'tankDamageReduction'; value: number }
+  | { kind: 'dpsDefensePierce'; value: number }
+  | { kind: 'healerHealPowerBonus'; value: number }
 
 export interface Artifact {
   id: string
@@ -152,6 +157,8 @@ export interface DMState {
   trophies: Trophy[]
   /** Sailing artifact ids found so far — permanent, role-wide passives once discovered. */
   discoveredArtifactIds: string[]
+  /** Island ids unlocked so far — an island with unlockCost 0 doesn't need to appear here to count as available. */
+  unlockedIslandIds: string[]
 }
 
 export interface GameState {

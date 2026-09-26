@@ -140,8 +140,22 @@ export function computeArtifactBonuses(dm: DMState): ArtifactBonuses {
       case 'dpsExtraRange':
         bonuses.dpsExtraRangeBonus += artifact.effect.value
         break
+      case 'tankDamageReduction':
+        bonuses.tankDamageReductionPercent += artifact.effect.value
+        break
+      case 'dpsDefensePierce':
+        bonuses.dpsDefensePiercePercent += artifact.effect.value
+        break
+      case 'healerHealPowerBonus':
+        bonuses.healerHealPowerBonusPercent += artifact.effect.value
+        break
     }
   }
+  // Stacking multiple islands' artifacts is the point, but 100% reduction or
+  // pierce would mean "never take damage" / "defense does nothing at all" —
+  // clamp well short of that so defense/mitigation always still matters.
+  bonuses.tankDamageReductionPercent = Math.min(0.75, bonuses.tankDamageReductionPercent)
+  bonuses.dpsDefensePiercePercent = Math.min(0.9, bonuses.dpsDefensePiercePercent)
   return bonuses
 }
 

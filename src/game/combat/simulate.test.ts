@@ -55,6 +55,54 @@ describe('runEncounter', () => {
     }
   })
 
+  it('applies defensePiercePercent to reduce the effective defense before damage is computed', () => {
+    const party = [makeUnit({ id: 'hero', name: 'Hero', attackPower: 20, defensePiercePercent: 0.5 })]
+    const template: EncounterTemplate = {
+      ...basicTemplate,
+      enemies: [
+        { name: 'Armored', role: 'dps', position: { x: 1, y: 0 }, hp: 999, attackPower: 0, defense: 10, healPower: 0, moveRange: 0, attackRange: 0, speed: 1 },
+      ],
+    }
+    const result = runEncounter(party, template, createRng(1))
+    const hits = result.log.filter((e) => e.type === 'attack' && e.hit)
+    expect(hits.length).toBeGreaterThan(0)
+    // effectiveDefense = 10 * (1 - 0.5) = 5; damage = 20 - 5 = 15.
+    for (const e of hits) if (e.type === 'attack') expect(e.damage).toBe(15)
+  })
+
+  it('applies damageReductionPercent to reduce incoming damage on the target', () => {
+    const party = [
+      makeUnit({ id: 'hero', role: 'tank', hp: 999, maxHp: 999, defense: 0, damageReductionPercent: 0.5, moveRange: 0, attackRange: 0 }),
+    ]
+    const template: EncounterTemplate = {
+      ...basicTemplate,
+      enemies: [
+        { name: 'Striker', role: 'dps', position: { x: 1, y: 0 }, hp: 999, attackPower: 20, defense: 0, healPower: 0, moveRange: 0, attackRange: 10, speed: 99 },
+      ],
+    }
+    const result = runEncounter(party, template, createRng(1))
+    const hitsOnHero = result.log.filter((e) => e.type === 'attack' && e.hit && e.targetId === 'hero')
+    expect(hitsOnHero.length).toBeGreaterThan(0)
+    // damage = (20 - 0) * (1 - 0.5) = 10.
+    for (const e of hitsOnHero) if (e.type === 'attack') expect(e.damage).toBe(10)
+  })
+
+  it('never lets a landed hit drop below the 1-point floor even under heavy mitigation', () => {
+    const party = [
+      makeUnit({ id: 'hero', role: 'tank', hp: 999, maxHp: 999, defense: 999, damageReductionPercent: 0.75, moveRange: 0, attackRange: 0 }),
+    ]
+    const template: EncounterTemplate = {
+      ...basicTemplate,
+      enemies: [
+        { name: 'Weakling', role: 'dps', position: { x: 1, y: 0 }, hp: 999, attackPower: 1, defense: 0, healPower: 0, moveRange: 0, attackRange: 10, speed: 99 },
+      ],
+    }
+    const result = runEncounter(party, template, createRng(1))
+    const hitsOnHero = result.log.filter((e) => e.type === 'attack' && e.hit && e.targetId === 'hero')
+    expect(hitsOnHero.length).toBeGreaterThan(0)
+    for (const e of hitsOnHero) if (e.type === 'attack') expect(e.damage).toBe(1)
+  })
+
   it('resolves a clear mismatch as a party victory with enemy deaths logged', () => {
     const party = [makeUnit({ id: 'hero', name: 'Hero', attackPower: 20, hp: 100, maxHp: 100 })]
     const result = runEncounter(party, basicTemplate, createRng(7))

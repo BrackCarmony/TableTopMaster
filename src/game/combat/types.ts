@@ -33,6 +33,10 @@ export interface CombatUnit {
   reviveAvailable?: boolean
   /** Fraction of maxHp a Revivify revive restores. Only meaningful alongside reviveAvailable. */
   reviveHpFraction?: number
+  /** Fraction of incoming damage this unit shrugs off (e.g. Stoneskin), applied after defense and before the always-at-least-1 floor. */
+  damageReductionPercent?: number
+  /** Fraction of a target's defense this unit's attacks ignore (e.g. Armor Piercer). */
+  defensePiercePercent?: number
 }
 
 export type CombatLogEvent =

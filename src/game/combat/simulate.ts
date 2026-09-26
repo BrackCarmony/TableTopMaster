@@ -108,7 +108,14 @@ function resolveAttack(
   log: CombatLogEvent[],
 ): void {
   const hit = rng() < HIT_CHANCE
-  const damage = hit ? Math.max(1, attacker.attackPower - target.defense) : 0
+  // Armor Piercer-style artifacts shave a fraction off the target's defense
+  // before it's subtracted; Stoneskin-style artifacts then shave a fraction
+  // off the resulting raw damage — always still floored at 1 on a hit, same
+  // as before either artifact existed.
+  const effectiveDefense = target.defense * (1 - (attacker.defensePiercePercent ?? 0))
+  const rawDamage = attacker.attackPower - effectiveDefense
+  const mitigatedDamage = rawDamage * (1 - (target.damageReductionPercent ?? 0))
+  const damage = hit ? Math.max(1, Math.round(mitigatedDamage)) : 0
   if (hit) {
     target.hp = Math.max(0, target.hp - damage)
   }

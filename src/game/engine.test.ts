@@ -73,6 +73,7 @@ function makeDm(overrides: Partial<DMState> = {}): DMState {
     executionTier: {},
     trophies: [],
     discoveredArtifactIds: [],
+    unlockedIslandIds: ['sunken-reef'],
     ...overrides,
   }
 }
@@ -406,6 +407,16 @@ describe('computeArtifactBonuses', () => {
   it('ignores an unknown artifact id instead of throwing', () => {
     expect(() => computeArtifactBonuses(makeDm({ discoveredArtifactIds: ['not-a-real-artifact'] }))).not.toThrow()
   })
+
+  it('sums stacking percentage artifacts (Stoneskin + Juggernaut\'s Hide, Armor Piercer + Ruinous Edge, Overflowing Font + Wellspring)', () => {
+    const bonuses = computeArtifactBonuses(
+      makeDm({ discoveredArtifactIds: ['stoneskin', 'juggernauts-hide', 'armor-piercer', 'ruinous-edge', 'overflowing-font', 'wellspring-of-life'] }),
+    )
+    expect(bonuses.tankDamageReductionPercent).toBeCloseTo(0.15 + 0.25)
+    expect(bonuses.dpsDefensePiercePercent).toBeCloseTo(0.3 + 0.5)
+    expect(bonuses.healerHealPowerBonusPercent).toBeCloseTo(0.3 + 0.5)
+  })
+
 })
 
 function makeShip(overrides: Partial<Ship> = {}): Ship {

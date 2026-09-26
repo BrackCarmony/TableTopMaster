@@ -196,6 +196,24 @@ describe('toCombatUnit', () => {
     expect(toCombatUnit(makeCharacter({ role: 'dps', attackRange: 3 }), null, bonuses).attackRange).toBe(4)
     expect(toCombatUnit(makeCharacter({ role: 'tank', attackRange: 1 }), null, bonuses).attackRange).toBe(1)
   })
+
+  it('only gives Stoneskin-style damage reduction to tanks', () => {
+    const bonuses = { ...DEFAULT_ARTIFACT_BONUSES, tankDamageReductionPercent: 0.4 }
+    expect(toCombatUnit(makeCharacter({ role: 'tank' }), null, bonuses).damageReductionPercent).toBe(0.4)
+    expect(toCombatUnit(makeCharacter({ role: 'dps' }), null, bonuses).damageReductionPercent).toBeUndefined()
+  })
+
+  it('only gives Armor Piercer-style defense pierce to dps', () => {
+    const bonuses = { ...DEFAULT_ARTIFACT_BONUSES, dpsDefensePiercePercent: 0.8 }
+    expect(toCombatUnit(makeCharacter({ role: 'dps' }), null, bonuses).defensePiercePercent).toBe(0.8)
+    expect(toCombatUnit(makeCharacter({ role: 'tank' }), null, bonuses).defensePiercePercent).toBeUndefined()
+  })
+
+  it('only boosts healPower for healers, and only healers, by the configured percentage', () => {
+    const bonuses = { ...DEFAULT_ARTIFACT_BONUSES, healerHealPowerBonusPercent: 0.5 }
+    expect(toCombatUnit(makeCharacter({ role: 'healer', healPower: 10 }), null, bonuses).healPower).toBe(15)
+    expect(toCombatUnit(makeCharacter({ role: 'tank', healPower: 10 }), null, bonuses).healPower).toBe(10)
+  })
 })
 
 describe('projectStatsAtLevel', () => {

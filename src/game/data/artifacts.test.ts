@@ -7,9 +7,12 @@ describe('ARTIFACTS', () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 
-  it('has exactly one artifact per role', () => {
+  it('splits evenly across the three roles (one per island per role, as islands are added)', () => {
     const roles = ARTIFACTS.map((a) => a.role)
-    expect(new Set(roles).size).toBe(ARTIFACTS.length)
+    const counts = { tank: 0, dps: 0, healer: 0 }
+    for (const role of roles) counts[role]++
+    expect(counts.tank).toBe(counts.dps)
+    expect(counts.dps).toBe(counts.healer)
   })
 })
 

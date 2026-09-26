@@ -4,6 +4,7 @@ import { useGameStore } from '../game/store'
 import type { Ship } from '../game/types'
 
 export function IslandPickerModal({ ship, onClose }: { ship: Ship; onClose: () => void }) {
+  const dm = useGameStore((s) => s.dm)
   const assignIsland = useGameStore((s) => s.assignIsland)
 
   function handleAssign(islandId: string) {
@@ -22,21 +23,32 @@ export function IslandPickerModal({ ship, onClose }: { ship: Ship; onClose: () =
         </div>
 
         <div className="flex flex-col gap-2">
-          {ISLANDS.map((island) => (
-            <button
-              key={island.id}
-              onClick={() => handleAssign(island.id)}
-              className="rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-left transition hover:border-cyan-600 hover:bg-slate-750"
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-slate-100">{island.name}</span>
-                <span className="text-xs text-slate-400">
-                  {formatNumber(island.baseGoldReward)}g &middot; {Math.round(island.baseVoyageDurationMs / 1000)}s
-                </span>
-              </div>
-              <p className="mt-1 text-xs text-slate-400">{island.description}</p>
-            </button>
-          ))}
+          {ISLANDS.map((island) => {
+            const unlocked = dm.unlockedIslandIds.includes(island.id)
+            const affordable = unlocked || dm.gold >= island.unlockCost
+            const foundCount = island.artifactPool.filter((id) => dm.discoveredArtifactIds.includes(id)).length
+            return (
+              <button
+                key={island.id}
+                disabled={!affordable}
+                onClick={() => handleAssign(island.id)}
+                className="rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-left transition hover:border-cyan-600 hover:bg-slate-750 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-slate-100">{island.name}</span>
+                  <span className="text-xs text-slate-400">
+                    {unlocked
+                      ? `${formatNumber(island.baseGoldReward)}g · ${Math.round(island.baseVoyageDurationMs / 1000)}s`
+                      : `Unlock: ${formatNumber(island.unlockCost)}g`}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-slate-400">{island.description}</p>
+                <p className="mt-1 text-xs text-cyan-400">
+                  🏺 {foundCount}/{island.artifactPool.length} artifacts found
+                </p>
+              </button>
+            )
+          })}
         </div>
       </div>
     </div>

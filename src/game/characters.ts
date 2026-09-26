@@ -183,6 +183,12 @@ export interface ArtifactBonuses {
   healerRevive: boolean
   healerReviveHpFraction: number
   dpsExtraRangeBonus: number
+  /** Sum of every discovered tankDamageReduction artifact's value, clamped so damage can never go negative. */
+  tankDamageReductionPercent: number
+  /** Sum of every discovered dpsDefensePierce artifact's value, clamped below 100%. */
+  dpsDefensePiercePercent: number
+  /** Sum of every discovered healerHealPowerBonus artifact's value — a multiplicative bonus on the healer's own healPower. */
+  healerHealPowerBonusPercent: number
 }
 
 export const DEFAULT_ARTIFACT_BONUSES: ArtifactBonuses = {
@@ -190,6 +196,9 @@ export const DEFAULT_ARTIFACT_BONUSES: ArtifactBonuses = {
   healerRevive: false,
   healerReviveHpFraction: 0.5,
   dpsExtraRangeBonus: 0,
+  tankDamageReductionPercent: 0,
+  dpsDefensePiercePercent: 0,
+  healerHealPowerBonusPercent: 0,
 }
 
 export function toCombatUnit(
@@ -208,7 +217,10 @@ export function toCombatUnit(
     maxHp: character.maxHp,
     attackPower: character.attackPower,
     defense: character.defense,
-    healPower: character.healPower,
+    healPower:
+      character.role === 'healer'
+        ? Math.round(character.healPower * (1 + artifactBonuses.healerHealPowerBonusPercent))
+        : character.healPower,
     moveRange: character.moveRange,
     attackRange: character.attackRange + (character.role === 'dps' ? artifactBonuses.dpsExtraRangeBonus : 0),
     speed: character.speed,
@@ -217,6 +229,8 @@ export function toCombatUnit(
     extraTurnAtStart: character.role === 'tank' && artifactBonuses.tankExtraTurn ? true : undefined,
     reviveAvailable: character.role === 'healer' && artifactBonuses.healerRevive ? true : undefined,
     reviveHpFraction: character.role === 'healer' && artifactBonuses.healerRevive ? artifactBonuses.healerReviveHpFraction : undefined,
+    damageReductionPercent: character.role === 'tank' ? artifactBonuses.tankDamageReductionPercent : undefined,
+    defensePiercePercent: character.role === 'dps' ? artifactBonuses.dpsDefensePiercePercent : undefined,
   }
 }
 
