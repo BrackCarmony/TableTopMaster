@@ -24,9 +24,15 @@ export function IslandPickerModal({ ship, onClose }: { ship: Ship; onClose: () =
 
         <div className="flex flex-col gap-2">
           {ISLANDS.map((island) => {
-            const unlocked = dm.unlockedIslandIds.includes(island.id)
+            // Defensive fallback, not just a happy-path shortcut: a browser
+            // tab left open across a save-schema update never re-runs
+            // migrate() (that only fires on page load), so a live session
+            // can briefly hold a dm shaped like an older version. Reading
+            // straight off undefined here would crash this modal, so fall
+            // back to "nothing unlocked/discovered yet" instead.
+            const unlocked = (dm.unlockedIslandIds ?? []).includes(island.id)
             const affordable = unlocked || dm.gold >= island.unlockCost
-            const foundCount = island.artifactPool.filter((id) => dm.discoveredArtifactIds.includes(id)).length
+            const foundCount = island.artifactPool.filter((id) => (dm.discoveredArtifactIds ?? []).includes(id)).length
             return (
               <button
                 key={island.id}

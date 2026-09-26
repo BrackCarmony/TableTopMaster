@@ -75,7 +75,7 @@ export function SailingPanel() {
   const slots = effectiveShipSlots(dm)
   const nextCost = shipCost(ships.length)
   const atCapacity = ships.length >= slots
-  const discovered = dm.discoveredArtifactIds
+  const discovered = dm.discoveredArtifactIds ?? []
 
   return (
     <div className="rounded-lg border border-cyan-900/60 bg-cyan-950/10 p-4">
