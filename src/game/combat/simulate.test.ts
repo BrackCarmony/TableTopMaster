@@ -103,6 +103,110 @@ describe('runEncounter', () => {
     for (const e of hitsOnHero) if (e.type === 'attack') expect(e.damage).toBe(1)
   })
 
+  it('lets Cleave/Ricochet also hit a second enemy in range on a landed hit', () => {
+    const template: EncounterTemplate = {
+      id: 'cleave-test',
+      name: 'Cleave Test',
+      gridWidth: 8,
+      gridHeight: 8,
+      partyStartPositions: [{ x: 0, y: 0 }],
+      enemies: [
+        { name: 'Primary', role: 'dps', position: { x: 1, y: 0 }, hp: 999, attackPower: 0, defense: 0, healPower: 0, moveRange: 0, attackRange: 0, speed: 1 },
+        { name: 'Secondary', role: 'dps', position: { x: 1, y: 1 }, hp: 999, attackPower: 0, defense: 0, healPower: 0, moveRange: 0, attackRange: 0, speed: 1 },
+      ],
+    }
+    const attacker = makeUnit({ id: 'hero', attackPower: 20, attackRange: 2, moveRange: 0, bonusTargetsOnHit: 1, bonusTargetDamagePercent: 0.5 })
+
+    let result = runEncounter([attacker], template, createRng(1))
+    let attackEvents = result.log.filter((e) => e.type === 'attack' && e.attackerId === 'hero')
+    // 85% hit chance on the primary — retry seeds until the very first swing lands.
+    for (let seed = 2; !(attackEvents[0]?.type === 'attack' && attackEvents[0].hit) && seed < 20; seed++) {
+      result = runEncounter([attacker], template, createRng(seed))
+      attackEvents = result.log.filter((e) => e.type === 'attack' && e.attackerId === 'hero')
+    }
+
+    expect(attackEvents.length).toBeGreaterThanOrEqual(2)
+    const [primary, bonus] = attackEvents
+    if (primary.type !== 'attack' || bonus.type !== 'attack') throw new Error('expected attack events')
+    expect(primary.hit).toBe(true)
+    expect(bonus.targetId).not.toBe(primary.targetId)
+    // bonus damage = attackPower(20) * damagePercent(0.5) = 10, vs 0 defense.
+    if (bonus.hit) expect(bonus.damage).toBe(10)
+  })
+
+  it('does nothing extra for Cleave/Ricochet when no other enemy is in range', () => {
+    const attacker = makeUnit({ id: 'hero', attackPower: 20, bonusTargetsOnHit: 1, bonusTargetDamagePercent: 0.5 })
+    const result = runEncounter([attacker], basicTemplate, createRng(7))
+    const attackEvents = result.log.filter((e) => e.type === 'attack' && e.attackerId === 'hero')
+    expect(attackEvents.length).toBeGreaterThan(0)
+    const targets = new Set(attackEvents.map((e) => (e.type === 'attack' ? e.targetId : null)))
+    expect(targets.size).toBe(1) // the single enemy — never a phantom second target
+  })
+
+  it('lets Chain Mending also heal a second wounded ally once both are actually wounded', () => {
+    // positionParty resets every party unit to full HP at encounter start
+    // (a "rest" between fights), so pre-set hp overrides get discarded —
+    // both allies have to actually take damage during the fight itself.
+    // Two strikers, isolated by distance to one ally each (x-separated so
+    // small position variance from role-based placement doesn't matter),
+    // wound both allies independently before the healer ever acts.
+    const template: EncounterTemplate = {
+      id: 'chain-heal-test',
+      name: 'Chain Heal Test',
+      gridWidth: 20,
+      gridHeight: 20,
+      partyStartPositions: [{ x: 0, y: 0 }, { x: 0, y: 1 }, { x: 0, y: 2 }],
+      enemies: [
+        { name: 'StrikerA', role: 'dps', position: { x: 10, y: 2 }, hp: 999, attackPower: 5, defense: 0, healPower: 0, moveRange: 0, attackRange: 15, speed: 50 },
+        { name: 'StrikerB', role: 'dps', position: { x: 10, y: 1 }, hp: 999, attackPower: 5, defense: 0, healPower: 0, moveRange: 0, attackRange: 15, speed: 49 },
+      ],
+    }
+    const healer = makeUnit({ id: 'healer', role: 'healer', healPower: 10, attackRange: 15, moveRange: 0, speed: 1, bonusTargetsOnHeal: 1, bonusHealPercent: 0.5 })
+    const allyA = makeUnit({ id: 'a', maxHp: 20, defense: 0, attackRange: 0, moveRange: 0 })
+    const allyB = makeUnit({ id: 'b', maxHp: 20, defense: 0, attackRange: 0, moveRange: 0 })
+
+    let result = runEncounter([healer, allyA, allyB], template, createRng(1))
+    let healEvents = result.log.filter((e) => e.type === 'heal' && e.healerId === 'healer')
+    let hasChainedPair = healEvents.some(
+      (e, i) => e.type === 'heal' && healEvents[i + 1]?.type === 'heal' && (healEvents[i + 1] as { targetId: string }).targetId !== e.targetId,
+    )
+    for (let seed = 2; !hasChainedPair && seed < 15; seed++) {
+      result = runEncounter([healer, allyA, allyB], template, createRng(seed))
+      healEvents = result.log.filter((e) => e.type === 'heal' && e.healerId === 'healer')
+      hasChainedPair = healEvents.some(
+        (e, i) => e.type === 'heal' && healEvents[i + 1]?.type === 'heal' && (healEvents[i + 1] as { targetId: string }).targetId !== e.targetId,
+      )
+    }
+
+    expect(hasChainedPair).toBe(true)
+  })
+
+  it('never lets any heal — primary or Chain Mending bonus — push a target past its max HP', () => {
+    const template: EncounterTemplate = {
+      id: 'chain-heal-cap-test',
+      name: 'Chain Heal Cap Test',
+      gridWidth: 20,
+      gridHeight: 20,
+      partyStartPositions: [{ x: 0, y: 0 }, { x: 0, y: 1 }, { x: 0, y: 2 }],
+      enemies: [
+        { name: 'StrikerA', role: 'dps', position: { x: 10, y: 2 }, hp: 999, attackPower: 5, defense: 0, healPower: 0, moveRange: 0, attackRange: 15, speed: 50 },
+        { name: 'StrikerB', role: 'dps', position: { x: 10, y: 1 }, hp: 999, attackPower: 5, defense: 0, healPower: 0, moveRange: 0, attackRange: 15, speed: 49 },
+      ],
+    }
+    const healer = makeUnit({ id: 'healer', role: 'healer', healPower: 10, attackRange: 15, moveRange: 0, speed: 1, bonusTargetsOnHeal: 1, bonusHealPercent: 0.5 })
+    const allyA = makeUnit({ id: 'a', maxHp: 20, defense: 0, attackRange: 0, moveRange: 0 })
+    const allyB = makeUnit({ id: 'b', maxHp: 20, defense: 0, attackRange: 0, moveRange: 0 })
+
+    const result = runEncounter([healer, allyA, allyB], template, createRng(1))
+    const maxHpById = new Map(
+      (result.log[0].type === 'encounter_start' ? result.log[0].units : []).map((u) => [u.id, u.maxHp]),
+    )
+    for (const event of result.log) {
+      if (event.type !== 'heal') continue
+      expect(event.targetHpAfter).toBeLessThanOrEqual(maxHpById.get(event.targetId)!)
+    }
+  })
+
   it('resolves a clear mismatch as a party victory with enemy deaths logged', () => {
     const party = [makeUnit({ id: 'hero', name: 'Hero', attackPower: 20, hp: 100, maxHp: 100 })]
     const result = runEncounter(party, basicTemplate, createRng(7))

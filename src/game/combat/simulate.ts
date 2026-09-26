@@ -101,19 +101,21 @@ function checkOutcome(units: CombatUnit[]): 'victory' | 'defeat' | null {
   return null
 }
 
-function resolveAttack(
+/** One hit's worth of hit-roll + damage + death, against a single target. Returns whether it landed. Shared by a normal attack and by each Cleave/Ricochet bonus target, so a bonus hit rolls its own miss chance and dies the same way a primary hit would. */
+function applySingleHit(
   attacker: CombatUnit,
   target: CombatUnit,
   rng: RngFn,
   log: CombatLogEvent[],
-): void {
+  damageMultiplier = 1,
+): boolean {
   const hit = rng() < HIT_CHANCE
   // Armor Piercer-style artifacts shave a fraction off the target's defense
   // before it's subtracted; Stoneskin-style artifacts then shave a fraction
   // off the resulting raw damage — always still floored at 1 on a hit, same
   // as before either artifact existed.
   const effectiveDefense = target.defense * (1 - (attacker.defensePiercePercent ?? 0))
-  const rawDamage = attacker.attackPower - effectiveDefense
+  const rawDamage = (attacker.attackPower - effectiveDefense) * damageMultiplier
   const mitigatedDamage = rawDamage * (1 - (target.damageReductionPercent ?? 0))
   const damage = hit ? Math.max(1, Math.round(mitigatedDamage)) : 0
   if (hit) {
@@ -130,6 +132,43 @@ function resolveAttack(
   if (hit && target.hp <= 0 && target.alive) {
     target.alive = false
     log.push({ type: 'death', unitId: target.id })
+  }
+  return hit
+}
+
+/** Living units on `origin`'s opposite/same side (per `predicate`), other than `exclude`, within `origin.attackRange` — nearest first. Used to find Cleave/Ricochet's extra enemy targets and Chain Mending's extra wounded allies. */
+function findNearbyTargets(
+  origin: CombatUnit,
+  exclude: CombatUnit,
+  units: CombatUnit[],
+  count: number,
+  predicate: (u: CombatUnit) => boolean,
+): CombatUnit[] {
+  if (count <= 0) return []
+  return units
+    .filter((u) => u.id !== exclude.id && predicate(u) && inRange(origin.position, u.position, origin.attackRange))
+    .sort((a, b) => manhattanDistance(origin.position, a.position) - manhattanDistance(origin.position, b.position))
+    .slice(0, count)
+}
+
+/**
+ * Resolves an attacker's primary hit against `target`, then — only if the
+ * primary hit actually landed — Cleave/Ricochet's bonus hits against other
+ * nearby enemies, each with its own independent hit roll at a fraction of
+ * normal damage. Bonus hits never chain further (they don't re-trigger this).
+ */
+function resolveAttack(
+  attacker: CombatUnit,
+  target: CombatUnit,
+  rng: RngFn,
+  log: CombatLogEvent[],
+  units: CombatUnit[],
+): void {
+  const hit = applySingleHit(attacker, target, rng, log)
+  if (!hit || !attacker.bonusTargetsOnHit) return
+  const bonusTargets = findNearbyTargets(attacker, target, units, attacker.bonusTargetsOnHit, (u) => u.alive && u.side !== attacker.side)
+  for (const bonusTarget of bonusTargets) {
+    applySingleHit(attacker, bonusTarget, rng, log, attacker.bonusTargetDamagePercent ?? 0.5)
   }
 }
 
@@ -161,6 +200,19 @@ function takeTurn(
     const healed = Math.min(target.maxHp - target.hp, unit.healPower)
     target.hp += healed
     log.push({ type: 'heal', healerId: unit.id, targetId: target.id, amount: healed, targetHpAfter: target.hp })
+
+    // Chain Mending — the same heal also splashes onto other wounded allies
+    // in range, at a fraction of the healer's healPower (not of the primary
+    // heal's actual amount, so a fully-topped-off primary target still lets
+    // a badly wounded secondary target receive a meaningful heal).
+    if (unit.bonusTargetsOnHeal) {
+      const bonusAllies = findNearbyTargets(unit, target, units, unit.bonusTargetsOnHeal, (u) => u.alive && u.side === unit.side && u.hp < u.maxHp)
+      for (const ally of bonusAllies) {
+        const bonusHealed = Math.min(ally.maxHp - ally.hp, Math.round(unit.healPower * (unit.bonusHealPercent ?? 0.5)))
+        ally.hp += bonusHealed
+        log.push({ type: 'heal', healerId: unit.id, targetId: ally.id, amount: bonusHealed, targetHpAfter: ally.hp })
+      }
+    }
     return
   }
 
@@ -176,7 +228,7 @@ function takeTurn(
     log.push({ type: 'move', unitId: unit.id, path: action.path.map((p) => ({ ...p })) })
     const target = unitById.get(action.targetId)
     if (target && target.alive && inRange(unit.position, target.position, unit.attackRange)) {
-      resolveAttack(unit, target, rng, log)
+      resolveAttack(unit, target, rng, log, units)
     }
     return
   }
@@ -184,7 +236,7 @@ function takeTurn(
   if (action.kind === 'attack') {
     const target = unitById.get(action.targetId)
     if (!target || !target.alive) return
-    resolveAttack(unit, target, rng, log)
+    resolveAttack(unit, target, rng, log, units)
   }
 }
 

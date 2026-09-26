@@ -149,6 +149,18 @@ export function computeArtifactBonuses(dm: DMState): ArtifactBonuses {
       case 'healerHealPowerBonus':
         bonuses.healerHealPowerBonusPercent += artifact.effect.value
         break
+      case 'tankCleave':
+        bonuses.tankBonusTargetsOnHit += artifact.effect.targets
+        bonuses.tankBonusTargetDamagePercent += artifact.effect.damagePercent
+        break
+      case 'dpsRicochet':
+        bonuses.dpsBonusTargetsOnHit += artifact.effect.targets
+        bonuses.dpsBonusTargetDamagePercent += artifact.effect.damagePercent
+        break
+      case 'healerChainHeal':
+        bonuses.healerBonusTargetsOnHeal += artifact.effect.targets
+        bonuses.healerBonusHealPercent += artifact.effect.healPercent
+        break
     }
   }
   // Stacking multiple islands' artifacts is the point, but 100% reduction or

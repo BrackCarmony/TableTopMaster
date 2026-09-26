@@ -417,6 +417,23 @@ describe('computeArtifactBonuses', () => {
     expect(bonuses.healerHealPowerBonusPercent).toBeCloseTo(0.3 + 0.5)
   })
 
+  it('sums Cleave/Ricochet/Chain Mending target counts and damage/heal percents across both tiers', () => {
+    const bonuses = computeArtifactBonuses(
+      makeDm({
+        discoveredArtifactIds: [
+          'cleaving-strikes', 'whirling-cleave',
+          'ricochet-shot', 'ricochet-barrage',
+          'chain-mending', 'cascading-mending',
+        ],
+      }),
+    )
+    expect(bonuses.tankBonusTargetsOnHit).toBe(2)
+    expect(bonuses.tankBonusTargetDamagePercent).toBeCloseTo(0.5 + 0.75)
+    expect(bonuses.dpsBonusTargetsOnHit).toBe(2)
+    expect(bonuses.dpsBonusTargetDamagePercent).toBeCloseTo(0.5 + 0.75)
+    expect(bonuses.healerBonusTargetsOnHeal).toBe(2)
+    expect(bonuses.healerBonusHealPercent).toBeCloseTo(0.5 + 0.75)
+  })
 })
 
 function makeShip(overrides: Partial<Ship> = {}): Ship {

@@ -64,6 +64,48 @@ export const ARTIFACTS: Artifact[] = [
     role: 'healer',
     effect: { kind: 'healerHealPowerBonus', value: 0.5 },
   },
+  {
+    id: 'cleaving-strikes',
+    name: 'Cleaving Strikes',
+    description: 'A landed tank attack also cleaves into one nearby enemy for 50% damage.',
+    role: 'tank',
+    effect: { kind: 'tankCleave', targets: 1, damagePercent: 0.5 },
+  },
+  {
+    id: 'ricochet-shot',
+    name: 'Ricochet Shot',
+    description: 'A landed dps attack also ricochets into one other enemy in range for 50% damage.',
+    role: 'dps',
+    effect: { kind: 'dpsRicochet', targets: 1, damagePercent: 0.5 },
+  },
+  {
+    id: 'chain-mending',
+    name: 'Chain Mending',
+    description: "A healer's heal also mends one other wounded ally in range for 50% of their healing power.",
+    role: 'healer',
+    effect: { kind: 'healerChainHeal', targets: 1, healPercent: 0.5 },
+  },
+  {
+    id: 'whirling-cleave',
+    name: 'Whirling Cleave',
+    description: 'Cleaving Strikes reaches another enemy, and cleave damage rises to 75%.',
+    role: 'tank',
+    effect: { kind: 'tankCleave', targets: 1, damagePercent: 0.75 },
+  },
+  {
+    id: 'ricochet-barrage',
+    name: 'Ricochet Barrage',
+    description: 'Ricochet Shot bounces to another enemy, and ricochet damage rises to 75%.',
+    role: 'dps',
+    effect: { kind: 'dpsRicochet', targets: 1, damagePercent: 0.75 },
+  },
+  {
+    id: 'cascading-mending',
+    name: 'Cascading Mending',
+    description: 'Chain Mending reaches another ally, and its heal rises to 75% of healing power.',
+    role: 'healer',
+    effect: { kind: 'healerChainHeal', targets: 1, healPercent: 0.75 },
+  },
 ]
 
 export function getArtifactById(id: string): Artifact | undefined {

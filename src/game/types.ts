@@ -135,6 +135,9 @@ export type ArtifactEffect =
   | { kind: 'tankDamageReduction'; value: number }
   | { kind: 'dpsDefensePierce'; value: number }
   | { kind: 'healerHealPowerBonus'; value: number }
+  | { kind: 'tankCleave'; targets: number; damagePercent: number }
+  | { kind: 'dpsRicochet'; targets: number; damagePercent: number }
+  | { kind: 'healerChainHeal'; targets: number; healPercent: number }
 
 export interface Artifact {
   id: string

@@ -37,6 +37,14 @@ export interface CombatUnit {
   damageReductionPercent?: number
   /** Fraction of a target's defense this unit's attacks ignore (e.g. Armor Piercer). */
   defensePiercePercent?: number
+  /** Cleave/Ricochet artifacts — on a landed hit, also hit this many additional enemies within attackRange. */
+  bonusTargetsOnHit?: number
+  /** Fraction of normal damage each bonus-hit target takes. Only meaningful alongside bonusTargetsOnHit. */
+  bonusTargetDamagePercent?: number
+  /** Chain Mending artifacts — on a heal, also heal this many additional wounded allies within attackRange. */
+  bonusTargetsOnHeal?: number
+  /** Fraction of the primary heal amount each bonus-heal target receives. Only meaningful alongside bonusTargetsOnHeal. */
+  bonusHealPercent?: number
 }
 
 export type CombatLogEvent =
