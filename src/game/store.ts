@@ -313,12 +313,18 @@ export const useGameStore = create<GameStore>()(
           if (!island || !ship) return state
 
           let dm = state.dm
-          if (!dm.unlockedIslandIds.includes(islandId)) {
+          // Same reasoning as the IslandPickerModal/SailingPanel fallbacks —
+          // a tab left open across the v10 update can still be running
+          // against a dm from before unlockedIslandIds existed, and this
+          // state updater throwing on undefined silently swallows the click
+          // instead of crashing anything visible.
+          const unlockedIslandIds = dm.unlockedIslandIds ?? []
+          if (!unlockedIslandIds.includes(islandId)) {
             if (island.unlockCost > 0 && dm.gold < island.unlockCost) return state
             dm = {
               ...dm,
               gold: dm.gold - island.unlockCost,
-              unlockedIslandIds: [...dm.unlockedIslandIds, islandId],
+              unlockedIslandIds: [...unlockedIslandIds, islandId],
             }
           }
 
