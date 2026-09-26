@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createCharacterForPlayer, createPlayer } from './characters'
 import type { CombatLogEvent } from './combat/types'
+import { ISLANDS } from './data/islands'
 import { getModuleById } from './data/modules'
 import { getTrophyQuality } from './data/trophies'
 import { UPGRADES } from './data/upgrades'
@@ -10,13 +11,16 @@ import {
   EXECUTION_STARTING_TIER,
   MAX_COOLDOWN_SCALE,
   MIN_COOLDOWN_MS,
+  computeArtifactBonuses,
   computeInfamyReward,
   computeMultipliers,
   hasRoleSelectionUnlock,
+  hasSailingUnlock,
   resolveEncounter,
+  tickShips,
 } from './engine'
 import { createRng } from './rng'
-import type { Character, DMState, Player, Table } from './types'
+import type { Character, DMState, Player, Ship, Table } from './types'
 
 describe('computeInfamyReward', () => {
   it('scales with the square root of lifetime gold', () => {
@@ -68,6 +72,7 @@ function makeDm(overrides: Partial<DMState> = {}): DMState {
     tableSlots: 1,
     executionTier: {},
     trophies: [],
+    discoveredArtifactIds: [],
     ...overrides,
   }
 }
@@ -367,5 +372,102 @@ describe('hasRoleSelectionUnlock', () => {
 
   it('is true once handpick-cast-1 is purchased', () => {
     expect(hasRoleSelectionUnlock(makeDm({ purchasedUpgradeIds: ['handpick-cast-1'] }))).toBe(true)
+  })
+})
+
+describe('hasSailingUnlock', () => {
+  it('is false until sailing-unlock is purchased', () => {
+    expect(hasSailingUnlock(makeDm())).toBe(false)
+  })
+
+  it('is true once sailing-unlock is purchased', () => {
+    expect(hasSailingUnlock(makeDm({ purchasedUpgradeIds: ['sailing-unlock'] }))).toBe(true)
+  })
+})
+
+describe('computeArtifactBonuses', () => {
+  it('grants nothing with no artifacts discovered', () => {
+    const bonuses = computeArtifactBonuses(makeDm())
+    expect(bonuses.tankExtraTurn).toBe(false)
+    expect(bonuses.healerRevive).toBe(false)
+    expect(bonuses.dpsExtraRangeBonus).toBe(0)
+  })
+
+  it('maps each discovered artifact to its own bonus', () => {
+    const bonuses = computeArtifactBonuses(
+      makeDm({ discoveredArtifactIds: ['defensive-rush', 'revivify', 'extra-range'] }),
+    )
+    expect(bonuses.tankExtraTurn).toBe(true)
+    expect(bonuses.healerRevive).toBe(true)
+    expect(bonuses.healerReviveHpFraction).toBe(0.5)
+    expect(bonuses.dpsExtraRangeBonus).toBe(1)
+  })
+
+  it('ignores an unknown artifact id instead of throwing', () => {
+    expect(() => computeArtifactBonuses(makeDm({ discoveredArtifactIds: ['not-a-real-artifact'] }))).not.toThrow()
+  })
+})
+
+function makeShip(overrides: Partial<Ship> = {}): Ship {
+  return { id: 'ship-1', name: 'Ship 1', assignedIslandId: null, voyageRemaining: 0, lifetimeGold: 0, ...overrides }
+}
+
+describe('tickShips', () => {
+  const island = ISLANDS[0]
+
+  it('leaves an unassigned ship untouched', () => {
+    const dm = makeDm()
+    const { ships, dm: nextDm } = tickShips([makeShip()], dm, 999_999, createRng(1))
+    expect(ships[0]).toEqual(makeShip())
+    expect(nextDm).toEqual(dm)
+  })
+
+  it('counts down voyageRemaining without resolving early', () => {
+    const ship = makeShip({ assignedIslandId: island.id, voyageRemaining: island.baseVoyageDurationMs })
+    const { ships, dm } = tickShips([ship], makeDm(), 1000, createRng(1))
+    expect(ships[0].voyageRemaining).toBe(island.baseVoyageDurationMs - 1000)
+    expect(dm.gold).toBe(0) // voyage hasn't completed yet
+  })
+
+  it('pays out gold and resets the voyage (auto-repeat) when it completes', () => {
+    const ship = makeShip({ assignedIslandId: island.id, voyageRemaining: 100 })
+    // Seed picked to roll above the base find chance, so this run is a pure gold-only voyage.
+    const dm = makeDm({ discoveredArtifactIds: [] })
+    const { ships, dm: nextDm } = tickShips([ship], dm, 100, createRng(999))
+    expect(nextDm.gold).toBe(island.baseGoldReward)
+    expect(ships[0].voyageRemaining).toBe(island.baseVoyageDurationMs) // auto-repeats
+    expect(ships[0].lifetimeGold).toBe(island.baseGoldReward)
+  })
+
+  it('resolves multiple completed voyages within one large tick (offline catch-up)', () => {
+    const ship = makeShip({ assignedIslandId: island.id, voyageRemaining: island.baseVoyageDurationMs })
+    const dm = makeDm()
+    const elapsed = island.baseVoyageDurationMs * 3 + 500
+    const { ships, dm: nextDm } = tickShips([ship], dm, elapsed, createRng(1))
+    expect(ships[0].lifetimeGold).toBeGreaterThanOrEqual(island.baseGoldReward * 3)
+    expect(nextDm.gold).toBeGreaterThanOrEqual(island.baseGoldReward * 3)
+  })
+
+  it('never adds a duplicate artifact id across many completed voyages, and always pays out at least base gold per voyage', () => {
+    const ship = makeShip({ assignedIslandId: island.id, voyageRemaining: island.baseVoyageDurationMs })
+    const numVoyages = 30
+    const elapsed = island.baseVoyageDurationMs * numVoyages
+    const { dm } = tickShips([ship], makeDm(), elapsed, createRng(42))
+
+    expect(dm.gold).toBeGreaterThanOrEqual(island.baseGoldReward * numVoyages)
+    expect(new Set(dm.discoveredArtifactIds).size).toBe(dm.discoveredArtifactIds.length)
+    expect(dm.discoveredArtifactIds.length).toBeLessThanOrEqual(island.artifactPool.length)
+    // ~15% base find chance over 30 voyages makes it overwhelmingly likely
+    // the discovery path actually ran at least once — a hard guarantee would
+    // need to stub the RNG, which isn't worth it here.
+    expect(dm.discoveredArtifactIds.length).toBeGreaterThan(0)
+  })
+
+  it('applies the artifactFindChanceBonus and sailSpeedMultiplier upgrades', () => {
+    const boostedDm = makeDm({ purchasedUpgradeIds: ['keen-eyed-lookout-1', 'faster-sailing-1'] })
+    const ship = makeShip({ assignedIslandId: island.id, voyageRemaining: island.baseVoyageDurationMs })
+    const { ships } = tickShips([ship], boostedDm, island.baseVoyageDurationMs, createRng(1))
+    // faster-sailing-1 is a 0.85x multiplier, so the repeated voyage should be shorter than base.
+    expect(ships[0].voyageRemaining).toBeLessThan(island.baseVoyageDurationMs)
   })
 })

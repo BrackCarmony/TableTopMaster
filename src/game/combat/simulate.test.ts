@@ -218,6 +218,89 @@ describe('runEncounter', () => {
     expect(posById.get('healer')).toEqual({ x: 0, y: 7 })
   })
 
+  it('lets a tank with Defensive Rush act before round 0, ahead of any faster unit', () => {
+    const rushTemplate: EncounterTemplate = {
+      id: 'rush-test',
+      name: 'Rush Test',
+      gridWidth: 10,
+      gridHeight: 10,
+      partyStartPositions: [{ x: 0, y: 0 }, { x: 0, y: 1 }],
+      enemies: [
+        { name: 'Target', role: 'dps', position: { x: 9, y: 0 }, hp: 999, attackPower: 1, defense: 0, healPower: 0, moveRange: 0, attackRange: 0, speed: 1 },
+      ],
+    }
+    // The rush tank has the LOWEST speed in the party — without the
+    // pre-round pass it would never act before the much-faster dps. If its
+    // action still shows up first in the log, that can only be the
+    // pre-round pass firing, not normal initiative order.
+    const rushTank = makeUnit({ id: 'rush-tank', role: 'tank', speed: 1, extraTurnAtStart: true })
+    const fastDps = makeUnit({ id: 'fast-dps', role: 'dps', speed: 99 })
+
+    const result = runEncounter([rushTank, fastDps], rushTemplate, createRng(1))
+    const firstAction = result.log.find((e) => e.type === 'move' || e.type === 'attack')
+    expect(firstAction).toBeDefined()
+    if (firstAction?.type === 'move') expect(firstAction.unitId).toBe('rush-tank')
+    if (firstAction?.type === 'attack') expect(firstAction.attackerId).toBe('rush-tank')
+  })
+
+  it('never gives a tank without Defensive Rush a pre-round action', () => {
+    const rushTemplate: EncounterTemplate = {
+      id: 'no-rush-test',
+      name: 'No Rush Test',
+      gridWidth: 10,
+      gridHeight: 10,
+      partyStartPositions: [{ x: 0, y: 0 }, { x: 0, y: 1 }],
+      enemies: [
+        { name: 'Target', role: 'dps', position: { x: 9, y: 0 }, hp: 999, attackPower: 1, defense: 0, healPower: 0, moveRange: 0, attackRange: 0, speed: 1 },
+      ],
+    }
+    const slowTank = makeUnit({ id: 'slow-tank', role: 'tank', speed: 1 })
+    const fastDps = makeUnit({ id: 'fast-dps', role: 'dps', speed: 99 })
+
+    const result = runEncounter([slowTank, fastDps], rushTemplate, createRng(1))
+    const firstAction = result.log.find((e) => e.type === 'move' || e.type === 'attack')
+    expect(firstAction).toBeDefined()
+    if (firstAction?.type === 'move') expect(firstAction.unitId).toBe('fast-dps')
+    if (firstAction?.type === 'attack') expect(firstAction.attackerId).toBe('fast-dps')
+  })
+
+  it('lets a healer with Revivify bring a fallen ally back before the encounter ends', () => {
+    const reviveTemplate: EncounterTemplate = {
+      id: 'revive-test',
+      name: 'Revive Test',
+      gridWidth: 8,
+      gridHeight: 8,
+      partyStartPositions: [{ x: 0, y: 0 }, { x: 0, y: 3 }],
+      // A 1-hp enemy adjacent to the tank: the enemy's own attack kills the
+      // fragile tank first (it acts first, highest speed), the healer then
+      // revives (no wounded-but-alive ally to heal instead), and the
+      // revived tank — acting last in initiative, after the healer — gets
+      // its own turn this same round and finishes the 1-hp enemy off before
+      // it can ever attack again.
+      enemies: [
+        { name: 'Weakling', role: 'dps', position: { x: 2, y: 0 }, hp: 1, attackPower: 20, defense: 0, healPower: 0, moveRange: 0, attackRange: 1, speed: 99 },
+      ],
+    }
+    const fragileTank = makeUnit({ id: 'tank', role: 'tank', hp: 1, maxHp: 1, attackPower: 5, defense: 0, attackRange: 1, speed: 1 })
+    const healer = makeUnit({ id: 'healer', role: 'healer', attackRange: 5, healPower: 0, speed: 50, reviveAvailable: true, reviveHpFraction: 0.5 })
+
+    let result = runEncounter([fragileTank, healer], reviveTemplate, createRng(1))
+    // Both the enemy's killing hit and the revived tank's finishing hit are
+    // 85% each — retry a couple of seeds on the rare miss instead of
+    // asserting on a single roll of the dice.
+    for (let seed = 2; !result.survivorIds.includes('tank') && seed < 15; seed++) {
+      result = runEncounter([fragileTank, healer], reviveTemplate, createRng(seed))
+    }
+
+    const reviveEvent = result.log.find((e) => e.type === 'revive')
+    expect(reviveEvent).toBeDefined()
+    if (reviveEvent?.type === 'revive') {
+      expect(reviveEvent.healerId).toBe('healer')
+      expect(reviveEvent.targetId).toBe('tank')
+    }
+    expect(result.survivorIds).toContain('tank')
+  })
+
   it('calls a stalemate when neither side can reach or hit the other', () => {
     const frozenTemplate: EncounterTemplate = {
       id: 'frozen',

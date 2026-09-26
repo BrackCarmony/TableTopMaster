@@ -5,6 +5,7 @@ import { findPathToward } from './pathfinding'
 export type TurnAction =
   | { kind: 'idle' }
   | { kind: 'heal'; targetId: string }
+  | { kind: 'revive'; targetId: string }
   | { kind: 'attack'; targetId: string }
   | { kind: 'move'; path: GridCoord[]; targetId: string }
 
@@ -24,18 +25,24 @@ function isUnderleveled(unit: CombatUnit, units: CombatUnit[]): boolean {
 
 /**
  * Decides what a unit does on its turn. Healers prioritize topping off a
- * wounded ally within range; everyone else (and healers with nothing to
- * heal) chases the nearest living enemy and attacks once in range,
- * pathfinding toward them otherwise — unless they're under-leveled next to
- * their allies, in which case they hold their ground rather than advance
- * into a fight the rest of the party is better suited for. They'll still
- * fight back if an enemy is already in range without moving.
+ * wounded ally within range, then — if they still have their once-per-battle
+ * Revivify charge and an ally has fallen — bringing that ally back instead of
+ * waiting for the encounter to end; everyone else (and healers with nothing
+ * to heal or revive) chases the nearest living enemy and attacks once in
+ * range, pathfinding toward them otherwise — unless they're under-leveled
+ * next to their allies, in which case they hold their ground rather than
+ * advance into a fight the rest of the party is better suited for. They'll
+ * still fight back if an enemy is already in range without moving.
  */
 export function planTurn(unit: CombatUnit, units: CombatUnit[], gridWidth: number, gridHeight: number): TurnAction {
   if (unit.role === 'healer') {
     const healTarget = mostWoundedAllyInRange(unit, units, unit.attackRange)
     if (healTarget) {
       return { kind: 'heal', targetId: healTarget.id }
+    }
+    if (unit.reviveAvailable) {
+      const fallenAlly = units.find((u) => u.side === unit.side && !u.alive)
+      if (fallenAlly) return { kind: 'revive', targetId: fallenAlly.id }
     }
   }
 

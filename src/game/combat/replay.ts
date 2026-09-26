@@ -30,6 +30,14 @@ export function computeBoardStateAtStep(log: CombatLogEvent[], stepIndex: number
         if (target) target.hp = event.targetHpAfter
         break
       }
+      case 'revive': {
+        const target = byId.get(event.targetId)
+        if (target) {
+          target.alive = true
+          target.hp = event.targetHpAfter
+        }
+        break
+      }
       case 'death': {
         const unit = byId.get(event.unitId)
         if (unit) unit.alive = false
@@ -94,6 +102,8 @@ export function describeEvent(event: CombatLogEvent, unitsById: Map<string, Unit
       }
       return `${healer.name} heals ${targetName} for ${formatNumber(event.amount)} (${formatNumber(event.targetHpAfter)} HP).`
     }
+    case 'revive':
+      return `${nameOf(event.healerId)} refuses to let ${nameOf(event.targetId)} fall — revived with ${formatNumber(event.targetHpAfter)} HP!`
     case 'death':
       return `${nameOf(event.unitId)} falls.`
     case 'enrage':

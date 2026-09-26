@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { computeGrowthPerLevel, createCharacterForPlayer, projectStatsAtLevel } from './characters'
+import { computeGrowthPerLevel, createCharacterForPlayer, DEFAULT_ARTIFACT_BONUSES, projectStatsAtLevel, toCombatUnit } from './characters'
 import { getClassTier } from './data/classes'
 import { legacyStatMultiplier } from './data/legacy'
 import { createRng } from './rng'
-import type { Player } from './types'
+import type { Character, Player } from './types'
 
 function makePlayer(overrides: Partial<Player>): Player {
   return {
@@ -145,6 +145,56 @@ describe('computeGrowthPerLevel', () => {
     })
     expect(growth10.maxHp).toBeGreaterThan(growth1.maxHp)
     expect(growth10.attackPower).toBeGreaterThan(growth1.attackPower)
+  })
+})
+
+function makeCharacter(overrides: Partial<Character>): Character {
+  return {
+    id: 'char',
+    name: 'Char',
+    race: 'Human',
+    className: 'Test',
+    role: 'tank',
+    level: 1,
+    xp: 0,
+    maxHp: 20,
+    attackPower: 5,
+    defense: 2,
+    healPower: 0,
+    moveRange: 3,
+    attackRange: 1,
+    speed: 8,
+    growthPerLevel: { maxHp: 1, attackPower: 1, defense: 1, healPower: 0 },
+    ...overrides,
+  }
+}
+
+describe('toCombatUnit', () => {
+  it('applies no Sailing bonuses by default', () => {
+    const tank = toCombatUnit(makeCharacter({ role: 'tank', attackRange: 1 }), null)
+    expect(tank.extraTurnAtStart).toBeUndefined()
+    expect(tank.reviveAvailable).toBeUndefined()
+    expect(tank.attackRange).toBe(1)
+  })
+
+  it('only gives Defensive Rush to tanks, only when discovered', () => {
+    const bonuses = { ...DEFAULT_ARTIFACT_BONUSES, tankExtraTurn: true }
+    expect(toCombatUnit(makeCharacter({ role: 'tank' }), null, bonuses).extraTurnAtStart).toBe(true)
+    expect(toCombatUnit(makeCharacter({ role: 'dps' }), null, bonuses).extraTurnAtStart).toBeUndefined()
+  })
+
+  it('only gives Revivify to healers, carrying the configured hpFraction, only when discovered', () => {
+    const bonuses = { ...DEFAULT_ARTIFACT_BONUSES, healerRevive: true, healerReviveHpFraction: 0.5 }
+    const healerUnit = toCombatUnit(makeCharacter({ role: 'healer' }), null, bonuses)
+    expect(healerUnit.reviveAvailable).toBe(true)
+    expect(healerUnit.reviveHpFraction).toBe(0.5)
+    expect(toCombatUnit(makeCharacter({ role: 'tank' }), null, bonuses).reviveAvailable).toBeUndefined()
+  })
+
+  it('only adds Extra Range to dps attackRange, only when discovered', () => {
+    const bonuses = { ...DEFAULT_ARTIFACT_BONUSES, dpsExtraRangeBonus: 1 }
+    expect(toCombatUnit(makeCharacter({ role: 'dps', attackRange: 3 }), null, bonuses).attackRange).toBe(4)
+    expect(toCombatUnit(makeCharacter({ role: 'tank', attackRange: 1 }), null, bonuses).attackRange).toBe(1)
   })
 })
 

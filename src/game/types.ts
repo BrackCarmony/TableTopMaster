@@ -80,6 +80,10 @@ export type UpgradeEffect =
   | { kind: 'tableCapacityBonus'; value: number }
   | { kind: 'tableSlotBonus'; value: number }
   | { kind: 'unlockRoleSelection' }
+  | { kind: 'unlockSailing' }
+  | { kind: 'shipSlotBonus'; value: number }
+  | { kind: 'sailSpeedMultiplier'; value: number }
+  | { kind: 'artifactFindChanceBonus'; value: number }
 
 export interface Upgrade {
   id: string
@@ -102,6 +106,39 @@ export interface Trophy {
   earnedAt: number
 }
 
+export interface Ship {
+  id: string
+  name: string
+  /** Destination island, or null when idle at dock. */
+  assignedIslandId: string | null
+  /** Ms remaining until the current voyage resolves; 0 while idle. */
+  voyageRemaining: number
+  lifetimeGold: number
+}
+
+export interface Island {
+  id: string
+  name: string
+  description: string
+  baseGoldReward: number
+  baseVoyageDurationMs: number
+  /** Artifact ids this island can roll on a successful find. */
+  artifactPool: string[]
+}
+
+export type ArtifactEffect =
+  | { kind: 'tankExtraTurnAtStart' }
+  | { kind: 'healerReviveOnce'; hpFraction: number }
+  | { kind: 'dpsExtraRange'; value: number }
+
+export interface Artifact {
+  id: string
+  name: string
+  description: string
+  role: Role
+  effect: ArtifactEffect
+}
+
 export interface DMState {
   name: string
   level: number
@@ -113,11 +150,14 @@ export interface DMState {
   /** How many times each execution module has been DEFEATED, keyed by module id — each win escalates that module further. Never rises from losing or from leaving it alone. */
   executionTier: Record<string, number>
   trophies: Trophy[]
+  /** Sailing artifact ids found so far — permanent, role-wide passives once discovered. */
+  discoveredArtifactIds: string[]
 }
 
 export interface GameState {
   dm: DMState
   players: Player[]
   tables: Table[]
+  ships: Ship[]
   lastTickAt: number
 }

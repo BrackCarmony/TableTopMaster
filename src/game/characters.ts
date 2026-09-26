@@ -177,7 +177,26 @@ export function applyXp(character: Character, xp: number): Character {
   return next
 }
 
-export function toCombatUnit(character: Character, flavor: DominantTrait | null): CombatUnit {
+/** Sailing artifact bonuses, derived once per encounter from the DM's discoveredArtifactIds (see engine.ts computeArtifactBonuses) and baked onto each CombatUnit at build time — keeps combat/simulate.ts free of any dependency on DM/store types. */
+export interface ArtifactBonuses {
+  tankExtraTurn: boolean
+  healerRevive: boolean
+  healerReviveHpFraction: number
+  dpsExtraRangeBonus: number
+}
+
+export const DEFAULT_ARTIFACT_BONUSES: ArtifactBonuses = {
+  tankExtraTurn: false,
+  healerRevive: false,
+  healerReviveHpFraction: 0.5,
+  dpsExtraRangeBonus: 0,
+}
+
+export function toCombatUnit(
+  character: Character,
+  flavor: DominantTrait | null,
+  artifactBonuses: ArtifactBonuses = DEFAULT_ARTIFACT_BONUSES,
+): CombatUnit {
   return {
     id: character.id,
     name: character.name,
@@ -191,13 +210,20 @@ export function toCombatUnit(character: Character, flavor: DominantTrait | null)
     defense: character.defense,
     healPower: character.healPower,
     moveRange: character.moveRange,
-    attackRange: character.attackRange,
+    attackRange: character.attackRange + (character.role === 'dps' ? artifactBonuses.dpsExtraRangeBonus : 0),
     speed: character.speed,
     alive: true,
     flavor,
+    extraTurnAtStart: character.role === 'tank' && artifactBonuses.tankExtraTurn ? true : undefined,
+    reviveAvailable: character.role === 'healer' && artifactBonuses.healerRevive ? true : undefined,
+    reviveHpFraction: character.role === 'healer' && artifactBonuses.healerRevive ? artifactBonuses.healerReviveHpFraction : undefined,
   }
 }
 
 export function generateTableId(): string {
   return generateId('table')
+}
+
+export function generateShipId(): string {
+  return generateId('ship')
 }

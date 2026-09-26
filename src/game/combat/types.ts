@@ -27,6 +27,12 @@ export interface CombatUnit {
   flavor: DominantTrait | null
   /** If set, this unit's attackPower grows by this much at the end of every round — a boss "enrage" so a long fight can't out-sustain it forever. */
   attackPowerRampPerRound?: number
+  /** Defensive Rush artifact — this unit acts once in a pre-round pass before round 0 begins. Never reset; only ever consulted once per encounter. */
+  extraTurnAtStart?: boolean
+  /** Revivify artifact — true until this healer has used their once-per-battle revive, then set false. */
+  reviveAvailable?: boolean
+  /** Fraction of maxHp a Revivify revive restores. Only meaningful alongside reviveAvailable. */
+  reviveHpFraction?: number
 }
 
 export type CombatLogEvent =
@@ -34,6 +40,7 @@ export type CombatLogEvent =
   | { type: 'move'; unitId: string; path: GridCoord[] }
   | { type: 'attack'; attackerId: string; targetId: string; hit: boolean; damage: number; targetHpAfter: number }
   | { type: 'heal'; healerId: string; targetId: string; amount: number; targetHpAfter: number }
+  | { type: 'revive'; healerId: string; targetId: string; targetHpAfter: number }
   | { type: 'death'; unitId: string }
   | { type: 'enrage'; unitId: string; attackPower: number }
   | { type: 'encounter_end'; outcome: 'victory' | 'defeat' | 'stalemate'; survivorIds: string[] }

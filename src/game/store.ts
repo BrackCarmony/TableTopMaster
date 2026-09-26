@@ -1,21 +1,26 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { createCharacterForPlayer, createPlayer, generateTableId, LEGACY_FLAT_GROWTH } from './characters'
+import { createCharacterForPlayer, createPlayer, generateShipId, generateTableId, LEGACY_FLAT_GROWTH } from './characters'
 import { getClassTier, maxTier } from './data/classes'
+import { getIslandById } from './data/islands'
 import { legacyTierCost } from './data/legacy'
 import { trophyStartingLevelBonus } from './data/trophies'
 import {
   MAX_OFFLINE_MS,
+  effectiveShipSlots,
   effectiveTableCapacity,
   effectiveTableSlots,
   hasRoleSelectionUnlock,
+  hasSailingUnlock,
   resolveEncounter,
+  tickShips,
   tickTables,
+  voyageDuration,
 } from './engine'
 import { createRng } from './rng'
 import { getModuleById } from './data/modules'
 import { getUpgradeById } from './data/upgrades'
-import type { Character, DMState, GameState, Player, Role, Table } from './types'
+import type { Character, DMState, GameState, Player, Role, Ship, Table } from './types'
 
 const rng = createRng(Date.now() ^ 0x9e3779b9)
 
@@ -44,7 +49,21 @@ function createInitialDm(): DMState {
     tableSlots: 1,
     executionTier: {},
     trophies: [],
+    discoveredArtifactIds: [],
   }
+}
+
+function createShip(index: number): Ship {
+  return { id: generateShipId(), name: `Ship ${index}`, assignedIslandId: null, voyageRemaining: 0, lifetimeGold: 0 }
+}
+
+// First-pass balance guess, same as every other constant introduced this
+// way — expect to retune after playtesting.
+const SHIP_BASE_COST = 8000
+const SHIP_COST_GROWTH = 1.8
+
+export function shipCost(shipCount: number): number {
+  return Math.round(SHIP_BASE_COST * SHIP_COST_GROWTH ** shipCount)
 }
 
 function createSeatedStarterPlayer(tableId: string, existingNames: string[]): Player {
@@ -83,6 +102,8 @@ interface GameStore extends GameState {
   assignModule: (tableId: string, moduleId: string) => void
   executeModuleNow: (tableId: string, moduleId: string) => void
   buyUpgrade: (upgradeId: string) => void
+  buyShip: () => void
+  assignIsland: (shipId: string, islandId: string) => void
   tick: (dtMs: number) => void
   catchUpOffline: () => void
   resetGame: () => void
@@ -96,6 +117,7 @@ function freshGameState(): GameState {
     dm: createInitialDm(),
     players: [first, second],
     tables: [table],
+    ships: [],
     lastTickAt: Date.now(),
   }
 }
@@ -269,18 +291,45 @@ export const useGameStore = create<GameStore>()(
           return { dm: nextDm, tables: ensureTableSlots(state.tables, nextDm) }
         }),
 
+      buyShip: () =>
+        set((state) => {
+          if (!hasSailingUnlock(state.dm)) return state
+          if (state.ships.length >= effectiveShipSlots(state.dm)) return state
+          const cost = shipCost(state.ships.length)
+          if (state.dm.gold < cost) return state
+          return {
+            dm: { ...state.dm, gold: state.dm.gold - cost },
+            ships: [...state.ships, createShip(state.ships.length + 1)],
+          }
+        }),
+
+      assignIsland: (shipId, islandId) =>
+        set((state) => {
+          if (!hasSailingUnlock(state.dm)) return state
+          const island = getIslandById(islandId)
+          const ship = state.ships.find((s) => s.id === shipId)
+          if (!island || !ship) return state
+          return {
+            ships: state.ships.map((s) =>
+              s.id === shipId ? { ...s, assignedIslandId: islandId, voyageRemaining: voyageDuration(island, state.dm) } : s,
+            ),
+          }
+        }),
+
       tick: (dtMs) =>
         set((state) => {
-          const { tables, players, dm } = tickTables(state.tables, state.players, state.dm, dtMs, rng)
-          return { tables, players, dm, lastTickAt: Date.now() }
+          const tabled = tickTables(state.tables, state.players, state.dm, dtMs, rng)
+          const { ships, dm } = tickShips(state.ships, tabled.dm, dtMs, rng)
+          return { tables: tabled.tables, players: tabled.players, ships, dm, lastTickAt: Date.now() }
         }),
 
       catchUpOffline: () =>
         set((state) => {
           const elapsed = Math.min(Math.max(0, Date.now() - state.lastTickAt), MAX_OFFLINE_MS)
           if (elapsed <= 0) return { lastTickAt: Date.now() }
-          const { tables, players, dm } = tickTables(state.tables, state.players, state.dm, elapsed, rng)
-          return { tables, players, dm, lastTickAt: Date.now() }
+          const tabled = tickTables(state.tables, state.players, state.dm, elapsed, rng)
+          const { ships, dm } = tickShips(state.ships, tabled.dm, elapsed, rng)
+          return { tables: tabled.tables, players: tabled.players, ships, dm, lastTickAt: Date.now() }
         }),
 
       // Replaces dm/players/tables/lastTickAt wholesale with a brand new
@@ -292,8 +341,14 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: 'tabletopmaster-save',
-      version: 7,
-      partialize: (state) => ({ dm: state.dm, players: state.players, tables: state.tables, lastTickAt: state.lastTickAt }),
+      version: 8,
+      partialize: (state) => ({
+        dm: state.dm,
+        players: state.players,
+        tables: state.tables,
+        ships: state.ships,
+        lastTickAt: state.lastTickAt,
+      }),
       migrate: (persisted, version) => {
         // A save schema has changed almost every session — if a future
         // migration step has a bug on some real save shape we didn't
@@ -335,6 +390,15 @@ export const useGameStore = create<GameStore>()(
               if (!character || character.growthPerLevel) return p
               return { ...p, character: { ...character, growthPerLevel: LEGACY_FLAT_GROWTH[character.role] } }
             })
+          }
+          if (version < 8) {
+            // v8 adds Sailing: ships as a new top-level array, plus
+            // discoveredArtifactIds tracking on the DM. Neither existed
+            // before, so both just start empty.
+            const dm = state.dm as DMState & { discoveredArtifactIds?: string[] }
+            state.dm = { ...dm, discoveredArtifactIds: dm.discoveredArtifactIds ?? [] }
+            const withShips = state as GameState & { ships?: Ship[] }
+            state.ships = withShips.ships ?? []
           }
           return state
         } catch (err) {

@@ -126,6 +126,61 @@ function resolveAttack(
   }
 }
 
+const DEFAULT_REVIVE_HP_FRACTION = 0.5
+
+/** Revivify — brings a fallen unit back at a fraction of maxHp and spends the healer's once-per-battle charge. */
+function performRevive(healer: CombatUnit, target: CombatUnit, log: CombatLogEvent[]): void {
+  target.alive = true
+  target.hp = Math.max(1, Math.round(target.maxHp * (healer.reviveHpFraction ?? DEFAULT_REVIVE_HP_FRACTION)))
+  healer.reviveAvailable = false
+  log.push({ type: 'revive', healerId: healer.id, targetId: target.id, targetHpAfter: target.hp })
+}
+
+/** Resolves a single unit's turn (heal / revive / move+maybe-attack / attack / idle) and applies its effects in place. Shared by the pre-round Defensive Rush pass and the normal round loop so the dispatch logic isn't duplicated. */
+function takeTurn(
+  unit: CombatUnit,
+  units: CombatUnit[],
+  unitById: Map<string, CombatUnit>,
+  template: EncounterTemplate,
+  rng: RngFn,
+  log: CombatLogEvent[],
+): void {
+  const action = planTurn(unit, units, template.gridWidth, template.gridHeight)
+  if (action.kind === 'idle') return
+
+  if (action.kind === 'heal') {
+    const target = unitById.get(action.targetId)
+    if (!target || !target.alive) return
+    const healed = Math.min(target.maxHp - target.hp, unit.healPower)
+    target.hp += healed
+    log.push({ type: 'heal', healerId: unit.id, targetId: target.id, amount: healed, targetHpAfter: target.hp })
+    return
+  }
+
+  if (action.kind === 'revive') {
+    const target = unitById.get(action.targetId)
+    if (!target || target.alive || !unit.reviveAvailable) return
+    performRevive(unit, target, log)
+    return
+  }
+
+  if (action.kind === 'move') {
+    unit.position = { ...action.path[action.path.length - 1] }
+    log.push({ type: 'move', unitId: unit.id, path: action.path.map((p) => ({ ...p })) })
+    const target = unitById.get(action.targetId)
+    if (target && target.alive && inRange(unit.position, target.position, unit.attackRange)) {
+      resolveAttack(unit, target, rng, log)
+    }
+    return
+  }
+
+  if (action.kind === 'attack') {
+    const target = unitById.get(action.targetId)
+    if (!target || !target.alive) return
+    resolveAttack(unit, target, rng, log)
+  }
+}
+
 /**
  * Runs one deterministic encounter given a seeded RNG. Party units enter at
  * full HP (a "rest" is assumed between encounters); enemies are built fresh
@@ -149,7 +204,14 @@ export function runEncounter(partyUnits: CombatUnit[], template: EncounterTempla
 
   const initiativeOrder = [...units].sort((a, b) => b.speed - a.speed)
 
-  let outcome: 'victory' | 'defeat' | 'stalemate' | null = null
+  // Defensive Rush — a tank with an extra turn at the start of battle acts
+  // once here, before round 0 even begins, then never again (the flag is
+  // never reset).
+  for (const unit of initiativeOrder) {
+    if (unit.alive && unit.extraTurnAtStart) takeTurn(unit, units, unitById, template, rng, log)
+  }
+
+  let outcome: 'victory' | 'defeat' | 'stalemate' | null = checkOutcome(units)
   let roundsElapsed = 0
 
   for (let round = 0; round < MAX_ROUNDS && outcome === null; round++) {
@@ -158,34 +220,7 @@ export function runEncounter(partyUnits: CombatUnit[], template: EncounterTempla
       if (!unit.alive) continue
       outcome = checkOutcome(units)
       if (outcome) break
-
-      const action = planTurn(unit, units, template.gridWidth, template.gridHeight)
-      if (action.kind === 'idle') continue
-
-      if (action.kind === 'heal') {
-        const target = unitById.get(action.targetId)
-        if (!target || !target.alive) continue
-        const healed = Math.min(target.maxHp - target.hp, unit.healPower)
-        target.hp += healed
-        log.push({ type: 'heal', healerId: unit.id, targetId: target.id, amount: healed, targetHpAfter: target.hp })
-        continue
-      }
-
-      if (action.kind === 'move') {
-        unit.position = { ...action.path[action.path.length - 1] }
-        log.push({ type: 'move', unitId: unit.id, path: action.path.map((p) => ({ ...p })) })
-        const target = unitById.get(action.targetId)
-        if (target && target.alive && inRange(unit.position, target.position, unit.attackRange)) {
-          resolveAttack(unit, target, rng, log)
-        }
-        continue
-      }
-
-      if (action.kind === 'attack') {
-        const target = unitById.get(action.targetId)
-        if (!target || !target.alive) continue
-        resolveAttack(unit, target, rng, log)
-      }
+      takeTurn(unit, units, unitById, template, rng, log)
     }
     if (!outcome) outcome = checkOutcome(units)
 
@@ -199,6 +234,19 @@ export function runEncounter(partyUnits: CombatUnit[], template: EncounterTempla
   }
 
   if (!outcome) outcome = 'stalemate'
+
+  // Revivify fallback — a healer who still has their charge unused (every
+  // turn had someone to heal instead, or the fatal blow landed after their
+  // last action) gets to use it right now rather than losing the ally purely
+  // to turn-order timing. Applies regardless of outcome, so a costly victory
+  // can still bring someone back — but a healer who also fell can't cast it.
+  for (const unit of units) {
+    if (!unit.alive || !unit.reviveAvailable) continue
+    const fallenAlly = units.find((u) => u.side === unit.side && !u.alive)
+    if (!fallenAlly) continue
+    performRevive(unit, fallenAlly, log)
+  }
+  outcome = checkOutcome(units) ?? outcome
 
   const survivorIds = units.filter((u) => u.side === 'party' && u.alive).map((u) => u.id)
   log.push({ type: 'encounter_end', outcome, survivorIds })

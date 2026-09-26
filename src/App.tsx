@@ -5,6 +5,7 @@ import { TableCard } from './components/TableCard'
 import { UpgradesPanel } from './components/UpgradesPanel'
 import { RosterPanel } from './components/RosterPanel'
 import { TrophyCase } from './components/TrophyCase'
+import { SailingPanel } from './components/SailingPanel'
 
 export default function App() {
   useGameLoop()
@@ -31,6 +32,7 @@ export default function App() {
         <TrophyCase />
         <RosterPanel />
         <UpgradesPanel />
+        <SailingPanel />
       </main>
     </div>
   )

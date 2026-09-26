@@ -1,19 +1,28 @@
 import type { RngFn } from './rng'
-import { applyXp, toCombatUnit } from './characters'
+import { applyXp, type ArtifactBonuses, DEFAULT_ARTIFACT_BONUSES, toCombatUnit } from './characters'
 import { runEncounter } from './combat/simulate'
 import type { EncounterTemplate, EnemySpawn } from './combat/types'
+import { getArtifactById } from './data/artifacts'
+import { getIslandById } from './data/islands'
 import { getModuleById } from './data/modules'
 import { DEFAULT_TROPHY_PARTS, getTrophyQuality } from './data/trophies'
 import { getUpgradeById } from './data/upgrades'
 import { dominantTrait } from './personality'
-import type { DMState, Player, Table, Trophy } from './types'
+import type { DMState, Player, Ship, Table, Trophy } from './types'
 
 export const BASE_COOLDOWN_MS = 5000
 export const MIN_COOLDOWN_MS = 1000
 export const BASE_TABLE_CAPACITY = 4
 export const BASE_TABLE_SLOTS = 1
+export const BASE_SHIP_SLOTS = 1
+export const MIN_VOYAGE_MS = 5000
+export const BASE_ARTIFACT_FIND_CHANCE = 0.15
+// Repeat find of an already-discovered artifact isn't a dead roll — it pays
+// out a slice of that voyage's gold on top of the normal reward instead.
+const REPEAT_FIND_GOLD_FRACTION = 0.5
 export const MAX_OFFLINE_MS = 8 * 60 * 60 * 1000
 const MAX_OFFLINE_ENCOUNTERS_PER_TABLE = 2000
+const MAX_OFFLINE_VOYAGES_PER_SHIP = 2000
 
 export interface Multipliers {
   gold: number
@@ -73,6 +82,67 @@ export function effectiveTableCapacity(dm: DMState): number {
 
 export function effectiveTableSlots(dm: DMState): number {
   return BASE_TABLE_SLOTS + tableSlotBonus(dm)
+}
+
+export function hasSailingUnlock(dm: DMState): boolean {
+  return dm.purchasedUpgradeIds.some((id) => getUpgradeById(id)?.effect.kind === 'unlockSailing')
+}
+
+export function shipSlotBonus(dm: DMState): number {
+  let bonus = 0
+  for (const id of dm.purchasedUpgradeIds) {
+    const upgrade = getUpgradeById(id)
+    if (upgrade?.effect.kind === 'shipSlotBonus') bonus += upgrade.effect.value
+  }
+  return bonus
+}
+
+export function effectiveShipSlots(dm: DMState): number {
+  return BASE_SHIP_SLOTS + shipSlotBonus(dm)
+}
+
+export function sailSpeedMultiplier(dm: DMState): number {
+  let multiplier = 1
+  for (const id of dm.purchasedUpgradeIds) {
+    const upgrade = getUpgradeById(id)
+    if (upgrade?.effect.kind === 'sailSpeedMultiplier') multiplier *= upgrade.effect.value
+  }
+  return multiplier
+}
+
+export function artifactFindChanceBonus(dm: DMState): number {
+  let bonus = 0
+  for (const id of dm.purchasedUpgradeIds) {
+    const upgrade = getUpgradeById(id)
+    if (upgrade?.effect.kind === 'artifactFindChanceBonus') bonus += upgrade.effect.value
+  }
+  return bonus
+}
+
+export function voyageDuration(island: { baseVoyageDurationMs: number }, dm: DMState): number {
+  return Math.max(MIN_VOYAGE_MS, Math.round(island.baseVoyageDurationMs * sailSpeedMultiplier(dm)))
+}
+
+/** Derives each role's Sailing artifact bonuses from the DM's discovered artifacts — computed once per encounter and baked onto every CombatUnit built for it (see characters.ts toCombatUnit), so combat/simulate.ts never needs to know about DM state. */
+export function computeArtifactBonuses(dm: DMState): ArtifactBonuses {
+  const bonuses: ArtifactBonuses = { ...DEFAULT_ARTIFACT_BONUSES }
+  for (const id of dm.discoveredArtifactIds) {
+    const artifact = getArtifactById(id)
+    if (!artifact) continue
+    switch (artifact.effect.kind) {
+      case 'tankExtraTurnAtStart':
+        bonuses.tankExtraTurn = true
+        break
+      case 'healerReviveOnce':
+        bonuses.healerRevive = true
+        bonuses.healerReviveHpFraction = artifact.effect.hpFraction
+        break
+      case 'dpsExtraRange':
+        bonuses.dpsExtraRangeBonus += artifact.effect.value
+        break
+    }
+  }
+  return bonuses
 }
 
 export function computeInfamyReward(lifetimeGold: number, partyCount: number, multipliers: Multipliers): number {
@@ -177,7 +247,8 @@ export function resolveEncounter(
     ? scaleEncounterForTier(moduleDef.encounters[table.encounterIndex % moduleDef.encounters.length], difficultyTier)
     : moduleDef.encounters[table.encounterIndex % moduleDef.encounters.length]
 
-  const partyUnits = seatedPlayers.map((p) => toCombatUnit(p.character!, dominantTrait(p.personality)))
+  const artifactBonuses = computeArtifactBonuses(dm)
+  const partyUnits = seatedPlayers.map((p) => toCombatUnit(p.character!, dominantTrait(p.personality), artifactBonuses))
   const result = runEncounter(partyUnits, encounterTemplate, rng)
   const multipliers = computeMultipliers(dm)
   const survivorCharIds = new Set(result.survivorIds)
@@ -336,4 +407,68 @@ export function tickTables(
     }
   })
   return { tables: nextTables, players: allPlayers, dm: d }
+}
+
+/**
+ * Advances a single ship's voyage by `dtMs` of wall-clock time, resolving as
+ * many round trips as fit (live ticks and offline catch-up alike). Each
+ * completed voyage pays out gold and rolls for an artifact, then the ship
+ * auto-repeats to the same island — same "assign once, keeps going" shape as
+ * a table's assigned module.
+ */
+function tickShip(ship: Ship, dm: DMState, dtMs: number, rng: RngFn): { ship: Ship; dm: DMState } {
+  let s = ship
+  let d = dm
+  let remaining = dtMs
+  let iterations = 0
+
+  while (remaining > 0 && s.assignedIslandId && iterations < MAX_OFFLINE_VOYAGES_PER_SHIP) {
+    const island = getIslandById(s.assignedIslandId)
+    if (!island) break
+
+    if (s.voyageRemaining > remaining) {
+      s = { ...s, voyageRemaining: s.voyageRemaining - remaining }
+      remaining = 0
+      break
+    }
+    remaining -= s.voyageRemaining
+
+    const multipliers = computeMultipliers(d)
+    const goldGain = Math.round(island.baseGoldReward * multipliers.gold)
+    d = { ...d, gold: d.gold + goldGain }
+
+    const findChance = BASE_ARTIFACT_FIND_CHANCE + artifactFindChanceBonus(d)
+    if (island.artifactPool.length > 0 && rng() < findChance) {
+      const artifactId = island.artifactPool[Math.floor(rng() * island.artifactPool.length)]
+      if (d.discoveredArtifactIds.includes(artifactId)) {
+        // Already have it — a smaller consolation payout so a repeat roll
+        // isn't a dead click.
+        d = { ...d, gold: d.gold + Math.round(goldGain * REPEAT_FIND_GOLD_FRACTION) }
+      } else {
+        d = { ...d, discoveredArtifactIds: [...d.discoveredArtifactIds, artifactId] }
+      }
+    }
+
+    s = { ...s, voyageRemaining: voyageDuration(island, d), lifetimeGold: s.lifetimeGold + goldGain }
+    iterations++
+  }
+
+  return { ship: s, dm: d }
+}
+
+export function tickShips(ships: Ship[], dm: DMState, dtMs: number, rng: RngFn): { ships: Ship[]; dm: DMState } {
+  let d = dm
+  const nextShips = ships.map((ship) => {
+    // Same fault-isolation reasoning as tickTables — one bad ship must never
+    // freeze the whole fleet's tick.
+    try {
+      const result = tickShip(ship, d, dtMs, rng)
+      d = result.dm
+      return result.ship
+    } catch (err) {
+      console.error(`Ship "${ship.name}" (${ship.id}) failed to tick — leaving it paused this tick:`, err)
+      return ship
+    }
+  })
+  return { ships: nextShips, dm: d }
 }

@@ -90,6 +90,34 @@ describe('planTurn', () => {
     expect(action.kind).toBe('move')
   })
 
+  it('has a healer with Revivify revive a fallen ally when nobody needs healing', () => {
+    const healer = makeUnit({ id: 'healer', role: 'healer', position: { x: 0, y: 0 }, attackRange: 2, reviveAvailable: true })
+    const fallenTank = makeUnit({ id: 'tank', role: 'tank', position: { x: 5, y: 5 }, alive: false })
+    const enemy = makeUnit({ id: 'enemy', side: 'enemy', position: { x: 0, y: 3 } })
+
+    const action = planTurn(healer, [healer, fallenTank, enemy], 8, 8)
+    expect(action.kind).toBe('revive')
+    if (action.kind === 'revive') expect(action.targetId).toBe('tank')
+  })
+
+  it('prioritizes healing a wounded ally over reviving a fallen one', () => {
+    const healer = makeUnit({ id: 'healer', role: 'healer', position: { x: 0, y: 0 }, attackRange: 2, reviveAvailable: true })
+    const woundedAlly = makeUnit({ id: 'wounded', position: { x: 1, y: 0 }, hp: 5, maxHp: 20 })
+    const fallenTank = makeUnit({ id: 'tank', role: 'tank', position: { x: 5, y: 5 }, alive: false })
+
+    const action = planTurn(healer, [healer, woundedAlly, fallenTank], 8, 8)
+    expect(action.kind).toBe('heal')
+  })
+
+  it('never revives without reviveAvailable, even with a fallen ally present', () => {
+    const healer = makeUnit({ id: 'healer', role: 'healer', position: { x: 0, y: 0 }, attackRange: 2, reviveAvailable: undefined })
+    const fallenTank = makeUnit({ id: 'tank', role: 'tank', position: { x: 5, y: 5 }, alive: false })
+    const enemy = makeUnit({ id: 'enemy', side: 'enemy', position: { x: 0, y: 3 } })
+
+    const action = planTurn(healer, [healer, fallenTank, enemy], 8, 8)
+    expect(action.kind).not.toBe('revive')
+  })
+
   it('still advances when only a small gap separates it from a couple of higher-level allies', () => {
     // Regression case: 5 dps at level 1450 next to a tank and healer at 1560
     // each — the old average-based rule flagged every 1450 as "the weak
