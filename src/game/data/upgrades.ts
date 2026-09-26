@@ -185,12 +185,16 @@ export const UPGRADES: Upgrade[] = [
     cost: 375000,
     effect: { kind: 'unlockSailing' },
   },
+  // Sailing upgrades scale steeply (6x per tier, 6 tiers) rather than the
+  // classes' 5x/10-tier ladder — sailing has to stay a meaningful gold sink
+  // even after every character is sitting at Tier 10 (234,375,000g) and gold
+  // would otherwise have nothing left to buy. First-pass numbers, as usual.
   {
     id: 'more-ships-1',
     name: 'Expand the Fleet I',
     description: 'Unlock another ship slot.',
     currency: 'gold',
-    cost: 50000,
+    cost: 75000,
     effect: { kind: 'shipSlotBonus', value: 1 },
   },
   {
@@ -198,7 +202,7 @@ export const UPGRADES: Upgrade[] = [
     name: 'Expand the Fleet II',
     description: 'Unlock yet another ship slot.',
     currency: 'gold',
-    cost: 200000,
+    cost: 450000,
     effect: { kind: 'shipSlotBonus', value: 1 },
   },
   {
@@ -206,7 +210,31 @@ export const UPGRADES: Upgrade[] = [
     name: 'Expand the Fleet III',
     description: 'Unlock yet another ship slot.',
     currency: 'gold',
-    cost: 800000,
+    cost: 2700000,
+    effect: { kind: 'shipSlotBonus', value: 1 },
+  },
+  {
+    id: 'more-ships-4',
+    name: 'Expand the Fleet IV',
+    description: 'Unlock yet another ship slot.',
+    currency: 'gold',
+    cost: 16200000,
+    effect: { kind: 'shipSlotBonus', value: 1 },
+  },
+  {
+    id: 'more-ships-5',
+    name: 'Expand the Fleet V',
+    description: 'Unlock yet another ship slot.',
+    currency: 'gold',
+    cost: 97200000,
+    effect: { kind: 'shipSlotBonus', value: 1 },
+  },
+  {
+    id: 'more-ships-6',
+    name: 'Expand the Fleet VI',
+    description: 'Unlock yet another ship slot.',
+    currency: 'gold',
+    cost: 583200000,
     effect: { kind: 'shipSlotBonus', value: 1 },
   },
   {
@@ -214,7 +242,7 @@ export const UPGRADES: Upgrade[] = [
     name: 'Trim the Sails I',
     description: '-15% voyage duration on every ship.',
     currency: 'gold',
-    cost: 40000,
+    cost: 60000,
     effect: { kind: 'sailSpeedMultiplier', value: 0.85 },
   },
   {
@@ -222,7 +250,7 @@ export const UPGRADES: Upgrade[] = [
     name: 'Trim the Sails II',
     description: 'Another -15% voyage duration on every ship.',
     currency: 'gold',
-    cost: 160000,
+    cost: 360000,
     effect: { kind: 'sailSpeedMultiplier', value: 0.85 },
   },
   {
@@ -230,7 +258,31 @@ export const UPGRADES: Upgrade[] = [
     name: 'Trim the Sails III',
     description: 'Another -15% voyage duration on every ship.',
     currency: 'gold',
-    cost: 640000,
+    cost: 2160000,
+    effect: { kind: 'sailSpeedMultiplier', value: 0.85 },
+  },
+  {
+    id: 'faster-sailing-4',
+    name: 'Trim the Sails IV',
+    description: 'Another -15% voyage duration on every ship.',
+    currency: 'gold',
+    cost: 12960000,
+    effect: { kind: 'sailSpeedMultiplier', value: 0.85 },
+  },
+  {
+    id: 'faster-sailing-5',
+    name: 'Trim the Sails V',
+    description: 'Another -15% voyage duration on every ship.',
+    currency: 'gold',
+    cost: 77760000,
+    effect: { kind: 'sailSpeedMultiplier', value: 0.85 },
+  },
+  {
+    id: 'faster-sailing-6',
+    name: 'Trim the Sails VI',
+    description: 'Another -15% voyage duration on every ship.',
+    currency: 'gold',
+    cost: 466560000,
     effect: { kind: 'sailSpeedMultiplier', value: 0.85 },
   },
   {
@@ -238,7 +290,7 @@ export const UPGRADES: Upgrade[] = [
     name: 'Keen-Eyed Lookout I',
     description: '+5% chance for a voyage to turn up an artifact.',
     currency: 'gold',
-    cost: 60000,
+    cost: 90000,
     effect: { kind: 'artifactFindChanceBonus', value: 0.05 },
   },
   {
@@ -246,7 +298,7 @@ export const UPGRADES: Upgrade[] = [
     name: 'Keen-Eyed Lookout II',
     description: 'Another +5% chance for a voyage to turn up an artifact.',
     currency: 'gold',
-    cost: 240000,
+    cost: 540000,
     effect: { kind: 'artifactFindChanceBonus', value: 0.05 },
   },
   {
@@ -254,7 +306,31 @@ export const UPGRADES: Upgrade[] = [
     name: 'Keen-Eyed Lookout III',
     description: 'Another +5% chance for a voyage to turn up an artifact.',
     currency: 'gold',
-    cost: 960000,
+    cost: 3240000,
+    effect: { kind: 'artifactFindChanceBonus', value: 0.05 },
+  },
+  {
+    id: 'keen-eyed-lookout-4',
+    name: 'Keen-Eyed Lookout IV',
+    description: 'Another +5% chance for a voyage to turn up an artifact.',
+    currency: 'gold',
+    cost: 19440000,
+    effect: { kind: 'artifactFindChanceBonus', value: 0.05 },
+  },
+  {
+    id: 'keen-eyed-lookout-5',
+    name: 'Keen-Eyed Lookout V',
+    description: 'Another +5% chance for a voyage to turn up an artifact.',
+    currency: 'gold',
+    cost: 116640000,
+    effect: { kind: 'artifactFindChanceBonus', value: 0.05 },
+  },
+  {
+    id: 'keen-eyed-lookout-6',
+    name: 'Keen-Eyed Lookout VI',
+    description: 'Another +5% chance for a voyage to turn up an artifact.',
+    currency: 'gold',
+    cost: 699840000,
     effect: { kind: 'artifactFindChanceBonus', value: 0.05 },
   },
 ]

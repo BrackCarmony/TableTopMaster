@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { ROLE_ICON, TRAIT_ICON, TRAIT_LABEL } from './icons'
 import { formatNumber } from '../format'
 import { getClassTier, maxTier } from '../game/data/classes'
@@ -84,15 +85,24 @@ function BuyCheapestLegacyTierButton() {
 export function RosterPanel() {
   const players = useGameStore((s) => s.players)
   const tables = useGameStore((s) => s.tables)
+  const [collapsed, setCollapsed] = useState(false)
 
   const tableNameById = new Map(tables.map((t) => [t.id, t.name]))
 
   return (
     <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-base font-semibold text-slate-100">Roster</h2>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <button
+          onClick={() => setCollapsed((c) => !c)}
+          className="flex items-center gap-1.5 text-base font-semibold text-slate-100 hover:text-slate-300"
+        >
+          <span className={`inline-block text-xs text-slate-500 transition-transform ${collapsed ? '-rotate-90' : ''}`}>▼</span>
+          Roster
+          <span className="text-xs font-normal text-slate-500">({formatNumber(players.length)})</span>
+        </button>
         <BuyCheapestLegacyTierButton />
       </div>
+      {!collapsed && (
       <div className="flex flex-col gap-3">
         {players.map((player) => {
           const trait = dominantTrait(player.personality)
@@ -122,6 +132,7 @@ export function RosterPanel() {
           )
         })}
       </div>
+      )}
     </div>
   )
 }

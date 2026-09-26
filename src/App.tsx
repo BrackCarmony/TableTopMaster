@@ -29,10 +29,10 @@ export default function App() {
             <TableCard key={table.id} table={table} />
           ))}
         </div>
+        <SailingPanel />
         <TrophyCase />
         <RosterPanel />
         <UpgradesPanel />
-        <SailingPanel />
       </main>
     </div>
   )
