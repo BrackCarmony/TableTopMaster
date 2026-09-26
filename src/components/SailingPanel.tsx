@@ -3,15 +3,22 @@ import { formatNumber } from '../format'
 import { getArtifactById } from '../game/data/artifacts'
 import { getIslandById } from '../game/data/islands'
 import { getUpgradeById } from '../game/data/upgrades'
-import { effectiveShipSlots, hasSailingUnlock } from '../game/engine'
+import { effectiveShipSlots, hasSailingUnlock, voyageDuration } from '../game/engine'
 import { shipCost, useGameStore } from '../game/store'
 import type { Ship } from '../game/types'
 import { IslandPickerModal } from './IslandPickerModal'
 
 function ShipRow({ ship }: { ship: Ship }) {
   const [pickerOpen, setPickerOpen] = useState(false)
+  const dm = useGameStore((s) => s.dm)
   const island = ship.assignedIslandId ? getIslandById(ship.assignedIslandId) : undefined
-  const progress = island ? Math.max(0, Math.min(1, 1 - ship.voyageRemaining / island.baseVoyageDurationMs)) : 0
+  // The bar must track the ship's ACTUAL current voyage length (after
+  // sailSpeedMultiplier), not the island's unmodified base duration —
+  // otherwise a sped-up ship's voyageRemaining never counts down to 0
+  // against that larger denominator, and the bar always starts partway
+  // full instead of empty.
+  const fullDuration = island ? voyageDuration(island, dm) : 0
+  const progress = island ? Math.max(0, Math.min(1, 1 - ship.voyageRemaining / fullDuration)) : 0
   const secondsLeft = Math.max(0, Math.ceil(ship.voyageRemaining / 1000))
 
   return (
