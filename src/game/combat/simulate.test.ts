@@ -207,6 +207,26 @@ describe('runEncounter', () => {
     }
   })
 
+  it('lets a solo healer-role unit target itself, since it counts as its own most-wounded ally in range', () => {
+    // A lone enemy "boss" with role healer and no allies to actually heal —
+    // the Kraken execution encounter relies on exactly this to self-sustain.
+    const template: EncounterTemplate = {
+      id: 'solo-self-heal-test',
+      name: 'Solo Self Heal Test',
+      gridWidth: 8,
+      gridHeight: 8,
+      partyStartPositions: [{ x: 0, y: 0 }],
+      enemies: [
+        { name: 'Sustain Boss', role: 'healer', position: { x: 1, y: 0 }, hp: 100, attackPower: 0, defense: 0, healPower: 50, moveRange: 0, attackRange: 5, speed: 99 },
+      ],
+    }
+    const hero = makeUnit({ id: 'hero', attackPower: 50, defense: 0, attackRange: 1, moveRange: 1, speed: 1 })
+    const result = runEncounter([hero], template, createRng(1))
+
+    const selfHeals = result.log.filter((e) => e.type === 'heal' && e.healerId === e.targetId)
+    expect(selfHeals.length).toBeGreaterThan(0)
+  })
+
   it('heals enough sustained chip damage to turn a defeat into a survival, and never fires once already at max HP', () => {
     const template: EncounterTemplate = {
       id: 'regen-test',

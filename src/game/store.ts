@@ -51,7 +51,7 @@ function createInitialDm(): DMState {
     level: 1,
     gold: 60,
     infamy: 0,
-    unlockedModuleIds: ['goblin-ambush', 'tarrasque-execution'],
+    unlockedModuleIds: ['goblin-ambush', 'tarrasque-execution', 'kraken-execution'],
     purchasedUpgradeIds: [],
     tableSlots: 1,
     executionTier: {},

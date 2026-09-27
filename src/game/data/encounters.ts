@@ -457,3 +457,34 @@ export const TARRASQUE_AWAITS: EncounterTemplate = {
     },
   ],
 }
+
+/**
+ * A second execution encounter, deliberately the opposite fight from the
+ * Tarrasque: no enrage ramp, so a slow party doesn't automatically lose to
+ * the clock — instead it just heals itself back up whenever it drops below
+ * 70% HP (see combat/grid.ts mostWoundedAllyInRange, which a solo unit can
+ * target on itself), so a party that can't bring enough burst damage stalls
+ * out into a stalemate against its sustain instead of grinding it down.
+ * role 'healer' is what makes the self-targeting actually fire.
+ */
+export const KRAKEN_AWAITS: EncounterTemplate = {
+  id: 'kraken-awaits',
+  name: 'The Kraken',
+  gridWidth: 8,
+  gridHeight: 8,
+  partyStartPositions: PARTY_START,
+  enemies: [
+    {
+      name: 'The Kraken',
+      role: 'healer',
+      position: { x: 5, y: 3 },
+      hp: 3200,
+      attackPower: 45,
+      defense: 30,
+      healPower: 80,
+      moveRange: 3,
+      attackRange: 3,
+      speed: 15,
+    },
+  ],
+}

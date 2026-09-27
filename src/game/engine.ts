@@ -274,6 +274,10 @@ function scaleEnemySpawn(spawn: EnemySpawn, multiplier: number): EnemySpawn {
     hp: Math.round(spawn.hp * multiplier),
     attackPower: Math.round(spawn.attackPower * multiplier),
     defense: Math.round(spawn.defense * multiplier),
+    // Matters for a self-sustaining boss like the Kraken — without scaling
+    // healPower too, its self-heal would stay flat while its maxHp balloons,
+    // making the sustain gimmick trivial to out-damage past the first win.
+    healPower: Math.round(spawn.healPower * multiplier),
     attackPowerRampPerRound:
       spawn.attackPowerRampPerRound !== undefined ? Math.round(spawn.attackPowerRampPerRound * multiplier) : undefined,
   }

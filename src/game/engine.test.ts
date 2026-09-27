@@ -140,6 +140,14 @@ function enemyMaxHpFromLog(log: CombatLogEvent[] | null): number {
   return enemy.maxHp
 }
 
+function enemyHealPowerFromLog(log: CombatLogEvent[] | null): number {
+  const start = log?.find((e) => e.type === 'encounter_start')
+  if (!start || start.type !== 'encounter_start') throw new Error('no encounter_start in log')
+  const enemy = start.units.find((u) => u.side === 'enemy')
+  if (!enemy) throw new Error('no enemy in log')
+  return enemy.healPower
+}
+
 describe('resolveEncounter execution-module tier scaling', () => {
   it('does NOT raise the tier or grant a trophy when the party loses', () => {
     const rng = createRng(1)
@@ -222,6 +230,16 @@ describe('resolveEncounter execution-module tier scaling', () => {
       createRng(6),
     )
     expect(enemyMaxHpFromLog(rematch.table.lastBattleLog)).toBeGreaterThan(freshEnemyHp)
+  })
+
+  it('scales a second execution module\'s healPower along with its other stats, so a sustain boss stays sustaining at higher tiers', () => {
+    const table = makeTable({ assignedModuleId: 'kraken-execution' })
+    const seated = makeSeatedPlayer(table.id, createRng(8))
+    const result = resolveEncounter(table, [seated], makeDm({ unlockedModuleIds: ['kraken-execution'] }), createRng(9))
+
+    const freshHealPower = enemyHealPowerFromLog(result.table.lastBattleLog)
+    const baseHealPower = getModuleById('kraken-execution')!.encounters[0].enemies[0].healPower
+    expect(freshHealPower).toBe(Math.round(baseHealPower * EXECUTION_GROWTH_RATE ** EXECUTION_STARTING_TIER))
   })
 
   it('does not scale, tier-track, or grant trophies for campaign modules', () => {
