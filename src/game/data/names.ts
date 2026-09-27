@@ -2,7 +2,7 @@ export const FIRST_NAMES = [
   'Bramm', 'Cael', 'Doriel', 'Esk', 'Fenna', 'Grix', 'Hale', 'Isolde',
   'Joran', 'Kessa', 'Lorn', 'Maeve', 'Norrin', 'Orla', 'Pip', 'Quill',
   'Roran', 'Syl', 'Torvin', 'Una', 'Vex', 'Wren', 'Xanthe', 'Yorick', 'Zara',
-  'Kedirech Korwinn Rooks', 'Kedami',
+  'Kedirech', 'Korwinn', 'Rooks', 'Kedami',
 ]
 
 export const SURNAMES = [
