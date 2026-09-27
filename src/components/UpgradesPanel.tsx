@@ -1,7 +1,14 @@
 import { formatNumber } from '../format'
+import { hasSailingUnlock } from '../game/engine'
 import { UPGRADES } from '../game/data/upgrades'
 import { useGameStore } from '../game/store'
-import type { Upgrade } from '../game/types'
+import type { Upgrade, UpgradeEffect } from '../game/types'
+
+// Ship slots / sail speed / artifact find chance are all useless before
+// Sailing itself is unlocked — hide them until then instead of showing a
+// wall of upgrades for a system the player can't touch yet. unlockSailing
+// itself is exempt, since it's the gate that reveals the rest.
+const SAILING_UPGRADE_KINDS: UpgradeEffect['kind'][] = ['shipSlotBonus', 'sailSpeedMultiplier', 'artifactFindChanceBonus']
 
 function UpgradeRow({ upgrade }: { upgrade: Upgrade }) {
   const dm = useGameStore((s) => s.dm)
@@ -34,7 +41,11 @@ function UpgradeRow({ upgrade }: { upgrade: Upgrade }) {
 }
 
 export function UpgradesPanel() {
-  const goldUpgrades = UPGRADES.filter((u) => u.currency === 'gold')
+  const dm = useGameStore((s) => s.dm)
+  const sailingUnlocked = hasSailingUnlock(dm)
+  const goldUpgrades = UPGRADES.filter(
+    (u) => u.currency === 'gold' && (sailingUnlocked || !SAILING_UPGRADE_KINDS.includes(u.effect.kind)),
+  )
   const infamyUpgrades = UPGRADES.filter((u) => u.currency === 'infamy')
 
   return (
