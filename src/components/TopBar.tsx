@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { formatNumber } from '../format'
+import { formatDuration, formatNumber } from '../format'
+import { OFFLINE_PROGRESS_GOLD_FRACTION, offlineProgressDurationMs } from '../game/engine'
 import { useGameStore } from '../game/store'
 import { ClassReferenceModal } from './ClassReferenceModal'
 
 export function TopBar() {
   const dm = useGameStore((s) => s.dm)
   const resetGame = useGameStore((s) => s.resetGame)
+  const buyOfflineProgress = useGameStore((s) => s.buyOfflineProgress)
   const [referenceOpen, setReferenceOpen] = useState(false)
 
   function handleReset() {
@@ -15,6 +17,9 @@ export function TopBar() {
     if (!confirmed) return
     resetGame()
   }
+
+  const offlineCost = Math.round(dm.gold * OFFLINE_PROGRESS_GOLD_FRACTION)
+  const offlineDurationMs = offlineProgressDurationMs(offlineCost)
 
   return (
     <header className="flex items-center justify-between border-b border-slate-800 bg-slate-900/80 px-6 py-4">
@@ -36,14 +41,22 @@ export function TopBar() {
         >
           🔄 Reset Game
         </button>
+        <button
+          onClick={() => buyOfflineProgress()}
+          disabled={offlineCost <= 0}
+          title="Spend 10% of your current gold to instantly simulate that much time passing — every table and ship advances exactly as if you'd left the game running, minus the gold that time would have earned."
+          className="tabular-nums rounded-md border border-amber-800 px-3 py-1.5 text-sm font-medium text-amber-400 transition hover:border-amber-600 hover:bg-amber-950/40 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          ⏩ Buy {formatDuration(offlineDurationMs)} ({formatNumber(offlineCost)}g)
+        </button>
         <div className="flex gap-6 text-right">
           <div>
             <div className="text-xs uppercase tracking-wide text-slate-500">Gold</div>
-            <div className="text-lg font-semibold text-amber-400">{formatNumber(dm.gold)}</div>
+            <div className="tabular-nums text-lg font-semibold text-amber-400">{formatNumber(dm.gold)}</div>
           </div>
           <div>
             <div className="text-xs uppercase tracking-wide text-slate-500">Infamy</div>
-            <div className="text-lg font-semibold text-rose-400">{formatNumber(dm.infamy)}</div>
+            <div className="tabular-nums text-lg font-semibold text-rose-400">{formatNumber(dm.infamy)}</div>
           </div>
         </div>
       </div>

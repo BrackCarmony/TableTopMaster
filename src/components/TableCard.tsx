@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { formatNumber } from '../format'
-import { rushLevelCost } from '../game/characters'
 import { getModuleById } from '../game/data/modules'
 import { effectiveTableCapacity } from '../game/engine'
 import { useGameStore } from '../game/store'
@@ -24,19 +23,10 @@ export function TableCard({ table }: { table: Table }) {
 
   const seatedPlayers = useGameStore((s) => s.players.filter((p) => p.tableId === table.id))
   const capacity = useGameStore((s) => effectiveTableCapacity(s.dm))
-  const gold = useGameStore((s) => s.dm.gold)
-  const rushLevelTable = useGameStore((s) => s.rushLevelTable)
 
   const moduleDef = table.assignedModuleId ? getModuleById(table.assignedModuleId) : undefined
   const cooldownSeconds = Math.max(0, Math.ceil(table.cooldownRemaining / 1000))
   const openSeats = Math.max(0, capacity - seatedPlayers.length)
-
-  // Cheapest next level across the table (whoever's lowest-level), so the
-  // button always shows an actionable, affordable-or-not price — same
-  // "always show the cheapest next purchase" idea as RosterPanel's Veteran
-  // Tier button.
-  const nextRushCost = seatedPlayers.length > 0 ? Math.min(...seatedPlayers.map((p) => rushLevelCost(p.character!.level))) : null
-  const canRush = nextRushCost !== null && gold >= nextRushCost
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900/60 p-4">
@@ -104,14 +94,6 @@ export function TableCard({ table }: { table: Table }) {
           }
         >
           View Battle
-        </button>
-        <button
-          className="rounded-md bg-amber-800 px-3 py-1.5 text-sm font-medium text-amber-50 hover:bg-amber-700 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500 disabled:opacity-40"
-          disabled={!canRush}
-          title="Spend gold to instantly level up this table, skipping the XP grind — cost rises steeply per level, so it's meant for burning off a surplus, not the normal way to progress."
-          onClick={() => rushLevelTable(table.id)}
-        >
-          🚀 Rush Levels{nextRushCost !== null ? ` (${formatNumber(nextRushCost)}g)` : ''}
         </button>
       </div>
 

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { createCharacterForPlayer, createPlayer, generateShipId, generateTableId, LEGACY_FLAT_GROWTH, rushLevel, rushLevelCost } from './characters'
+import { createCharacterForPlayer, createPlayer, generateShipId, generateTableId, LEGACY_FLAT_GROWTH } from './characters'
 import { getClassTier, maxTier } from './data/classes'
 import { getIslandById } from './data/islands'
 import { legacyTierCost } from './data/legacy'
@@ -8,11 +8,13 @@ import { shipNameForIndex } from './data/names'
 import { trophyStartingLevelBonus } from './data/trophies'
 import {
   MAX_OFFLINE_MS,
+  OFFLINE_PROGRESS_GOLD_FRACTION,
   effectiveShipSlots,
   effectiveTableCapacity,
   effectiveTableSlots,
   hasRoleSelectionUnlock,
   hasSailingUnlock,
+  offlineProgressDurationMs,
   resolveEncounter,
   tickShips,
   tickTables,
@@ -68,11 +70,6 @@ export function shipCost(shipCount: number): number {
   return Math.round(SHIP_BASE_COST * SHIP_COST_GROWTH ** shipCount)
 }
 
-// Safety valve, not a balance lever — rushLevelCost's own polynomial growth
-// is what actually stops a click from buying an absurd number of levels;
-// this just bounds the loop itself, same spirit as MAX_OFFLINE_ENCOUNTERS_PER_TABLE.
-const RUSH_LEVEL_MAX_PER_CLICK = 2000
-
 function createSeatedStarterPlayer(tableId: string, existingNames: string[]): Player {
   const player = createPlayer(rng, existingNames)
   const character = createCharacterForPlayer(player, rng)
@@ -108,7 +105,7 @@ interface GameStore extends GameState {
   upgradeCheapestLegacyTier: () => void
   assignModule: (tableId: string, moduleId: string) => void
   executeModuleNow: (tableId: string, moduleId: string) => void
-  rushLevelTable: (tableId: string) => void
+  buyOfflineProgress: () => void
   buyUpgrade: (upgradeId: string) => void
   buyShip: () => void
   assignIsland: (shipId: string, islandId: string) => void
@@ -281,36 +278,32 @@ export const useGameStore = create<GameStore>()(
           }
         }),
 
-      // A pure gold sink: instantly levels up everyone seated at a table,
-      // one level at a time, spending from a shared gold pool until either
-      // it runs out or the per-character safety cap is hit. Goes through the
-      // roster in seat order, so whoever's seated first gets first claim on
-      // the gold — good enough for a first pass, not an attempt at splitting
-      // it evenly across the table.
-      rushLevelTable: (tableId) =>
+      // A gold sink that stays relevant at any balance: always costs a
+      // percentage of CURRENT gold (not a fixed or escalating amount), and
+      // converts that into simulated wall-clock time via the exact same
+      // tickTables/tickShips path real offline catch-up already runs on page
+      // load — every table and ship advances exactly as if you'd been away
+      // that long.
+      buyOfflineProgress: () =>
         set((state) => {
-          const seated = state.players.filter((p) => p.tableId === tableId)
-          if (seated.length === 0) return state
+          const cost = Math.round(state.dm.gold * OFFLINE_PROGRESS_GOLD_FRACTION)
+          if (cost <= 0) return state
+          const durationMs = offlineProgressDurationMs(cost)
+          if (durationMs <= 0) return state
 
-          let gold = state.dm.gold
-          const updatedById = new Map<string, Player>()
-          for (const player of seated) {
-            if (!player.character) continue
-            let character = player.character
-            for (let i = 0; i < RUSH_LEVEL_MAX_PER_CLICK; i++) {
-              const cost = rushLevelCost(character.level)
-              if (gold < cost) break
-              gold -= cost
-              character = rushLevel(character)
-            }
-            if (character !== player.character) updatedById.set(player.id, { ...player, character })
-          }
-          if (updatedById.size === 0) return state
+          const goldAfterCost = state.dm.gold - cost
+          const dmForSimulation = { ...state.dm, gold: goldAfterCost }
+          const tabled = tickTables(state.tables, state.players, dmForSimulation, durationMs, rng)
+          const { ships, dm: simulatedDm } = tickShips(state.ships, tabled.dm, durationMs, rng)
 
-          return {
-            dm: { ...state.dm, gold },
-            players: state.players.map((p) => updatedById.get(p.id) ?? p),
-          }
+          // The simulated time shouldn't hand back gold — refunding gold from
+          // the very thing gold bought would make this a leaky (or even
+          // net-positive) sink instead of a real one. Every OTHER outcome of
+          // that time — levels, trophies, Infamy, artifact discoveries,
+          // execution-tier progress — still applies in full.
+          const dm = { ...simulatedDm, gold: goldAfterCost }
+
+          return { tables: tabled.tables, players: tabled.players, ships, dm }
         }),
 
       buyUpgrade: (upgradeId) =>

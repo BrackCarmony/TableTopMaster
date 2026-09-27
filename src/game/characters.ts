@@ -119,7 +119,7 @@ export function xpToNextLevel(level: number): number {
   return 20 + (level - 1) * 15
 }
 
-export function applyLevelUpStats(character: Character): void {
+function applyLevelUpStats(character: Character): void {
   character.maxHp += character.growthPerLevel.maxHp
   character.attackPower += character.growthPerLevel.attackPower
   character.defense += character.growthPerLevel.defense
@@ -174,29 +174,6 @@ export function applyXp(character: Character, xp: number): Character {
     next.level += 1
     applyLevelUpStats(next)
   }
-  return next
-}
-
-// A pure gold sink for a currency that otherwise has nowhere left to go once
-// every class tier and sailing purchase is maxed out — polynomial rather
-// than exponential growth, since levels routinely reach into the thousands
-// and exponential-per-level would overflow to an unusable cost long before
-// that. First-pass numbers: at level 10,000 this is roughly 1.26B gold for a
-// single level, so even a trillion-gold stash buys a meaningful batch of
-// levels in one go rather than either everything or nothing.
-const RUSH_LEVEL_BASE_COST = 500
-const RUSH_LEVEL_EXPONENT = 1.6
-
-/** Gold cost to instantly buy the next level for a character currently at `level`, skipping the XP grind. */
-export function rushLevelCost(level: number): number {
-  return Math.round(RUSH_LEVEL_BASE_COST * level ** RUSH_LEVEL_EXPONENT)
-}
-
-/** Instantly grants one level, same stat growth as a normal level-up — just skipping the XP requirement entirely rather than approximating it, so there's no leftover-XP edge case. */
-export function rushLevel(character: Character): Character {
-  const next = { ...character }
-  next.level += 1
-  applyLevelUpStats(next)
   return next
 }
 

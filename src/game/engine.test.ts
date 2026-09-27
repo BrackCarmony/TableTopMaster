@@ -9,15 +9,19 @@ import {
   BASE_COOLDOWN_MS,
   EXECUTION_GROWTH_RATE,
   EXECUTION_STARTING_TIER,
+  GOLD_PER_MS,
   MAX_COOLDOWN_SCALE,
   MIN_COOLDOWN_MS,
+  OFFLINE_PROGRESS_GOLD_FRACTION,
   computeArtifactBonuses,
   computeInfamyReward,
   computeMultipliers,
   hasRoleSelectionUnlock,
   hasSailingUnlock,
+  offlineProgressDurationMs,
   resolveEncounter,
   tickShips,
+  tickTables,
 } from './engine'
 import { createRng } from './rng'
 import type { Character, DMState, Player, Ship, Table } from './types'
@@ -512,5 +516,50 @@ describe('tickShips', () => {
     const { ships } = tickShips([ship], boostedDm, island.baseVoyageDurationMs, createRng(1))
     // faster-sailing-1 is a 0.85x multiplier, so the repeated voyage should be shorter than base.
     expect(ships[0].voyageRemaining).toBeLessThan(island.baseVoyageDurationMs)
+  })
+})
+
+describe('offlineProgressDurationMs', () => {
+  it('scales linearly with gold spent', () => {
+    expect(offlineProgressDurationMs(GOLD_PER_MS * 1000)).toBe(1000)
+    expect(offlineProgressDurationMs(GOLD_PER_MS * 2000)).toBe(2000)
+  })
+
+  it('rounds down rather than ever overcrediting time for a given spend', () => {
+    expect(offlineProgressDurationMs(GOLD_PER_MS + 1)).toBe(1)
+  })
+
+  it('roughly matches the "~1 trillion gold buys ~2 days" calibration target', () => {
+    const cost = Math.round(1_000_000_000_000 * OFFLINE_PROGRESS_GOLD_FRACTION * 10) // several 10%-of-current purchases in a row, approximated as spending the whole balance
+    const days = offlineProgressDurationMs(cost) / (24 * 60 * 60 * 1000)
+    expect(days).toBeGreaterThan(1)
+    expect(days).toBeLessThan(4)
+  })
+})
+
+describe('tickTables offline-catch-up iteration cap', () => {
+  it('can resolve well more than the old 2000-encounter-per-tick cap when given enough simulated time', () => {
+    const OLD_CAP = 2000
+    const table = makeTable({ assignedModuleId: 'goblin-ambush', cooldownRemaining: 0 })
+    const rng = createRng(1)
+    const unstoppable = makeUnstoppableSeatedPlayer(table.id, rng)
+    const dm = makeDm({ unlockedModuleIds: ['goblin-ambush'] })
+
+    // goldReward for a clean win is a pure function of the (fixed) module
+    // encounter, not of RNG — deterministic regardless of seed.
+    const singleWin = resolveEncounter(table, [unstoppable], dm, createRng(1))
+    const goldPerWin = singleWin.table.lastBattleRewards!.gold
+    expect(goldPerWin).toBeGreaterThan(0)
+
+    // A generous, worst-case-cooldown-per-win estimate for well over 2000
+    // wins — the exact resulting win count isn't the point, only that it
+    // clears the old cap by a wide margin, proving the raised limit is what
+    // actually let this many resolve in one call instead of the elapsed
+    // time simply running out first.
+    const worstCaseCooldownPerWin = BASE_COOLDOWN_MS * MAX_COOLDOWN_SCALE
+    const elapsed = worstCaseCooldownPerWin * (OLD_CAP + 2000)
+    const { tables } = tickTables([table], [unstoppable], dm, elapsed, rng)
+
+    expect(tables[0].lifetimeGold).toBeGreaterThanOrEqual(goldPerWin * (OLD_CAP + 1))
   })
 })

@@ -21,8 +21,30 @@ export const BASE_ARTIFACT_FIND_CHANCE = 0.15
 // out a slice of that voyage's gold on top of the normal reward instead.
 const REPEAT_FIND_GOLD_FRACTION = 0.5
 export const MAX_OFFLINE_MS = 8 * 60 * 60 * 1000
-const MAX_OFFLINE_ENCOUNTERS_PER_TABLE = 2000
-const MAX_OFFLINE_VOYAGES_PER_SHIP = 2000
+// High enough that a fast, high-level table (resolving an encounter roughly
+// once a second) can actually consume a multi-day Buy Offline Progress
+// purchase instead of quietly discarding whatever time the per-tick
+// iteration cap couldn't get through — that cap exists to bound a single
+// synchronous tick's work, not to limit how much time a purchase is worth.
+const MAX_OFFLINE_ENCOUNTERS_PER_TABLE = 200_000
+const MAX_OFFLINE_VOYAGES_PER_SHIP = 200_000
+
+// Buy Offline Progress: spends a fraction of CURRENT gold (not a fixed or
+// escalating amount) to instantly simulate that much wall-clock time via the
+// same tickTables/tickShips path real offline catch-up already uses. Always
+// costing a percentage of your current balance is what keeps it relevant at
+// any scale — 10% of 60 gold and 10% of a trillion are both a real choice,
+// and repeated purchases keep buying more absolute time as the balance
+// (partly refilled by the simulated time itself) grows.
+export const OFFLINE_PROGRESS_GOLD_FRACTION = 0.1
+// First-pass calibration: spending roughly a trillion gold this way (e.g.
+// several 10%-of-current purchases in a row) should buy somewhere around a
+// couple of days — ~518,400,000,000 gold per simulated day.
+export const GOLD_PER_MS = 6000
+
+export function offlineProgressDurationMs(costGold: number): number {
+  return Math.floor(costGold / GOLD_PER_MS)
+}
 
 export interface Multipliers {
   gold: number
