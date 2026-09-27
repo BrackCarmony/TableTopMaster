@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { createCharacterForPlayer, createPlayer, generateShipId, generateTableId, LEGACY_FLAT_GROWTH } from './characters'
+import { createCharacterForPlayer, createPlayer, generateShipId, generateTableId, LEGACY_FLAT_GROWTH, rushLevel, rushLevelCost } from './characters'
 import { getClassTier, maxTier } from './data/classes'
 import { getIslandById } from './data/islands'
 import { legacyTierCost } from './data/legacy'
@@ -68,6 +68,11 @@ export function shipCost(shipCount: number): number {
   return Math.round(SHIP_BASE_COST * SHIP_COST_GROWTH ** shipCount)
 }
 
+// Safety valve, not a balance lever — rushLevelCost's own polynomial growth
+// is what actually stops a click from buying an absurd number of levels;
+// this just bounds the loop itself, same spirit as MAX_OFFLINE_ENCOUNTERS_PER_TABLE.
+const RUSH_LEVEL_MAX_PER_CLICK = 2000
+
 function createSeatedStarterPlayer(tableId: string, existingNames: string[]): Player {
   const player = createPlayer(rng, existingNames)
   const character = createCharacterForPlayer(player, rng)
@@ -103,6 +108,7 @@ interface GameStore extends GameState {
   upgradeCheapestLegacyTier: () => void
   assignModule: (tableId: string, moduleId: string) => void
   executeModuleNow: (tableId: string, moduleId: string) => void
+  rushLevelTable: (tableId: string) => void
   buyUpgrade: (upgradeId: string) => void
   buyShip: () => void
   assignIsland: (shipId: string, islandId: string) => void
@@ -271,6 +277,38 @@ export const useGameStore = create<GameStore>()(
           return {
             dm: resolved.dm,
             tables: state.tables.map((t) => (t.id === tableId ? resolved.table : t)),
+            players: state.players.map((p) => updatedById.get(p.id) ?? p),
+          }
+        }),
+
+      // A pure gold sink: instantly levels up everyone seated at a table,
+      // one level at a time, spending from a shared gold pool until either
+      // it runs out or the per-character safety cap is hit. Goes through the
+      // roster in seat order, so whoever's seated first gets first claim on
+      // the gold — good enough for a first pass, not an attempt at splitting
+      // it evenly across the table.
+      rushLevelTable: (tableId) =>
+        set((state) => {
+          const seated = state.players.filter((p) => p.tableId === tableId)
+          if (seated.length === 0) return state
+
+          let gold = state.dm.gold
+          const updatedById = new Map<string, Player>()
+          for (const player of seated) {
+            if (!player.character) continue
+            let character = player.character
+            for (let i = 0; i < RUSH_LEVEL_MAX_PER_CLICK; i++) {
+              const cost = rushLevelCost(character.level)
+              if (gold < cost) break
+              gold -= cost
+              character = rushLevel(character)
+            }
+            if (character !== player.character) updatedById.set(player.id, { ...player, character })
+          }
+          if (updatedById.size === 0) return state
+
+          return {
+            dm: { ...state.dm, gold },
             players: state.players.map((p) => updatedById.get(p.id) ?? p),
           }
         }),

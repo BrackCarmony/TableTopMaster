@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { computeGrowthPerLevel, createCharacterForPlayer, DEFAULT_ARTIFACT_BONUSES, projectStatsAtLevel, toCombatUnit } from './characters'
+import {
+  computeGrowthPerLevel,
+  createCharacterForPlayer,
+  DEFAULT_ARTIFACT_BONUSES,
+  projectStatsAtLevel,
+  rushLevel,
+  rushLevelCost,
+  toCombatUnit,
+} from './characters'
 import { getClassTier } from './data/classes'
 import { legacyStatMultiplier } from './data/legacy'
 import { createRng } from './rng'
@@ -259,6 +267,50 @@ describe('toCombatUnit', () => {
     const bonuses = { ...DEFAULT_ARTIFACT_BONUSES, healerHealPowerRampPercent: 0.08 }
     expect(toCombatUnit(makeCharacter({ role: 'healer' }), null, bonuses).healPowerRampPercent).toBe(0.08)
     expect(toCombatUnit(makeCharacter({ role: 'dps' }), null, bonuses).healPowerRampPercent).toBeUndefined()
+  })
+})
+
+describe('rushLevelCost', () => {
+  it('grows with level', () => {
+    expect(rushLevelCost(100)).toBeGreaterThan(rushLevelCost(1))
+    expect(rushLevelCost(10000)).toBeGreaterThan(rushLevelCost(100))
+  })
+
+  it('is a pure function of level, matching the documented rough checkpoints', () => {
+    // Same numbers cited in the constant's own comment — a regression guard
+    // against silently drifting the cost curve.
+    expect(rushLevelCost(1)).toBe(500)
+    expect(rushLevelCost(10000)).toBeGreaterThan(1_000_000_000)
+    expect(rushLevelCost(10000)).toBeLessThan(2_000_000_000)
+  })
+})
+
+describe('rushLevel', () => {
+  it('grants exactly one level and the same stat growth a normal level-up would', () => {
+    const character = makeCharacter({ level: 5, maxHp: 100, attackPower: 20, defense: 10, healPower: 0, growthPerLevel: { maxHp: 6, attackPower: 1, defense: 1, healPower: 0 } })
+    const rushed = rushLevel(character)
+    expect(rushed.level).toBe(6)
+    expect(rushed.maxHp).toBe(106)
+    expect(rushed.attackPower).toBe(21)
+    expect(rushed.defense).toBe(11)
+  })
+
+  it('does not touch xp, and does not mutate the original character', () => {
+    const character = makeCharacter({ level: 5, xp: 42 })
+    const rushed = rushLevel(character)
+    expect(rushed.xp).toBe(42)
+    expect(character.level).toBe(5) // original untouched
+  })
+
+  it('repeated calls keep compounding growth exactly like repeated normal level-ups', () => {
+    const start = makeCharacter({ level: 1, maxHp: 100, attackPower: 20, defense: 10, healPower: 5, growthPerLevel: { maxHp: 6, attackPower: 1, defense: 1, healPower: 1 } })
+    let rushed = start
+    for (let i = 0; i < 10; i++) rushed = rushLevel(rushed)
+    expect(rushed.level).toBe(11)
+    expect(rushed.maxHp).toBe(100 + 6 * 10)
+    expect(rushed.attackPower).toBe(20 + 1 * 10)
+    expect(rushed.defense).toBe(10 + 1 * 10)
+    expect(rushed.healPower).toBe(5 + 1 * 10)
   })
 })
 
