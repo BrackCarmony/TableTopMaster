@@ -12,6 +12,7 @@ import {
   effectiveShipSlots,
   effectiveTableCapacity,
   effectiveTableSlots,
+  hasQuickRefillUnlock,
   hasRoleSelectionUnlock,
   hasSailingUnlock,
   offlineProgressDurationMs,
@@ -38,6 +39,7 @@ function createTable(name: string): Table {
     lastBattleLog: null,
     lastBattleModuleName: null,
     lastBattleRewards: null,
+    lastWipeRoster: null,
   }
 }
 
@@ -99,6 +101,7 @@ export function newPlayerCost(rosterSize: number): number {
 interface GameStore extends GameState {
   hasHydrated: boolean
   seatPlayer: (playerId: string, tableId: string, forcedRole?: Role) => void
+  quickRefillTable: (tableId: string) => void
   recruitNewPlayer: () => void
   unlockPlayerTier: (playerId: string, role: Role) => void
   upgradePlayerLegacyTier: (playerId: string) => void
@@ -148,6 +151,40 @@ export const useGameStore = create<GameStore>()(
           const character = createCharacterForPlayer(player, rng, allowedForcedRole, bonusLevels)
           return {
             players: state.players.map((p) => (p.id === playerId ? { ...p, tableId, character } : p)),
+          }
+        }),
+
+      // Reseats whoever from the table's last full wipe is still benched,
+      // each forced back into the same role they had — skipping anyone
+      // who's since been seated elsewhere, and stopping once seats run out.
+      // The forced role comes from the table's own tracked history, not
+      // from the caller, so unlike seatPlayer this doesn't need to trust (or
+      // gate on) a role choice coming from the UI.
+      quickRefillTable: (tableId) =>
+        set((state) => {
+          if (!hasQuickRefillUnlock(state.dm)) return state
+          const table = state.tables.find((t) => t.id === tableId)
+          if (!table || !table.lastWipeRoster || table.lastWipeRoster.length === 0) return state
+
+          const seatedCount = state.players.filter((p) => p.tableId === tableId).length
+          let openSeats = effectiveTableCapacity(state.dm) - seatedCount
+          if (openSeats <= 0) return state
+
+          const bonusLevels = trophyStartingLevelBonus(state.dm.trophies.length)
+          const playersById = new Map(state.players.map((p) => [p.id, p]))
+          const updatedById = new Map<string, Player>()
+          for (const entry of table.lastWipeRoster) {
+            if (openSeats <= 0) break
+            const player = playersById.get(entry.playerId)
+            if (!player || player.tableId !== null) continue // gone, or already seated somewhere
+            const character = createCharacterForPlayer(player, rng, entry.role, bonusLevels)
+            updatedById.set(player.id, { ...player, tableId, character })
+            openSeats--
+          }
+          if (updatedById.size === 0) return state
+
+          return {
+            players: state.players.map((p) => updatedById.get(p.id) ?? p),
           }
         }),
 
@@ -392,7 +429,7 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: 'tabletopmaster-save',
-      version: 10,
+      version: 11,
       partialize: (state) => ({
         dm: state.dm,
         players: state.players,
@@ -465,6 +502,13 @@ export const useGameStore = create<GameStore>()(
             // already had access to instead of it suddenly looking locked.
             const dm = state.dm as DMState & { unlockedIslandIds?: string[] }
             state.dm = { ...dm, unlockedIslandIds: dm.unlockedIslandIds ?? ['sunken-reef'] }
+          }
+          if (version < 11) {
+            // v11 adds Quick Refill: Table.lastWipeRoster tracks who sat
+            // where right before the table's most recent full wipe. No
+            // existing table has ever recorded this, so it just starts null
+            // (nothing to quick-refill until the next wipe happens).
+            state.tables = state.tables.map((t) => ({ ...t, lastWipeRoster: (t as Table & { lastWipeRoster?: unknown }).lastWipeRoster ?? null }))
           }
           return state
         } catch (err) {

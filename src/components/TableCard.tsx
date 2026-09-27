@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { formatNumber } from '../format'
 import { getModuleById } from '../game/data/modules'
-import { effectiveTableCapacity } from '../game/engine'
+import { effectiveTableCapacity, hasQuickRefillUnlock } from '../game/engine'
 import { useGameStore } from '../game/store'
 import type { CombatLogEvent } from '../game/combat/types'
 import type { BattleRewards, Table } from '../game/types'
@@ -23,10 +23,17 @@ export function TableCard({ table }: { table: Table }) {
 
   const seatedPlayers = useGameStore((s) => s.players.filter((p) => p.tableId === table.id))
   const capacity = useGameStore((s) => effectiveTableCapacity(s.dm))
+  const dm = useGameStore((s) => s.dm)
+  const players = useGameStore((s) => s.players)
+  const quickRefillTable = useGameStore((s) => s.quickRefillTable)
 
   const moduleDef = table.assignedModuleId ? getModuleById(table.assignedModuleId) : undefined
   const cooldownSeconds = Math.max(0, Math.ceil(table.cooldownRemaining / 1000))
   const openSeats = Math.max(0, capacity - seatedPlayers.length)
+
+  const playersById = new Map(players.map((p) => [p.id, p]))
+  const canQuickRefill =
+    openSeats > 0 && (table.lastWipeRoster?.some((entry) => playersById.get(entry.playerId)?.tableId === null) ?? false)
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900/60 p-4">
@@ -95,6 +102,16 @@ export function TableCard({ table }: { table: Table }) {
         >
           View Battle
         </button>
+        {hasQuickRefillUnlock(dm) && (
+          <button
+            className="rounded-md bg-emerald-800 px-3 py-1.5 text-sm font-medium text-emerald-50 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500 disabled:opacity-40"
+            disabled={!canQuickRefill}
+            title="Reseat whoever was sitting here in the same roles right before the last wipe, in one click."
+            onClick={() => quickRefillTable(table.id)}
+          >
+            ♻️ Quick Refill
+          </button>
+        )}
       </div>
 
       {pickerOpen && (

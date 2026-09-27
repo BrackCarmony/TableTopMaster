@@ -58,6 +58,12 @@ export interface BattleRewards {
   infamy: number
 }
 
+/** One seat of a table's roster right before its most recent full wipe — see Table.lastWipeRoster. */
+export interface WipeRosterEntry {
+  playerId: string
+  role: Role
+}
+
 export interface Table {
   id: string
   name: string
@@ -68,6 +74,8 @@ export interface Table {
   lastBattleLog: CombatLogEvent[] | null
   lastBattleModuleName: string | null
   lastBattleRewards: BattleRewards | null
+  /** Who was seated here, in what roles, right before the most recent full wipe — null until the table has ever wiped. Powers Quick Refill; overwritten by each new wipe, never cleared by a refill itself. */
+  lastWipeRoster: WipeRosterEntry[] | null
 }
 
 export type UpgradeCurrency = 'gold' | 'infamy'
@@ -80,6 +88,7 @@ export type UpgradeEffect =
   | { kind: 'tableCapacityBonus'; value: number }
   | { kind: 'tableSlotBonus'; value: number }
   | { kind: 'unlockRoleSelection' }
+  | { kind: 'unlockQuickRefill' }
   | { kind: 'unlockSailing' }
   | { kind: 'shipSlotBonus'; value: number }
   | { kind: 'sailSpeedMultiplier'; value: number }

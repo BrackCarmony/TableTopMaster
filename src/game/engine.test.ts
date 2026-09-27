@@ -16,6 +16,7 @@ import {
   computeArtifactBonuses,
   computeInfamyReward,
   computeMultipliers,
+  hasQuickRefillUnlock,
   hasRoleSelectionUnlock,
   hasSailingUnlock,
   offlineProgressDurationMs,
@@ -93,6 +94,7 @@ function makeTable(overrides: Partial<Table> = {}): Table {
     lastBattleLog: null,
     lastBattleModuleName: null,
     lastBattleRewards: null,
+    lastWipeRoster: null,
     ...overrides,
   }
 }
@@ -144,6 +146,15 @@ describe('resolveEncounter execution-module tier scaling', () => {
     expect(start && start.type === 'encounter_end' && start.outcome).toBe('defeat')
     expect(result.dm.executionTier['tarrasque-execution'] ?? 0).toBe(0)
     expect(result.dm.trophies).toHaveLength(0)
+  })
+
+  it('records lastWipeRoster (player id + role) on a full wipe, for Quick Refill', () => {
+    const rng = createRng(1)
+    const table = makeTable()
+    const seated = makeSeatedPlayer(table.id, rng)
+    const result = resolveEncounter(table, [seated], makeDm(), rng)
+
+    expect(result.table.lastWipeRoster).toEqual([{ playerId: seated.id, role: seated.character!.role }])
   })
 
   it('losing repeatedly never escalates it — only a win does', () => {
@@ -368,6 +379,35 @@ describe('resolveEncounter partial casualties', () => {
     expect(result.dm.infamy).toBeGreaterThan(dm.infamy)
     expect(result.table.lastBattleRewards!.infamy).toBe(result.dm.infamy - dm.infamy)
   })
+
+  it('leaves lastWipeRoster untouched when the table does not fully wipe', () => {
+    const rng = createRng(4)
+    const priorWipeRoster = [{ playerId: 'someone-else', role: 'healer' as const }]
+    const table = makeTable({ assignedModuleId: 'goblin-ambush', lastWipeRoster: priorWipeRoster })
+    const unstoppableChar: Character = {
+      id: 'unstoppable-char-2',
+      name: 'Unstoppable',
+      race: 'Human',
+      className: 'Godslayer',
+      role: 'dps',
+      level: 1,
+      xp: 0,
+      maxHp: 999_999,
+      attackPower: 999_999,
+      defense: 999_999,
+      healPower: 0,
+      moveRange: 5,
+      attackRange: 5,
+      speed: 99,
+      growthPerLevel: { maxHp: 0, attackPower: 0, defense: 0, healPower: 0 },
+    }
+    const unstoppable: Player = { ...createPlayer(rng), tableId: table.id, character: unstoppableChar }
+    const dm = makeDm({ unlockedModuleIds: ['goblin-ambush'] })
+
+    const result = resolveEncounter(table, [unstoppable], dm, rng)
+
+    expect(result.table.lastWipeRoster).toEqual(priorWipeRoster)
+  })
 })
 
 describe('hasRoleSelectionUnlock', () => {
@@ -377,6 +417,16 @@ describe('hasRoleSelectionUnlock', () => {
 
   it('is true once handpick-cast-1 is purchased', () => {
     expect(hasRoleSelectionUnlock(makeDm({ purchasedUpgradeIds: ['handpick-cast-1'] }))).toBe(true)
+  })
+})
+
+describe('hasQuickRefillUnlock', () => {
+  it('is false until the upgrade is purchased', () => {
+    expect(hasQuickRefillUnlock(makeDm())).toBe(false)
+  })
+
+  it('is true once quick-refill-1 is purchased', () => {
+    expect(hasQuickRefillUnlock(makeDm({ purchasedUpgradeIds: ['quick-refill-1'] }))).toBe(true)
   })
 })
 

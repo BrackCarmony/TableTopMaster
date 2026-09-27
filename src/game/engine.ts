@@ -98,6 +98,10 @@ export function hasRoleSelectionUnlock(dm: DMState): boolean {
   return dm.purchasedUpgradeIds.some((id) => getUpgradeById(id)?.effect.kind === 'unlockRoleSelection')
 }
 
+export function hasQuickRefillUnlock(dm: DMState): boolean {
+  return dm.purchasedUpgradeIds.some((id) => getUpgradeById(id)?.effect.kind === 'unlockQuickRefill')
+}
+
 export function effectiveTableCapacity(dm: DMState): number {
   return BASE_TABLE_CAPACITY + tableCapacityBonus(dm)
 }
@@ -340,6 +344,11 @@ export function resolveEncounter(
       lastBattleLog: result.log,
       lastBattleModuleName: moduleDef.name,
       lastBattleRewards: { outcome: result.outcome, xp: 0, gold: 0, infamy: infamyGain },
+      // Remembers who sat here and in what role, so Quick Refill can put the
+      // same lineup right back without hunting through the roster manually.
+      // Overwrites whatever the last wipe left, same as it always did before
+      // this one.
+      lastWipeRoster: seatedPlayers.filter((p) => p.character).map((p) => ({ playerId: p.id, role: p.character!.role })),
     }
     return { table: nextTable, players: updatedPlayers, dm: nextDm }
   }
