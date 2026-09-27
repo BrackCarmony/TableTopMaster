@@ -8,7 +8,7 @@ import { getModuleById, getNextUnlockedCampaignModule, getPreviousUnlockedCampai
 import { DEFAULT_TROPHY_PARTS, getTrophyQuality } from './data/trophies'
 import { getUpgradeById } from './data/upgrades'
 import { dominantTrait } from './personality'
-import type { DMState, Player, Ship, Table, Trophy } from './types'
+import type { DMState, Player, Ship, Table, Trophy, WipeRosterEntry } from './types'
 
 export const BASE_COOLDOWN_MS = 5000
 export const MIN_COOLDOWN_MS = 1000
@@ -345,6 +345,21 @@ export function resolveEncounter(
 
   const stillSeatedCount = updatedPlayers.filter((p) => p.tableId === table.id).length
 
+  // Quick Refill's memory of "who sat here and in what role:" drop anyone
+  // who's still actively fighting at this table (they don't need refilling,
+  // and if they die later they'll be re-added fresh then), then add whoever
+  // JUST died this fight — whether that's the whole table (a full wipe) or
+  // only some of it (a partial casualty). Previously this only ever got
+  // written on a full wipe, so a partial casualty's dead player(s) were
+  // silently invisible to Quick Refill until the table wiped completely.
+  const currentlyFightingIds = new Set(seatedPlayers.filter((p) => p.character).map((p) => p.id))
+  const justDiedEntries: WipeRosterEntry[] = seatedPlayers
+    .filter((p) => p.character && !survivorCharIds.has(p.character.id))
+    .map((p) => ({ playerId: p.id, role: p.character!.role }))
+  const prunedWipeRoster = (table.lastWipeRoster ?? []).filter((entry) => !currentlyFightingIds.has(entry.playerId))
+  const nextWipeRosterEntries = [...prunedWipeRoster, ...justDiedEntries]
+  const nextWipeRoster = nextWipeRosterEntries.length > 0 ? nextWipeRosterEntries : null
+
   if (stillSeatedCount === 0) {
     const infamyGain = computeInfamyReward(table.lifetimeGold, seatedPlayers.length, multipliers)
     const nextDm: DMState = { ...dm, infamy: dm.infamy + infamyGain }
@@ -357,11 +372,7 @@ export function resolveEncounter(
       lastBattleLog: result.log,
       lastBattleModuleName: moduleDef.name,
       lastBattleRewards: { outcome: result.outcome, xp: 0, gold: 0, infamy: infamyGain },
-      // Remembers who sat here and in what role, so Quick Refill can put the
-      // same lineup right back without hunting through the roster manually.
-      // Overwrites whatever the last wipe left, same as it always did before
-      // this one.
-      lastWipeRoster: seatedPlayers.filter((p) => p.character).map((p) => ({ playerId: p.id, role: p.character!.role })),
+      lastWipeRoster: nextWipeRoster,
     }
     return { table: nextTable, players: updatedPlayers, dm: nextDm }
   }
@@ -418,6 +429,7 @@ export function resolveEncounter(
     lastBattleLog: result.log,
     lastBattleModuleName: moduleDef.name,
     lastBattleRewards: { outcome: result.outcome, xp: xpGain, gold: goldGain, infamy: infamyBonus },
+    lastWipeRoster: nextWipeRoster,
   }
   return { table: nextTable, players: updatedPlayers, dm: nextDm }
 }

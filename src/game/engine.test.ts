@@ -407,6 +407,95 @@ describe('resolveEncounter partial casualties', () => {
     expect(result.table.lastBattleRewards!.infamy).toBe(result.dm.infamy - dm.infamy)
   })
 
+  it('adds a partial casualty to lastWipeRoster too, so Quick Refill can bring them back without a full wipe', () => {
+    const rng = createRng(4)
+    // A pre-existing, unrelated stale entry (from some earlier full wipe at
+    // this table) that should survive untouched — pruning only removes
+    // entries for players who are part of THIS fight.
+    const staleEntry = { playerId: 'someone-else', role: 'healer' as const }
+    const table = makeTable({ assignedModuleId: 'goblin-ambush', lastWipeRoster: [staleEntry] })
+    const fragileTank: Character = {
+      id: 'fragile-tank-char',
+      name: 'Fragile Tank',
+      race: 'Human',
+      className: 'Cannon Fodder',
+      role: 'tank',
+      level: 1,
+      xp: 0,
+      maxHp: 1,
+      attackPower: 1,
+      defense: 0,
+      healPower: 0,
+      moveRange: 3,
+      attackRange: 1,
+      speed: 5,
+      growthPerLevel: { maxHp: 0, attackPower: 0, defense: 0, healPower: 0 },
+      selfRegenPercent: 0,
+    }
+    const fragilePlayer: Player = { ...createPlayer(rng), tableId: table.id, character: fragileTank }
+    const unstoppableChar: Character = {
+      id: 'unstoppable-char',
+      name: 'Unstoppable',
+      race: 'Human',
+      className: 'Godslayer',
+      role: 'dps',
+      level: 1,
+      xp: 0,
+      maxHp: 999_999,
+      attackPower: 999_999,
+      defense: 999_999,
+      healPower: 0,
+      moveRange: 5,
+      attackRange: 5,
+      speed: 99,
+      growthPerLevel: { maxHp: 0, attackPower: 0, defense: 0, healPower: 0 },
+      selfRegenPercent: 0,
+    }
+    const unstoppable: Player = { ...createPlayer(rng), tableId: table.id, character: unstoppableChar }
+    const dm = makeDm({ unlockedModuleIds: ['goblin-ambush'] })
+
+    const result = resolveEncounter(table, [fragilePlayer, unstoppable], dm, rng)
+
+    // The unrelated stale entry survives, and the fragile tank who just died
+    // this fight (a partial casualty, not a full wipe) gets added — the
+    // survivor never appears, since it never needed refilling.
+    expect(result.table.lastWipeRoster).toEqual([staleEntry, { playerId: fragilePlayer.id, role: 'tank' }])
+  })
+
+  it('drops a table\'s stale lastWipeRoster entry once that player is back and fighting again, even if nobody dies this time', () => {
+    const rng = createRng(4)
+    const table = makeTable({
+      assignedModuleId: 'goblin-ambush',
+      lastWipeRoster: [{ playerId: 'reseated-player', role: 'tank' as const }],
+    })
+    const unstoppableChar: Character = {
+      id: 'unstoppable-char-3',
+      name: 'Unstoppable',
+      race: 'Human',
+      className: 'Godslayer',
+      role: 'dps',
+      level: 1,
+      xp: 0,
+      maxHp: 999_999,
+      attackPower: 999_999,
+      defense: 999_999,
+      healPower: 0,
+      moveRange: 5,
+      attackRange: 5,
+      speed: 99,
+      growthPerLevel: { maxHp: 0, attackPower: 0, defense: 0, healPower: 0 },
+      selfRegenPercent: 0,
+    }
+    // Same player id as the stale entry — they were quick-refilled (or
+    // reseated by hand) and are now back in the fight, alive and well.
+    const reseatedPlayer: Player = { ...createPlayer(rng), id: 'reseated-player', tableId: table.id, character: unstoppableChar }
+    const dm = makeDm({ unlockedModuleIds: ['goblin-ambush'] })
+
+    const result = resolveEncounter(table, [reseatedPlayer], dm, rng)
+
+    expect(result.table.lastWipeRoster).toBeNull()
+  })
+
   it('leaves lastWipeRoster untouched when the table does not fully wipe', () => {
     const rng = createRng(4)
     const priorWipeRoster = [{ playerId: 'someone-else', role: 'healer' as const }]
