@@ -20,6 +20,8 @@ export interface Character {
   speed: number
   /** Fixed per-level stat increments, baked in at creation from this character's tier+Veteran-Tier-adjusted base stats — see characters.ts computeGrowthPerLevel. */
   growthPerLevel: { maxHp: number; attackPower: number; defense: number; healPower: number }
+  /** Cross-training from the owning player's Healer tier — this fraction of maxHp is restored at the end of every combat round, regardless of this character's actual rolled role. Baked in at creation, same as every other tier-derived stat. */
+  selfRegenPercent: number
 }
 
 export interface Player {

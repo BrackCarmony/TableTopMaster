@@ -51,6 +51,8 @@ export interface CombatUnit {
   attackPowerRampPercent?: number
   /** Enduring Grace-style artifacts — healPower is multiplied by (1 + this) at the end of every round, compounding. */
   healPowerRampPercent?: number
+  /** Cross-training from the owning player's Healer tier (see Character.selfRegenPercent) — this fraction of maxHp is restored at the end of every round, regardless of this unit's own role. Never set on enemies. */
+  selfRegenPercent?: number
 }
 
 export type CombatLogEvent =
@@ -62,6 +64,8 @@ export type CombatLogEvent =
   | { type: 'death'; unitId: string }
   /** One combined line per side per round, not one per ramped unit — watching a battle with several sustain artifacts active would otherwise spam a line per unit every single round. */
   | { type: 'enrage'; side: 'party' | 'enemy' }
+  /** Same one-line-per-side-per-round shape as 'enrage', for Healer-tier self-regen ticks. Only fires when at least one unit on that side actually recovered HP (i.e. wasn't already full). */
+  | { type: 'regen'; side: 'party' | 'enemy' }
   | { type: 'encounter_end'; outcome: 'victory' | 'defeat' | 'stalemate'; survivorIds: string[] }
 
 export interface EnemySpawn {

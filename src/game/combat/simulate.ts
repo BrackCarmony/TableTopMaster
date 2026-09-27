@@ -304,6 +304,10 @@ export function runEncounter(partyUnits: CombatUnit[], template: EncounterTempla
     // watching a long fight painfully slow to step through.
     if (!outcome) {
       const rampedSides = new Set<'party' | 'enemy'>()
+      // Tracked separately from rampedSides/'enrage' — a Healer-tier regen
+      // tick isn't a stat ramp, and shouldn't fire a 'regen' line on a round
+      // where nobody with the passive was actually missing HP.
+      const regeneratedSides = new Set<'party' | 'enemy'>()
       for (const unit of units) {
         if (!unit.alive) continue
         let ramped = false
@@ -323,10 +327,18 @@ export function runEncounter(partyUnits: CombatUnit[], template: EncounterTempla
           unit.damageReductionPercent = (unit.damageReductionPercent ?? 0) + unit.damageReductionRampPercent
           ramped = true
         }
+        if (unit.selfRegenPercent) {
+          const beforeHp = unit.hp
+          unit.hp = Math.min(unit.maxHp, unit.hp + Math.round(unit.maxHp * unit.selfRegenPercent))
+          if (unit.hp !== beforeHp) regeneratedSides.add(unit.side)
+        }
         if (ramped) rampedSides.add(unit.side)
       }
       for (const side of rampedSides) {
         log.push({ type: 'enrage', side })
+      }
+      for (const side of regeneratedSides) {
+        log.push({ type: 'regen', side })
       }
     }
   }

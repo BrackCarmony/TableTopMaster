@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { computeGrowthPerLevel, createCharacterForPlayer, DEFAULT_ARTIFACT_BONUSES, projectStatsAtLevel, toCombatUnit } from './characters'
+import {
+  computeGrowthPerLevel,
+  createCharacterForPlayer,
+  CROSS_TRAIN_ATTACK_BONUS_PER_TIER,
+  CROSS_TRAIN_HP_BONUS_PER_TIER,
+  CROSS_TRAIN_REGEN_PER_TIER,
+  DEFAULT_ARTIFACT_BONUSES,
+  projectStatsAtLevel,
+  toCombatUnit,
+} from './characters'
 import { getClassTier } from './data/classes'
 import { legacyStatMultiplier } from './data/legacy'
 import { createRng } from './rng'
@@ -20,29 +29,46 @@ function makePlayer(overrides: Partial<Player>): Player {
 }
 
 describe('createCharacterForPlayer', () => {
-  it('always uses the stat block for the rolled role at that role’s currently unlocked tier', () => {
+  it('always uses the stat block for the rolled role at that role’s currently unlocked tier, cross-trained by tank/dps tier', () => {
     const player = makePlayer({ roleTiers: { tank: 2, dps: 3, healer: 1 } })
+    const tankHpBonus = 1 + CROSS_TRAIN_HP_BONUS_PER_TIER * (player.roleTiers.tank - 1)
+    const dpsAttackBonus = 1 + CROSS_TRAIN_ATTACK_BONUS_PER_TIER * (player.roleTiers.dps - 1)
     for (let seed = 0; seed < 30; seed++) {
       const character = createCharacterForPlayer(player, createRng(seed))
       const tierDef = getClassTier(character.role, player.roleTiers[character.role])
-      expect(character.maxHp).toBe(tierDef.baseMaxHp)
-      expect(character.attackPower).toBe(tierDef.baseAttackPower)
+      expect(character.maxHp).toBe(Math.round(tierDef.baseMaxHp * tankHpBonus))
+      expect(character.attackPower).toBe(Math.round(tierDef.baseAttackPower * dpsAttackBonus))
       expect(character.defense).toBe(tierDef.baseDefense)
       expect(character.healPower).toBe(tierDef.baseHealPower)
       expect(tierDef.names).toContain(character.className)
     }
   })
 
-  it('applies the player\'s legacy tier bonus on top of the role/class tier stats', () => {
+  it('applies the player\'s legacy tier bonus and tank-tier cross-training on top of the role/class tier stats', () => {
     const veteran = makePlayer({ roleTiers: { tank: 2, dps: 1, healer: 1 }, legacyTier: 3 })
     const character = createCharacterForPlayer(veteran, createRng(1), 'tank')
     const tierDef = getClassTier('tank', veteran.roleTiers.tank)
     const multiplier = legacyStatMultiplier(veteran.legacyTier)
+    const tankHpBonus = 1 + CROSS_TRAIN_HP_BONUS_PER_TIER * (veteran.roleTiers.tank - 1)
 
     expect(multiplier).toBeGreaterThan(1)
-    expect(character.maxHp).toBe(Math.round(tierDef.baseMaxHp * multiplier))
+    expect(character.maxHp).toBe(Math.round(tierDef.baseMaxHp * multiplier * tankHpBonus))
     expect(character.attackPower).toBe(Math.round(tierDef.baseAttackPower * multiplier))
     expect(character.defense).toBe(Math.round(tierDef.baseDefense * multiplier))
+  })
+
+  it('gives every character selfRegenPercent from the owning player\'s healer tier, regardless of rolled role', () => {
+    const player = makePlayer({ roleTiers: { tank: 1, dps: 1, healer: 6 } })
+    for (const role of ['tank', 'dps', 'healer'] as const) {
+      const character = createCharacterForPlayer(player, createRng(1), role)
+      expect(character.selfRegenPercent).toBeCloseTo(CROSS_TRAIN_REGEN_PER_TIER * (6 - 1))
+    }
+  })
+
+  it('gives no selfRegenPercent at the free starting healer tier', () => {
+    const player = makePlayer({ roleTiers: { tank: 1, dps: 1, healer: 1 } })
+    const character = createCharacterForPlayer(player, createRng(1), 'dps')
+    expect(character.selfRegenPercent).toBe(0)
   })
 
   it('starts bonusLevels higher and grows stats for every skipped level, same as normal leveling', () => {
@@ -165,6 +191,7 @@ function makeCharacter(overrides: Partial<Character>): Character {
     attackRange: 1,
     speed: 8,
     growthPerLevel: { maxHp: 1, attackPower: 1, defense: 1, healPower: 0 },
+    selfRegenPercent: 0,
     ...overrides,
   }
 }
@@ -207,6 +234,13 @@ describe('toCombatUnit', () => {
     const bonuses = { ...DEFAULT_ARTIFACT_BONUSES, dpsDefensePiercePercent: 0.8 }
     expect(toCombatUnit(makeCharacter({ role: 'dps' }), null, bonuses).defensePiercePercent).toBe(0.8)
     expect(toCombatUnit(makeCharacter({ role: 'tank' }), null, bonuses).defensePiercePercent).toBeUndefined()
+  })
+
+  it('carries selfRegenPercent through regardless of role, since it is cross-training, not an artifact', () => {
+    expect(toCombatUnit(makeCharacter({ role: 'tank', selfRegenPercent: 0.06 }), null).selfRegenPercent).toBe(0.06)
+    expect(toCombatUnit(makeCharacter({ role: 'dps', selfRegenPercent: 0.06 }), null).selfRegenPercent).toBe(0.06)
+    expect(toCombatUnit(makeCharacter({ role: 'healer', selfRegenPercent: 0.06 }), null).selfRegenPercent).toBe(0.06)
+    expect(toCombatUnit(makeCharacter({ role: 'tank', selfRegenPercent: 0 }), null).selfRegenPercent).toBeUndefined()
   })
 
   it('only boosts healPower for healers, and only healers, by the configured percentage', () => {
@@ -274,12 +308,22 @@ describe('projectStatsAtLevel', () => {
     })
   })
 
-  it('matches createCharacterForPlayer + repeated leveling for an arbitrary level, for every role', () => {
+  it('matches createCharacterForPlayer + repeated leveling for an arbitrary level, for every role, once cross-training is factored in', () => {
     for (const role of ['tank', 'dps', 'healer'] as const) {
       const tierDef = getClassTier(role, 4)
-      const projected = projectStatsAtLevel(role, tierDef, 12)
-
       const player = makePlayer({ roleTiers: { tank: 4, dps: 4, healer: 4 } })
+      const tankHpBonus = 1 + CROSS_TRAIN_HP_BONUS_PER_TIER * (player.roleTiers.tank - 1)
+      const dpsAttackBonus = 1 + CROSS_TRAIN_ATTACK_BONUS_PER_TIER * (player.roleTiers.dps - 1)
+      // projectStatsAtLevel deliberately excludes cross-training (same as
+      // Veteran Tier) since it's a generic tier-only view — feed it a
+      // tierDef pre-boosted the exact same way createCharacterForPlayer
+      // boosts its own base stats, so the two are directly comparable.
+      const boostedTierDef = {
+        ...tierDef,
+        baseMaxHp: Math.round(tierDef.baseMaxHp * tankHpBonus),
+        baseAttackPower: Math.round(tierDef.baseAttackPower * dpsAttackBonus),
+      }
+      const projected = projectStatsAtLevel(role, boostedTierDef, 12)
       const leveled = createCharacterForPlayer(player, createRng(1), role, 11) // 1 + 11 bonus levels = level 12
 
       expect(projected).toEqual({

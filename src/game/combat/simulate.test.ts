@@ -207,6 +207,49 @@ describe('runEncounter', () => {
     }
   })
 
+  it('heals enough sustained chip damage to turn a defeat into a survival, and never fires once already at max HP', () => {
+    const template: EncounterTemplate = {
+      id: 'regen-test',
+      name: 'Regen Test',
+      gridWidth: 8,
+      gridHeight: 8,
+      partyStartPositions: [{ x: 0, y: 0 }],
+      enemies: [
+        // Never dies, chips away every round it can land a hit — enough
+        // sustained damage to kill an un-healed hero well before MAX_ROUNDS.
+        { name: 'Striker', role: 'dps', position: { x: 1, y: 0 }, hp: 999_999, attackPower: 5, defense: 0, healPower: 0, moveRange: 0, attackRange: 1, speed: 1 },
+      ],
+    }
+    const makeHero = (selfRegenPercent: number) =>
+      makeUnit({ id: 'hero', hp: 100, maxHp: 100, defense: 0, selfRegenPercent, attackRange: 0, moveRange: 0, attackPower: 0 })
+
+    // Same seed both times — only the presence of regen differs, so any
+    // difference in outcome is caused by regen, not RNG variance.
+    const withoutRegen = runEncounter([makeHero(0)], template, createRng(1))
+    const withRegen = runEncounter([makeHero(0.1)], template, createRng(1))
+
+    expect(withoutRegen.outcome).toBe('defeat')
+    expect(withRegen.outcome).not.toBe('defeat')
+    expect(withRegen.log.some((e) => e.type === 'regen' && e.side === 'party')).toBe(true)
+  })
+
+  it('never fires a regen log line once the unit is already at full HP', () => {
+    const template: EncounterTemplate = {
+      id: 'regen-full-test',
+      name: 'Regen Full Test',
+      gridWidth: 8,
+      gridHeight: 8,
+      partyStartPositions: [{ x: 0, y: 0 }],
+      enemies: [
+        { name: 'Punching Bag', role: 'dps', position: { x: 1, y: 0 }, hp: 999_999, attackPower: 0, defense: 0, healPower: 0, moveRange: 0, attackRange: 0, speed: 1 },
+      ],
+    }
+    const hero = makeUnit({ id: 'hero', hp: 100, maxHp: 100, selfRegenPercent: 0.1, attackRange: 0, moveRange: 0, attackPower: 0 })
+    const result = runEncounter([hero], template, createRng(1))
+
+    expect(result.log.some((e) => e.type === 'regen')).toBe(false)
+  })
+
   it('lets Rising Fury-style attackPowerRampPercent compound, dealing far more damage in later rounds than early ones', () => {
     const template: EncounterTemplate = {
       id: 'attack-ramp-test',

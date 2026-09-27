@@ -76,6 +76,19 @@ export const LEGACY_FLAT_GROWTH: Record<Role, StatBlock> = {
 }
 
 /**
+ * Cross-training: a player's tier in EACH role grants a small universal
+ * passive baked into every character they roll, not just when they land in
+ * that specific role — otherwise there'd be no reason to ever tier up a
+ * role you rarely play, since roleTiers only otherwise affects that role's
+ * own stats and how often it gets rolled (see rollRole). Tier 1 is the free
+ * starting tier every player already has, so the bonus only kicks in from
+ * tier 2 onward (currentTier - 1).
+ */
+export const CROSS_TRAIN_HP_BONUS_PER_TIER = 0.05
+export const CROSS_TRAIN_ATTACK_BONUS_PER_TIER = 0.05
+export const CROSS_TRAIN_REGEN_PER_TIER = 0.02
+
+/**
  * `bonusLevels` (from the DM's trophy collection) skips the character
  * straight past its first few levels, so rebuilding a party after a wipe
  * doesn't mean re-grinding the earliest modules from scratch every time.
@@ -86,9 +99,14 @@ export function createCharacterForPlayer(player: Player, rng: RngFn, forcedRole?
   // Applies regardless of role — a player's accumulated legacy tier makes
   // every future life stronger, not just the role they happened to roll.
   const legacyMultiplier = legacyStatMultiplier(player.legacyTier)
+  // Cross-training bonuses (see CROSS_TRAIN_* above) — also independent of
+  // which role actually got rolled this life.
+  const tankHpBonus = 1 + CROSS_TRAIN_HP_BONUS_PER_TIER * (player.roleTiers.tank - 1)
+  const dpsAttackBonus = 1 + CROSS_TRAIN_ATTACK_BONUS_PER_TIER * (player.roleTiers.dps - 1)
+  const healerRegenPercent = CROSS_TRAIN_REGEN_PER_TIER * (player.roleTiers.healer - 1)
   const base: StatBlock = {
-    maxHp: Math.round(tierDef.baseMaxHp * legacyMultiplier),
-    attackPower: Math.round(tierDef.baseAttackPower * legacyMultiplier),
+    maxHp: Math.round(tierDef.baseMaxHp * legacyMultiplier * tankHpBonus),
+    attackPower: Math.round(tierDef.baseAttackPower * legacyMultiplier * dpsAttackBonus),
     defense: Math.round(tierDef.baseDefense * legacyMultiplier),
     healPower: Math.round(tierDef.baseHealPower * legacyMultiplier),
   }
@@ -107,6 +125,7 @@ export function createCharacterForPlayer(player: Player, rng: RngFn, forcedRole?
     attackRange: tierDef.attackRange,
     speed: tierDef.speed,
     growthPerLevel: computeGrowthPerLevel(role, base),
+    selfRegenPercent: healerRegenPercent,
   }
   for (let i = 0; i < bonusLevels; i++) {
     character.level += 1
@@ -138,7 +157,8 @@ export interface LevelStatsProjection {
  * Character — reuses the exact same per-level growth as real play
  * (applyLevelUpStats), so the class reference screen can never drift from
  * what a character actually gets when it levels up for real. Doesn't factor
- * in any player's Veteran Tier, since this is a generic tier-only view.
+ * in any player's Veteran Tier or cross-training bonuses (CROSS_TRAIN_*),
+ * since this is a generic tier-only view, not tied to any one player.
  */
 export function projectStatsAtLevel(role: Role, tierDef: ClassTierDef, level: number): LevelStatsProjection {
   const base: StatBlock = {
@@ -160,6 +180,7 @@ export function projectStatsAtLevel(role: Role, tierDef: ClassTierDef, level: nu
     attackRange: tierDef.attackRange,
     speed: tierDef.speed,
     growthPerLevel: computeGrowthPerLevel(role, base),
+    selfRegenPercent: 0,
   }
   for (let i = 1; i < level; i++) applyLevelUpStats(character)
   return { maxHp: character.maxHp, attackPower: character.attackPower, defense: character.defense, healPower: character.healPower }
@@ -250,6 +271,10 @@ export function toCombatUnit(
     speed: character.speed,
     alive: true,
     flavor,
+    // Not gated by role — this is cross-training from the player's Healer
+    // tier, not an artifact bonus, and applies no matter what role this
+    // character actually rolled (see Character.selfRegenPercent).
+    selfRegenPercent: character.selfRegenPercent || undefined,
     extraTurnAtStart: character.role === 'tank' && artifactBonuses.tankExtraTurn ? true : undefined,
     reviveAvailable: character.role === 'healer' && artifactBonuses.healerRevive ? true : undefined,
     reviveHpFraction: character.role === 'healer' && artifactBonuses.healerRevive ? artifactBonuses.healerReviveHpFraction : undefined,

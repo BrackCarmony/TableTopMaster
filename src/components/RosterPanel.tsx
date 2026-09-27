@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ROLE_ICON, TRAIT_ICON, TRAIT_LABEL } from './icons'
 import { formatNumber } from '../format'
+import { CROSS_TRAIN_ATTACK_BONUS_PER_TIER, CROSS_TRAIN_HP_BONUS_PER_TIER, CROSS_TRAIN_REGEN_PER_TIER } from '../game/characters'
 import { getClassTier, maxTier } from '../game/data/classes'
 import { legacyTierCost } from '../game/data/legacy'
 import { dominantTrait } from '../game/personality'
@@ -8,6 +9,15 @@ import { useGameStore } from '../game/store'
 import type { Player, Role } from '../game/types'
 
 const ROLES: Role[] = ['tank', 'dps', 'healer']
+
+// Every role's tier also grants this player's characters a small universal
+// passive regardless of what role they actually roll — the whole point is to
+// give a reason to tier up a role you rarely play, not just your main.
+const CROSS_TRAIN_DESCRIPTION: Record<Role, string> = {
+  tank: `+${Math.round(CROSS_TRAIN_HP_BONUS_PER_TIER * 100)}% Max HP`,
+  dps: `+${Math.round(CROSS_TRAIN_ATTACK_BONUS_PER_TIER * 100)}% Attack`,
+  healer: `+${Math.round(CROSS_TRAIN_REGEN_PER_TIER * 100)}% HP regen/round`,
+}
 
 function LegacyTierButton({ player }: { player: Player }) {
   const infamy = useGameStore((s) => s.dm.infamy)
@@ -41,7 +51,10 @@ function TierButton({ player, role }: { player: Player; role: Role }) {
   const affordable = nextCost !== null && gold >= nextCost
 
   return (
-    <div className="flex items-center justify-between gap-2 rounded bg-slate-800/60 px-2 py-1 text-xs">
+    <div
+      className="flex items-center justify-between gap-2 rounded bg-slate-800/60 px-2 py-1 text-xs"
+      title={`Every tier here gives ALL of this player's characters ${CROSS_TRAIN_DESCRIPTION[role]} per tier past T1, no matter what role they roll — a reason to tier this up even if it's not their main.`}
+    >
       <span className="text-slate-300">
         {ROLE_ICON[role]} Tier {tier}
       </span>
