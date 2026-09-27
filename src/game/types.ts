@@ -138,6 +138,9 @@ export type ArtifactEffect =
   | { kind: 'tankCleave'; targets: number; damagePercent: number }
   | { kind: 'dpsRicochet'; targets: number; damagePercent: number }
   | { kind: 'healerChainHeal'; targets: number; healPercent: number }
+  | { kind: 'tankDamageReductionRamp'; percentPerRound: number }
+  | { kind: 'dpsAttackPowerRamp'; percentPerRound: number }
+  | { kind: 'healerHealPowerRamp'; percentPerRound: number }
 
 export interface Artifact {
   id: string

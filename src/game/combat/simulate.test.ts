@@ -207,6 +207,76 @@ describe('runEncounter', () => {
     }
   })
 
+  it('lets Rising Fury-style attackPowerRampPercent compound every round of a long fight, same as a stalemate boss cannot avoid', () => {
+    // Neither side can reach or hit the other, guaranteeing the full MAX_ROUNDS.
+    const frozenTemplate: EncounterTemplate = {
+      id: 'ramp-frozen',
+      name: 'Ramp Frozen',
+      gridWidth: 8,
+      gridHeight: 8,
+      partyStartPositions: [{ x: 0, y: 0 }],
+      enemies: [
+        { name: 'Distant Foe', role: 'dps', position: { x: 7, y: 7 }, hp: 10, attackPower: 5, defense: 0, healPower: 0, moveRange: 0, attackRange: 0, speed: 1 },
+      ],
+    }
+    const dps = makeUnit({ id: 'hero', attackPower: 10, attackPowerRampPercent: 0.1, moveRange: 0, attackRange: 0 })
+    const result = runEncounter([dps], frozenTemplate, createRng(1))
+
+    const enrageEvents = result.log.filter((e) => e.type === 'enrage' && e.unitId === 'hero')
+    expect(enrageEvents.length).toBe(MAX_ROUNDS) // ramps every single round with no resolution
+    const last = enrageEvents[enrageEvents.length - 1]
+    // 1.1^50 ≈ 117x the base — a wide, rounding-tolerant margin above 10x proves real compounding, not noise.
+    if (last.type === 'enrage') expect(last.attackPower).toBeGreaterThan(100)
+  })
+
+  it('lets Enduring Grace-style healPowerRampPercent compound, growing later heals well past earlier ones', () => {
+    const template: EncounterTemplate = {
+      id: 'heal-ramp-test',
+      name: 'Heal Ramp Test',
+      gridWidth: 8,
+      gridHeight: 8,
+      partyStartPositions: [{ x: 0, y: 0 }, { x: 0, y: 1 }],
+      enemies: [
+        { name: 'Striker', role: 'dps', position: { x: 1, y: 0 }, hp: 99999, attackPower: 30, defense: 0, healPower: 0, moveRange: 0, attackRange: 10, speed: 99 },
+      ],
+    }
+    const healer = makeUnit({ id: 'healer', role: 'healer', healPower: 10, healPowerRampPercent: 0.1, attackRange: 10, moveRange: 0, speed: 1 })
+    const tank = makeUnit({ id: 'tank', role: 'tank', maxHp: 2000, defense: 0, attackRange: 0, moveRange: 0, speed: 50 })
+
+    const result = runEncounter([healer, tank], template, createRng(1))
+    const healAmounts = result.log.filter((e) => e.type === 'heal' && e.healerId === 'healer').map((e) => (e.type === 'heal' ? e.amount : 0))
+    expect(healAmounts.length).toBeGreaterThan(3)
+    expect(Math.max(...healAmounts)).toBeGreaterThan(Math.min(...healAmounts) * 1.5)
+  })
+
+  it('caps damageReductionRampPercent so incoming damage never collapses to the bare 1-point floor from an uncapped stack', () => {
+    const template: EncounterTemplate = {
+      id: 'reduction-cap-test',
+      name: 'Reduction Cap Test',
+      gridWidth: 8,
+      gridHeight: 8,
+      partyStartPositions: [{ x: 0, y: 0 }],
+      enemies: [
+        { name: 'Striker', role: 'dps', position: { x: 1, y: 0 }, hp: 99999, attackPower: 1000, defense: 0, healPower: 0, moveRange: 0, attackRange: 10, speed: 99 },
+      ],
+    }
+    // A 50%-per-round ramp is unrealistically fast on purpose — it should
+    // blow past the intended 90% cap within a couple of rounds, proving the
+    // hard clamp (not the ordinary always-at-least-1 floor) is what's
+    // actually controlling damage here.
+    const tank = makeUnit({ id: 'tank', role: 'tank', hp: 999999, maxHp: 999999, defense: 0, damageReductionRampPercent: 0.5, moveRange: 0, attackRange: 0 })
+    const result = runEncounter([tank], template, createRng(1))
+
+    const hitsOnTank = result.log.filter((e) => e.type === 'attack' && e.hit && e.targetId === 'tank')
+    const laterHits = hitsOnTank.slice(-5)
+    expect(laterHits.length).toBeGreaterThan(0)
+    for (const hit of laterHits) {
+      // attackPower(1000) * (1 - 0.9 cap) = 100 — comfortably above the
+      // degenerate 1-point floor an uncapped 100%+ reduction would produce.
+      if (hit.type === 'attack') expect(hit.damage).toBeGreaterThan(50)
+    }
+  })
+
   it('resolves a clear mismatch as a party victory with enemy deaths logged', () => {
     const party = [makeUnit({ id: 'hero', name: 'Hero', attackPower: 20, hp: 100, maxHp: 100 })]
     const result = runEncounter(party, basicTemplate, createRng(7))

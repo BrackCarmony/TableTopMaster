@@ -242,6 +242,24 @@ describe('toCombatUnit', () => {
     expect(healer.bonusHealPercent).toBe(0.5)
     expect(toCombatUnit(makeCharacter({ role: 'tank' }), null, bonuses).bonusTargetsOnHeal).toBeUndefined()
   })
+
+  it('only gives Grim Endurance-style damageReductionRampPercent to tanks', () => {
+    const bonuses = { ...DEFAULT_ARTIFACT_BONUSES, tankDamageReductionRampPercent: 0.05 }
+    expect(toCombatUnit(makeCharacter({ role: 'tank' }), null, bonuses).damageReductionRampPercent).toBe(0.05)
+    expect(toCombatUnit(makeCharacter({ role: 'dps' }), null, bonuses).damageReductionRampPercent).toBeUndefined()
+  })
+
+  it('only gives Rising Fury-style attackPowerRampPercent to dps', () => {
+    const bonuses = { ...DEFAULT_ARTIFACT_BONUSES, dpsAttackPowerRampPercent: 0.08 }
+    expect(toCombatUnit(makeCharacter({ role: 'dps' }), null, bonuses).attackPowerRampPercent).toBe(0.08)
+    expect(toCombatUnit(makeCharacter({ role: 'tank' }), null, bonuses).attackPowerRampPercent).toBeUndefined()
+  })
+
+  it('only gives Enduring Grace-style healPowerRampPercent to healers', () => {
+    const bonuses = { ...DEFAULT_ARTIFACT_BONUSES, healerHealPowerRampPercent: 0.08 }
+    expect(toCombatUnit(makeCharacter({ role: 'healer' }), null, bonuses).healPowerRampPercent).toBe(0.08)
+    expect(toCombatUnit(makeCharacter({ role: 'dps' }), null, bonuses).healPowerRampPercent).toBeUndefined()
+  })
 })
 
 describe('projectStatsAtLevel', () => {

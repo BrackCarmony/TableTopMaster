@@ -198,6 +198,12 @@ export interface ArtifactBonuses {
   /** Chain Mending — sum of every discovered healerChainHeal artifact's extra-target count / heal percent. */
   healerBonusTargetsOnHeal: number
   healerBonusHealPercent: number
+  /** Grim Endurance — sum of every discovered tankDamageReductionRamp artifact's per-round value. */
+  tankDamageReductionRampPercent: number
+  /** Rising Fury — sum of every discovered dpsAttackPowerRamp artifact's per-round value. */
+  dpsAttackPowerRampPercent: number
+  /** Enduring Grace — sum of every discovered healerHealPowerRamp artifact's per-round value. */
+  healerHealPowerRampPercent: number
 }
 
 export const DEFAULT_ARTIFACT_BONUSES: ArtifactBonuses = {
@@ -214,6 +220,9 @@ export const DEFAULT_ARTIFACT_BONUSES: ArtifactBonuses = {
   dpsBonusTargetDamagePercent: 0,
   healerBonusTargetsOnHeal: 0,
   healerBonusHealPercent: 0,
+  tankDamageReductionRampPercent: 0,
+  dpsAttackPowerRampPercent: 0,
+  healerHealPowerRampPercent: 0,
 }
 
 export function toCombatUnit(
@@ -260,6 +269,9 @@ export function toCombatUnit(
           : undefined,
     bonusTargetsOnHeal: character.role === 'healer' ? artifactBonuses.healerBonusTargetsOnHeal : undefined,
     bonusHealPercent: character.role === 'healer' ? artifactBonuses.healerBonusHealPercent : undefined,
+    damageReductionRampPercent: character.role === 'tank' ? artifactBonuses.tankDamageReductionRampPercent : undefined,
+    attackPowerRampPercent: character.role === 'dps' ? artifactBonuses.dpsAttackPowerRampPercent : undefined,
+    healPowerRampPercent: character.role === 'healer' ? artifactBonuses.healerHealPowerRampPercent : undefined,
   }
 }
 

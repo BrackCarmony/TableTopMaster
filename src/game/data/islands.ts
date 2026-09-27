@@ -7,9 +7,15 @@ import type { Island } from '../types'
 // the same reason Sailing itself unlocks around T6 — each island should
 // feel like it's gating on "about as much gold as the next couple of class
 // tiers," right up through the late game once every character is capped at
-// T10 and gold otherwise has nowhere left to go. The Maelstrom's Eye goes
-// past even that (a flat 1B) since it's meant as the "you've maxed
-// everything else" sink, not tied to any single tier.
+// T10 and gold otherwise has nowhere left to go. The Maelstrom's Eye and
+// everything past it goes beyond even that (flat multi-billion costs), since
+// they're meant as the "you've maxed everything else" sink, not tied to any
+// single tier. The Titan's Graveyard / World Serpent's Coil pair is
+// deliberately NOT a "more targets" island like Shattered Archipelago /
+// Maelstrom's Eye — bonus-target artifacts do nothing against a single boss
+// like the Tarrasque, so these instead help sustain a long single-target
+// fight (a party that out-scales a boss's own enrage over time), making
+// repeat Tarrasque kills realistically achievable in the late game.
 export const ISLANDS: Island[] = [
   {
     id: 'sunken-reef',
@@ -55,6 +61,24 @@ export const ISLANDS: Island[] = [
     baseGoldReward: 2_000_000,
     baseVoyageDurationMs: 300_000,
     artifactPool: ['whirling-cleave', 'ricochet-barrage', 'cascading-mending'],
+  },
+  {
+    id: 'titans-graveyard',
+    name: "The Titan's Graveyard",
+    description: 'Bones the size of ships, half-buried in ash — whatever put them there didn\'t need a crowd to do it. Neither will you.',
+    unlockCost: 2_500_000_000,
+    baseGoldReward: 4_000_000,
+    baseVoyageDurationMs: 360_000,
+    artifactPool: ['grim-endurance', 'rising-fury', 'enduring-grace'],
+  },
+  {
+    id: 'world-serpents-coil',
+    name: "The World Serpent's Coil",
+    description: "A ring of open ocean that never quite stops churning — something down there is old, singular, and in absolutely no hurry.",
+    unlockCost: 5_000_000_000,
+    baseGoldReward: 8_000_000,
+    baseVoyageDurationMs: 420_000,
+    artifactPool: ['unyielding-resolve', 'relentless-fury', 'boundless-grace'],
   },
 ]
 

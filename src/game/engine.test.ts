@@ -434,6 +434,21 @@ describe('computeArtifactBonuses', () => {
     expect(bonuses.healerBonusTargetsOnHeal).toBe(2)
     expect(bonuses.healerBonusHealPercent).toBeCloseTo(0.5 + 0.75)
   })
+
+  it('sums Grim Endurance/Rising Fury/Enduring Grace per-round ramps across both tiers', () => {
+    const bonuses = computeArtifactBonuses(
+      makeDm({
+        discoveredArtifactIds: [
+          'grim-endurance', 'unyielding-resolve',
+          'rising-fury', 'relentless-fury',
+          'enduring-grace', 'boundless-grace',
+        ],
+      }),
+    )
+    expect(bonuses.tankDamageReductionRampPercent).toBeCloseTo(0.02 + 0.03)
+    expect(bonuses.dpsAttackPowerRampPercent).toBeCloseTo(0.03 + 0.05)
+    expect(bonuses.healerHealPowerRampPercent).toBeCloseTo(0.03 + 0.05)
+  })
 })
 
 function makeShip(overrides: Partial<Ship> = {}): Ship {

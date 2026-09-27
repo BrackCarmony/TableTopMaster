@@ -45,6 +45,12 @@ export interface CombatUnit {
   bonusTargetsOnHeal?: number
   /** Fraction of the primary heal amount each bonus-heal target receives. Only meaningful alongside bonusTargetsOnHeal. */
   bonusHealPercent?: number
+  /** Grim Endurance-style artifacts — damageReductionPercent grows by this much at the end of every round, same timing as attackPowerRampPerRound. Runs against a boss's own enrage instead of just eating it. */
+  damageReductionRampPercent?: number
+  /** Rising Fury-style artifacts — attackPower is multiplied by (1 + this) at the end of every round, compounding. */
+  attackPowerRampPercent?: number
+  /** Enduring Grace-style artifacts — healPower is multiplied by (1 + this) at the end of every round, compounding. */
+  healPowerRampPercent?: number
 }
 
 export type CombatLogEvent =

@@ -106,6 +106,48 @@ export const ARTIFACTS: Artifact[] = [
     role: 'healer',
     effect: { kind: 'healerChainHeal', targets: 1, healPercent: 0.75 },
   },
+  {
+    id: 'grim-endurance',
+    name: 'Grim Endurance',
+    description: 'Your tanks shrug off 2% more of every hit for each round a battle drags on — a lone, escalating foe wears itself out against you instead of the other way around.',
+    role: 'tank',
+    effect: { kind: 'tankDamageReductionRamp', percentPerRound: 0.02 },
+  },
+  {
+    id: 'rising-fury',
+    name: 'Rising Fury',
+    description: 'Your dps hit 3% harder for each round a battle drags on, compounding — a long fight against a single lone foe ends up favoring you.',
+    role: 'dps',
+    effect: { kind: 'dpsAttackPowerRamp', percentPerRound: 0.03 },
+  },
+  {
+    id: 'enduring-grace',
+    name: 'Enduring Grace',
+    description: 'Your healers heal 3% harder for each round a battle drags on, compounding — keeping pace with a boss that only gets more dangerous over time.',
+    role: 'healer',
+    effect: { kind: 'healerHealPowerRamp', percentPerRound: 0.03 },
+  },
+  {
+    id: 'unyielding-resolve',
+    name: 'Unyielding Resolve',
+    description: 'Grim Endurance grows faster: your tanks now shrug off another 3% more of every hit for each round a battle drags on.',
+    role: 'tank',
+    effect: { kind: 'tankDamageReductionRamp', percentPerRound: 0.03 },
+  },
+  {
+    id: 'relentless-fury',
+    name: 'Relentless Fury',
+    description: 'Rising Fury grows faster: your dps now hit another 5% harder for each round a battle drags on, compounding.',
+    role: 'dps',
+    effect: { kind: 'dpsAttackPowerRamp', percentPerRound: 0.05 },
+  },
+  {
+    id: 'boundless-grace',
+    name: 'Boundless Grace',
+    description: 'Enduring Grace grows faster: your healers now heal another 5% harder for each round a battle drags on, compounding.',
+    role: 'healer',
+    effect: { kind: 'healerHealPowerRamp', percentPerRound: 0.05 },
+  },
 ]
 
 export function getArtifactById(id: string): Artifact | undefined {

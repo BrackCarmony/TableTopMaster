@@ -116,7 +116,12 @@ function applySingleHit(
   // as before either artifact existed.
   const effectiveDefense = target.defense * (1 - (attacker.defensePiercePercent ?? 0))
   const rawDamage = (attacker.attackPower - effectiveDefense) * damageMultiplier
-  const mitigatedDamage = rawDamage * (1 - (target.damageReductionPercent ?? 0))
+  // Grim Endurance-style artifacts let damageReductionPercent climb every
+  // round on top of whatever Stoneskin-style base it already has — hard
+  // clamped here (not just at the static artifact-stacking clamp) since this
+  // value keeps growing round over round with no cap of its own otherwise.
+  const reduction = Math.min(0.9, target.damageReductionPercent ?? 0)
+  const mitigatedDamage = rawDamage * (1 - reduction)
   const damage = hit ? Math.max(1, Math.round(mitigatedDamage)) : 0
   if (hit) {
     target.hp = Math.max(0, target.hp - damage)
@@ -283,11 +288,32 @@ export function runEncounter(partyUnits: CombatUnit[], template: EncounterTempla
     }
     if (!outcome) outcome = checkOutcome(units)
 
+    // End-of-round ramps — a boss's flat attackPowerRampPerRound enrage, and
+    // the three sustain artifacts (Grim Endurance / Rising Fury / Enduring
+    // Grace) that let a party out-scale a long fight instead of just eating
+    // an ever-growing hit. All apply on the same timing, at most one 'enrage'
+    // log line per unit per round even if more than one of them fires.
     if (!outcome) {
       for (const unit of units) {
-        if (!unit.alive || !unit.attackPowerRampPerRound) continue
-        unit.attackPower += unit.attackPowerRampPerRound
-        log.push({ type: 'enrage', unitId: unit.id, attackPower: unit.attackPower })
+        if (!unit.alive) continue
+        let ramped = false
+        if (unit.attackPowerRampPerRound) {
+          unit.attackPower += unit.attackPowerRampPerRound
+          ramped = true
+        }
+        if (unit.attackPowerRampPercent) {
+          unit.attackPower = Math.round(unit.attackPower * (1 + unit.attackPowerRampPercent))
+          ramped = true
+        }
+        if (unit.healPowerRampPercent) {
+          unit.healPower = Math.round(unit.healPower * (1 + unit.healPowerRampPercent))
+          ramped = true
+        }
+        if (unit.damageReductionRampPercent) {
+          unit.damageReductionPercent = (unit.damageReductionPercent ?? 0) + unit.damageReductionRampPercent
+          ramped = true
+        }
+        if (ramped) log.push({ type: 'enrage', unitId: unit.id, attackPower: unit.attackPower })
       }
     }
   }
