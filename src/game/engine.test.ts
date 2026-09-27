@@ -7,6 +7,7 @@ import { getTrophyQuality } from './data/trophies'
 import { UPGRADES } from './data/upgrades'
 import {
   AUTO_ADVANCE_CHECK_INTERVAL_MS,
+  BASE_ARTIFACT_FIND_CHANCE,
   BASE_COOLDOWN_MS,
   EXECUTION_GROWTH_RATE,
   EXECUTION_STARTING_TIER,
@@ -14,6 +15,7 @@ import {
   MAX_COOLDOWN_SCALE,
   MIN_COOLDOWN_MS,
   OFFLINE_PROGRESS_GOLD_FRACTION,
+  REPEAT_FIND_GOLD_FRACTION,
   computeArtifactBonuses,
   computeInfamyReward,
   computeMultipliers,
@@ -698,6 +700,122 @@ describe('tickTable Auto-Advance periodic check', () => {
   })
 })
 
+describe('tickTable campaign fast-forward', () => {
+  it('never fast-forwards execution modules — each attempt is still simulated for real, so escalating difficulty eventually catches up', () => {
+    const table = makeTable({ assignedModuleId: 'tarrasque-execution', cooldownRemaining: 0 })
+    const rng = createRng(1)
+    const unstoppable = makeUnstoppableSeatedPlayer(table.id, rng)
+    const dm = makeDm({ unlockedModuleIds: ['tarrasque-execution'] })
+    // Comfortably long enough for tarrasque's 2x-per-win escalation to catch
+    // up with even a fixed "unstoppable" character (roughly a dozen wins).
+    const elapsed = 5000 * 500
+
+    const { tables, dm: nextDm } = tickTables([table], [unstoppable], dm, elapsed, rng)
+
+    const winCount = nextDm.executionTier['tarrasque-execution'] ?? 0
+    expect(winCount).toBeGreaterThan(0)
+    // If this had been (incorrectly) fast-forwarded the way a campaign
+    // module is, the escalating difficulty would never have caught up, and
+    // the table would still show as assigned mid-streak instead of having
+    // wiped and cleared its module.
+    expect(tables[0].assignedModuleId).toBeNull()
+  })
+
+  it('breaks the fast-forward streak on a partial casualty instead of skipping past a real death', () => {
+    const rng = createRng(4)
+    const table = makeTable({ assignedModuleId: 'goblin-ambush', cooldownRemaining: 0 })
+    // A one-hp tank that's guaranteed to die to any landed hit, so every
+    // "win" here is a partial casualty, never flawless — the module should
+    // never accumulate a confirmed lap.
+    const fragileTank: Character = {
+      id: 'fragile-tank-char',
+      name: 'Fragile Tank',
+      race: 'Human',
+      className: 'Cannon Fodder',
+      role: 'tank',
+      level: 1,
+      xp: 0,
+      maxHp: 1,
+      attackPower: 1,
+      defense: 0,
+      healPower: 0,
+      moveRange: 3,
+      attackRange: 1,
+      speed: 5,
+      growthPerLevel: { maxHp: 0, attackPower: 0, defense: 0, healPower: 0 },
+      selfRegenPercent: 0,
+    }
+    const unstoppableChar: Character = {
+      id: 'unstoppable-char-4',
+      name: 'Unstoppable',
+      race: 'Human',
+      className: 'Godslayer',
+      role: 'dps',
+      level: 1,
+      xp: 0,
+      maxHp: 999_999,
+      attackPower: 999_999,
+      defense: 999_999,
+      healPower: 0,
+      moveRange: 5,
+      attackRange: 5,
+      speed: 99,
+      growthPerLevel: { maxHp: 0, attackPower: 0, defense: 0, healPower: 0 },
+      selfRegenPercent: 0,
+    }
+    const fragilePlayer: Player = { ...createPlayer(rng), tableId: table.id, character: fragileTank }
+    const unstoppable: Player = { ...createPlayer(rng), tableId: table.id, character: unstoppableChar }
+    const dm = makeDm({ unlockedModuleIds: ['goblin-ambush'] })
+
+    const result = tickTable(table, [fragilePlayer, unstoppable], dm, 5000 * 50, rng)
+
+    // The fragile tank is benched (dead), never re-seated by anything in
+    // this test — a fast-forward bug would apply the SAME lump reward to
+    // every originally-seated player regardless, which this can't produce
+    // since the tank never got a fresh character back.
+    const tankAfter = result.players.find((p) => p.id === fragilePlayer.id)
+    expect(tankAfter?.tableId).toBeNull()
+    expect(tankAfter?.character).toBeNull()
+  })
+
+  it('still levels up characters correctly across a fast-forwarded run', () => {
+    const table = makeTable({ assignedModuleId: 'goblin-ambush', cooldownRemaining: 0 })
+    const rng = createRng(9)
+    // Overwhelming enough to guarantee flawless wins (so fast-forward
+    // engages), but with a real, nonzero growthPerLevel so leveling is
+    // actually observable — unlike the "unstoppable" fixture elsewhere in
+    // this file, which starts at level 99 with zero growth.
+    const strongChar: Character = {
+      id: 'strong-char',
+      name: 'Strong',
+      race: 'Human',
+      className: 'Godslayer',
+      role: 'dps',
+      level: 1,
+      xp: 0,
+      maxHp: 999_999,
+      attackPower: 999_999,
+      defense: 999_999,
+      healPower: 0,
+      moveRange: 5,
+      attackRange: 5,
+      speed: 99,
+      growthPerLevel: { maxHp: 10, attackPower: 5, defense: 5, healPower: 0 },
+      selfRegenPercent: 0,
+    }
+    const player = createPlayer(rng)
+    const seated: Player = { ...player, tableId: table.id, character: strongChar }
+    const dm = makeDm({ unlockedModuleIds: ['goblin-ambush'] })
+    // Long enough to blow well past the old 2000-encounter-per-tick cap.
+    const elapsed = 5000 * 2 * 5000
+
+    const { players } = tickTable(table, [seated], dm, elapsed, rng)
+
+    const after = players.find((p) => p.id === seated.id)
+    expect(after?.character?.level ?? 1).toBeGreaterThan(1)
+  })
+})
+
 describe('computeArtifactBonuses', () => {
   it('grants nothing with no artifacts discovered', () => {
     const bonuses = computeArtifactBonuses(makeDm())
@@ -824,6 +942,56 @@ describe('tickShips', () => {
     const { ships } = tickShips([ship], boostedDm, island.baseVoyageDurationMs, createRng(1))
     // faster-sailing-1 is a 0.85x multiplier, so the repeated voyage should be shorter than base.
     expect(ships[0].voyageRemaining).toBeLessThan(island.baseVoyageDurationMs)
+  })
+
+  describe('fast path once every artifact is already discovered', () => {
+    it('matches the expected-value gold total for a huge number of voyages, computed instantly instead of looped one at a time', () => {
+      const ship = makeShip({ assignedIslandId: island.id, voyageRemaining: island.baseVoyageDurationMs })
+      const dm = makeDm({ discoveredArtifactIds: [...island.artifactPool] })
+      const numVoyages = 500_000 // far beyond MAX_OFFLINE_VOYAGES_PER_SHIP taken one at a time
+      const elapsed = island.baseVoyageDurationMs * numVoyages
+
+      const start = Date.now()
+      const { ships, dm: nextDm } = tickShips([ship], dm, elapsed, createRng(7))
+      expect(Date.now() - start).toBeLessThan(200) // would take ages if it were still looping per voyage
+
+      // The very first (in-flight) voyage still rolls for real, so it's
+      // either base gold or base+consolation — every voyage after that uses
+      // the fixed expected value, so the total is tightly bounded either way.
+      const consolation = Math.round(island.baseGoldReward * REPEAT_FIND_GOLD_FRACTION)
+      const expectedPerVoyage = island.baseGoldReward + island.baseGoldReward * BASE_ARTIFACT_FIND_CHANCE * REPEAT_FIND_GOLD_FRACTION
+      const minTotal = island.baseGoldReward + Math.round((numVoyages - 1) * expectedPerVoyage)
+      const maxTotal = island.baseGoldReward + consolation + Math.round((numVoyages - 1) * expectedPerVoyage)
+
+      expect(nextDm.gold).toBeGreaterThanOrEqual(minTotal)
+      expect(nextDm.gold).toBeLessThanOrEqual(maxTotal)
+      expect(ships[0].lifetimeGold).toBe(nextDm.gold)
+      // No new artifacts to find — the discovered set never changes.
+      expect(nextDm.discoveredArtifactIds.sort()).toEqual([...island.artifactPool].sort())
+    })
+
+    it('still discovers artifacts for real while any remain, only switching to the fast path once the pool is exhausted', () => {
+      const ship = makeShip({ assignedIslandId: island.id, voyageRemaining: island.baseVoyageDurationMs })
+      // Start one artifact short of a full pool.
+      const dm = makeDm({ discoveredArtifactIds: island.artifactPool.slice(0, island.artifactPool.length - 1) })
+      const elapsed = island.baseVoyageDurationMs * 2000
+
+      const { dm: nextDm } = tickShips([ship], dm, elapsed, createRng(3))
+
+      expect(nextDm.discoveredArtifactIds.sort()).toEqual([...island.artifactPool].sort())
+    })
+
+    it('leaves voyageRemaining counting down correctly when the fast path only partially consumes the tick', () => {
+      const ship = makeShip({ assignedIslandId: island.id, voyageRemaining: island.baseVoyageDurationMs })
+      const dm = makeDm({ discoveredArtifactIds: [...island.artifactPool] })
+      // Less than one full voyage's worth of time.
+      const elapsed = island.baseVoyageDurationMs - 1000
+
+      const { ships, dm: nextDm } = tickShips([ship], dm, elapsed, createRng(1))
+
+      expect(ships[0].voyageRemaining).toBe(1000)
+      expect(nextDm.gold).toBe(0)
+    })
   })
 })
 
