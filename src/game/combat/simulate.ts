@@ -343,7 +343,24 @@ export function runEncounter(partyUnits: CombatUnit[], template: EncounterTempla
     }
   }
 
-  if (!outcome) outcome = 'stalemate'
+  if (!outcome) {
+    if (template.stalemateFinisher) {
+      // The party never gets to just outlast this fight — wipe everyone
+      // (including any not-yet-used Revivify charge, which dies with its
+      // healer) so this always resolves as a real defeat, not an endless,
+      // fully-healed rematch against the exact same boss.
+      for (const unit of units) {
+        if (unit.side !== 'party' || !unit.alive) continue
+        unit.alive = false
+        unit.hp = 0
+        log.push({ type: 'death', unitId: unit.id })
+      }
+      log.push({ type: 'finisher', description: template.stalemateFinisher })
+      outcome = 'defeat'
+    } else {
+      outcome = 'stalemate'
+    }
+  }
 
   // Revivify fallback — a healer who still has their charge unused (every
   // turn had someone to heal instead, or the fatal blow landed after their

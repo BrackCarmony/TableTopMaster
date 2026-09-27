@@ -177,7 +177,7 @@ export const MODULES: AdventureModule[] = [
     id: 'kraken-execution',
     name: 'The Kraken Stirs',
     description:
-      "A second execution contract, and a different kind of unwinnable — the Kraken doesn't hit harder the longer you fight it, it just refuses to stay down, healing itself back up whenever it's wounded. Bring more burst than it can outheal, or don't bother.",
+      "A second execution contract, and a different kind of unwinnable — the Kraken doesn't hit harder the longer you fight it, it just refuses to stay down, healing itself back up whenever it's wounded. Bring more burst than it can outheal — outlast it instead, and it drowns the table in a tidal wave rather than let the fight go nowhere.",
     kind: 'execution',
     tier: 99,
     unlockCost: 0,

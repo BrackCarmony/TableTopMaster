@@ -227,6 +227,49 @@ describe('runEncounter', () => {
     expect(selfHeals.length).toBeGreaterThan(0)
   })
 
+  it('leaves a genuinely unwinnable fight as a harmless stalemate when the template sets no stalemateFinisher', () => {
+    // Neither side can ever kill the other: the boss out-heals the hero's
+    // chip damage indefinitely, and deals no damage back.
+    const template: EncounterTemplate = {
+      id: 'endless-sustain-test',
+      name: 'Endless Sustain Test',
+      gridWidth: 8,
+      gridHeight: 8,
+      partyStartPositions: [{ x: 0, y: 0 }],
+      enemies: [
+        { name: 'Sustain Boss', role: 'healer', position: { x: 1, y: 0 }, hp: 100, attackPower: 0, defense: 0, healPower: 50, moveRange: 0, attackRange: 5, speed: 99 },
+      ],
+    }
+    const hero = makeUnit({ id: 'hero', attackPower: 50, defense: 0, attackRange: 1, moveRange: 1, speed: 1 })
+    const result = runEncounter([hero], template, createRng(1))
+
+    expect(result.outcome).toBe('stalemate')
+    expect(result.survivorIds).toContain('hero')
+    expect(result.log.some((e) => e.type === 'finisher')).toBe(false)
+  })
+
+  it('wipes the party and narrates it instead of stalemating when the template sets a stalemateFinisher', () => {
+    const template: EncounterTemplate = {
+      id: 'finisher-test',
+      name: 'Finisher Test',
+      gridWidth: 8,
+      gridHeight: 8,
+      partyStartPositions: [{ x: 0, y: 0 }],
+      enemies: [
+        { name: 'Sustain Boss', role: 'healer', position: { x: 1, y: 0 }, hp: 100, attackPower: 0, defense: 0, healPower: 50, moveRange: 0, attackRange: 5, speed: 99 },
+      ],
+      stalemateFinisher: 'A wave swallows the party whole.',
+    }
+    const hero = makeUnit({ id: 'hero', attackPower: 50, defense: 0, attackRange: 1, moveRange: 1, speed: 1 })
+    const result = runEncounter([hero], template, createRng(1))
+
+    expect(result.outcome).toBe('defeat')
+    expect(result.survivorIds).toEqual([])
+    const finisherEvent = result.log.find((e) => e.type === 'finisher')
+    expect(finisherEvent).toEqual({ type: 'finisher', description: 'A wave swallows the party whole.' })
+    expect(result.log.some((e) => e.type === 'death' && e.unitId === 'hero')).toBe(true)
+  })
+
   it('heals enough sustained chip damage to turn a defeat into a survival, and never fires once already at max HP', () => {
     const template: EncounterTemplate = {
       id: 'regen-test',

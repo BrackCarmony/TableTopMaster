@@ -66,6 +66,8 @@ export type CombatLogEvent =
   | { type: 'enrage'; side: 'party' | 'enemy' }
   /** Same one-line-per-side-per-round shape as 'enrage', for Healer-tier self-regen ticks. Only fires when at least one unit on that side actually recovered HP (i.e. wasn't already full). */
   | { type: 'regen'; side: 'party' | 'enemy' }
+  /** An encounter's stalemateFinisher firing — see EncounterTemplate.stalemateFinisher. */
+  | { type: 'finisher'; description: string }
   | { type: 'encounter_end'; outcome: 'victory' | 'defeat' | 'stalemate'; survivorIds: string[] }
 
 export interface EnemySpawn {
@@ -89,6 +91,18 @@ export interface EncounterTemplate {
   gridHeight: number
   partyStartPositions: GridCoord[]
   enemies: EnemySpawn[]
+  /**
+   * If the fight would otherwise end in a stalemate (MAX_ROUNDS reached with
+   * both sides still standing), the party is wiped instead — outcome becomes
+   * 'defeat', not 'stalemate' — narrated with this flavor line. For an
+   * execution encounter designed to be a pure DPS-race sustain check (e.g.
+   * the Kraken out-healing a party that can't out-damage it), a stalemate
+   * would otherwise leave the table stuck refighting the same fully-healed
+   * boss forever instead of ever actually resolving into the "guaranteed
+   * TPK" every execution module already advertises. Leave unset for
+   * encounters where a stalemate is a legitimate, harmless outcome.
+   */
+  stalemateFinisher?: string
 }
 
 export interface EncounterResult {

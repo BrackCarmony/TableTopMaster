@@ -463,9 +463,12 @@ export const TARRASQUE_AWAITS: EncounterTemplate = {
  * Tarrasque: no enrage ramp, so a slow party doesn't automatically lose to
  * the clock — instead it just heals itself back up whenever it drops below
  * 70% HP (see combat/grid.ts mostWoundedAllyInRange, which a solo unit can
- * target on itself), so a party that can't bring enough burst damage stalls
- * out into a stalemate against its sustain instead of grinding it down.
- * role 'healer' is what makes the self-targeting actually fire.
+ * target on itself), so a party that can't bring enough burst damage never
+ * actually grinds it down. Without stalemateFinisher, that would leave the
+ * table stuck refighting the same fully-healed Kraken forever instead of
+ * ever resolving — the tidal wave is what still makes this a real DPS check
+ * with a guaranteed answer, same as every other execution contract. role
+ * 'healer' is what makes the self-targeting actually fire.
  */
 export const KRAKEN_AWAITS: EncounterTemplate = {
   id: 'kraken-awaits',
@@ -487,4 +490,6 @@ export const KRAKEN_AWAITS: EncounterTemplate = {
       speed: 15,
     },
   ],
+  stalemateFinisher:
+    "The Kraken submerges, and the sea itself rises to answer — a wave taller than the battlefield crashes down, and the party is gone before it recedes.",
 }
