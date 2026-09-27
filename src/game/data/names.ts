@@ -2,6 +2,7 @@ export const FIRST_NAMES = [
   'Bramm', 'Cael', 'Doriel', 'Esk', 'Fenna', 'Grix', 'Hale', 'Isolde',
   'Joran', 'Kessa', 'Lorn', 'Maeve', 'Norrin', 'Orla', 'Pip', 'Quill',
   'Roran', 'Syl', 'Torvin', 'Una', 'Vex', 'Wren', 'Xanthe', 'Yorick', 'Zara',
+  'Kedirech Korwinn Rooks', 'Kedami',
 ]
 
 export const SURNAMES = [
@@ -9,6 +10,7 @@ export const SURNAMES = [
   'Graywatch', 'Hollowbrook', 'Ironshade', 'Junewood', 'Kettlebrook',
   'Larkspur', 'Moonshadow', 'Nightbloom', 'Oakenshield', 'Ravensmere',
   'Stormwick', 'Thistledown', 'Underhill', 'Vaelthorn',
+  'Duskraven', 'Stormbane',
 ]
 
 /** Mundane, real-world-feeling names for the actual players — not the fantasy characters they roll. */
@@ -21,6 +23,7 @@ export const STANDARD_NAMES = [
   'Elliot', 'Frankie', 'Gray', 'Harley', 'Indigo', 'Jules', 'Kit', 'Lane',
   'Marlowe', 'Noel', 'Oakley', 'Phoenix', 'Reagan', 'Sydney', 'Tate',
   'Vaughn', 'Winter', 'Ash', 'Blair', 'Cameron', 'Dallas', 'Ellis',
+  'Brack', 'Derek',
 ]
 
 export const RACES = [
