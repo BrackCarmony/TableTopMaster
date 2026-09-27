@@ -60,7 +60,8 @@ export type CombatLogEvent =
   | { type: 'heal'; healerId: string; targetId: string; amount: number; targetHpAfter: number }
   | { type: 'revive'; healerId: string; targetId: string; targetHpAfter: number }
   | { type: 'death'; unitId: string }
-  | { type: 'enrage'; unitId: string; attackPower: number }
+  /** One combined line per side per round, not one per ramped unit — watching a battle with several sustain artifacts active would otherwise spam a line per unit every single round. */
+  | { type: 'enrage'; side: 'party' | 'enemy' }
   | { type: 'encounter_end'; outcome: 'victory' | 'defeat' | 'stalemate'; survivorIds: string[] }
 
 export interface EnemySpawn {

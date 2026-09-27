@@ -207,26 +207,33 @@ describe('runEncounter', () => {
     }
   })
 
-  it('lets Rising Fury-style attackPowerRampPercent compound every round of a long fight, same as a stalemate boss cannot avoid', () => {
-    // Neither side can reach or hit the other, guaranteeing the full MAX_ROUNDS.
-    const frozenTemplate: EncounterTemplate = {
-      id: 'ramp-frozen',
-      name: 'Ramp Frozen',
+  it('lets Rising Fury-style attackPowerRampPercent compound, dealing far more damage in later rounds than early ones', () => {
+    const template: EncounterTemplate = {
+      id: 'attack-ramp-test',
+      name: 'Attack Ramp Test',
       gridWidth: 8,
       gridHeight: 8,
       partyStartPositions: [{ x: 0, y: 0 }],
       enemies: [
-        { name: 'Distant Foe', role: 'dps', position: { x: 7, y: 7 }, hp: 10, attackPower: 5, defense: 0, healPower: 0, moveRange: 0, attackRange: 0, speed: 1 },
+        // Never dies, never hits back — a fixed punching bag the hero can
+        // keep attacking every single round, for as many rounds as it takes
+        // to show attackPower actually compounding over time.
+        { name: 'Punching Bag', role: 'dps', position: { x: 1, y: 0 }, hp: 999_999, attackPower: 0, defense: 0, healPower: 0, moveRange: 0, attackRange: 0, speed: 1 },
       ],
     }
-    const dps = makeUnit({ id: 'hero', attackPower: 10, attackPowerRampPercent: 0.1, moveRange: 0, attackRange: 0 })
-    const result = runEncounter([dps], frozenTemplate, createRng(1))
+    const dps = makeUnit({ id: 'hero', attackPower: 10, attackPowerRampPercent: 0.1, attackRange: 1, moveRange: 0 })
+    const result = runEncounter([dps], template, createRng(1))
 
-    const enrageEvents = result.log.filter((e) => e.type === 'enrage' && e.unitId === 'hero')
-    expect(enrageEvents.length).toBe(MAX_ROUNDS) // ramps every single round with no resolution
-    const last = enrageEvents[enrageEvents.length - 1]
-    // 1.1^50 ≈ 117x the base — a wide, rounding-tolerant margin above 10x proves real compounding, not noise.
-    if (last.type === 'enrage') expect(last.attackPower).toBeGreaterThan(100)
+    const partyEnrageEvents = result.log.filter((e) => e.type === 'enrage' && e.side === 'party')
+    expect(partyEnrageEvents.length).toBe(MAX_ROUNDS) // ramps every single round with no resolution
+
+    const damages = result.log
+      .filter((e) => e.type === 'attack' && e.hit && e.attackerId === 'hero')
+      .map((e) => (e.type === 'attack' ? e.damage : 0))
+    expect(damages.length).toBeGreaterThan(10)
+    // 1.1^N compounding over dozens of rounds — a wide, rounding-tolerant
+    // margin proves real compounding growth, not noise.
+    expect(Math.max(...damages)).toBeGreaterThan(Math.min(...damages) * 5)
   })
 
   it('lets Enduring Grace-style healPowerRampPercent compound, growing later heals well past earlier ones', () => {

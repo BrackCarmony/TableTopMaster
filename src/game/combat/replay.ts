@@ -107,7 +107,7 @@ export function describeEvent(event: CombatLogEvent, unitsById: Map<string, Unit
     case 'death':
       return `${nameOf(event.unitId)} falls.`
     case 'enrage':
-      return `${nameOf(event.unitId)} grows stronger!`
+      return event.side === 'party' ? 'The party grows stronger!' : 'The enemy grows stronger!'
     case 'encounter_end':
       if (event.outcome === 'victory') return 'Victory! The party stands over the fallen.'
       if (event.outcome === 'defeat') return 'Total party kill. Nothing survived.'

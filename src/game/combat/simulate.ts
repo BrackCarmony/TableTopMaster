@@ -291,9 +291,12 @@ export function runEncounter(partyUnits: CombatUnit[], template: EncounterTempla
     // End-of-round ramps — a boss's flat attackPowerRampPerRound enrage, and
     // the three sustain artifacts (Grim Endurance / Rising Fury / Enduring
     // Grace) that let a party out-scale a long fight instead of just eating
-    // an ever-growing hit. All apply on the same timing, at most one 'enrage'
-    // log line per unit per round even if more than one of them fires.
+    // an ever-growing hit. All apply on the same timing. Logged as at most
+    // one 'enrage' line per SIDE per round (not per unit) — with 3 party
+    // members each carrying a ramp, one line per unit every round made
+    // watching a long fight painfully slow to step through.
     if (!outcome) {
+      const rampedSides = new Set<'party' | 'enemy'>()
       for (const unit of units) {
         if (!unit.alive) continue
         let ramped = false
@@ -313,7 +316,10 @@ export function runEncounter(partyUnits: CombatUnit[], template: EncounterTempla
           unit.damageReductionPercent = (unit.damageReductionPercent ?? 0) + unit.damageReductionRampPercent
           ramped = true
         }
-        if (ramped) log.push({ type: 'enrage', unitId: unit.id, attackPower: unit.attackPower })
+        if (ramped) rampedSides.add(unit.side)
+      }
+      for (const side of rampedSides) {
+        log.push({ type: 'enrage', side })
       }
     }
   }
