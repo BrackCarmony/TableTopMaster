@@ -410,16 +410,16 @@ describe('runEncounter', () => {
     expect(quickWin.roundsElapsed).toBeLessThan(MAX_ROUNDS / 5)
   })
 
-  it('places tanks closest to the enemies and healers farthest back, regardless of seating order', () => {
+  it('places tanks and healers near the enemies, together, with dps pushed out to the leftover rows, regardless of seating order', () => {
     const positionTemplate: EncounterTemplate = {
       id: 'position-test',
       name: 'Position Test',
       gridWidth: 10,
       gridHeight: 10,
       partyStartPositions: [
-        { x: 1, y: 0 }, // distance 10 from the enemy — farthest
+        { x: 1, y: 0 }, // distance 10 from the enemy — second-closest
         { x: 1, y: 3 }, // distance 7 — closest
-        { x: 1, y: 7 }, // distance 11 — farthest
+        { x: 1, y: 7 }, // distance 11 — farthest, leftover
       ],
       enemies: [
         { name: 'Target', role: 'dps', position: { x: 8, y: 3 }, hp: 999, attackPower: 1, defense: 0, healPower: 0, moveRange: 0, attackRange: 0, speed: 1 },
@@ -437,14 +437,14 @@ describe('runEncounter', () => {
     if (start.type !== 'encounter_start') throw new Error('expected encounter_start')
     const posById = new Map(start.units.filter((u) => u.side === 'party').map((u) => [u.id, u.position]))
 
-    // Row: tank claims the row nearest the enemies (y=3), dps the next
-    // row (y=0, the first "farthest" entry), healer the last (y=7).
-    // Column: on top of that, the tank steps one column toward the
-    // enemies and the healer one column away — an actual front/back line
-    // instead of everyone sharing column x=1.
+    // Row: tank and healer claim the two rows nearest the enemies (y=3 and
+    // y=0) so the healer can actually reach the tank from turn one — dps
+    // gets whatever's left over (y=7). Column: on top of that, the tank
+    // steps one column toward the enemies and the healer one column away —
+    // an actual front/back line instead of everyone sharing column x=1.
     expect(posById.get('tank')).toEqual({ x: 2, y: 3 })
-    expect(posById.get('dps')).toEqual({ x: 1, y: 0 })
-    expect(posById.get('healer')).toEqual({ x: 0, y: 7 })
+    expect(posById.get('healer')).toEqual({ x: 0, y: 0 })
+    expect(posById.get('dps')).toEqual({ x: 1, y: 7 })
   })
 
   it('lets a tank with Defensive Rush act before round 0, ahead of any faster unit', () => {

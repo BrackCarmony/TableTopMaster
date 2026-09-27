@@ -43,7 +43,12 @@ function buildEnemyUnits(template: EncounterTemplate): CombatUnit[] {
   }))
 }
 
-const ROLE_FRONT_PRIORITY: Record<Role, number> = { tank: 0, dps: 1, healer: 2 }
+// Rows closest to the enemy centroid get claimed first. Tanks get first pick
+// (frontmost) and healers get second pick (right behind them, still near the
+// center) so a healer can actually reach the tank in range from turn one —
+// dps take whatever rows are left over, including the far edges, since they
+// don't depend on being near an ally the way healing does.
+const ROLE_ROW_PRIORITY: Record<Role, number> = { tank: 0, healer: 1, dps: 2 }
 // Tanks step one column toward the enemies, healers one column away from
 // them, dps stay put — an actual front line instead of everyone sharing one
 // column and only differing by row.
@@ -60,14 +65,16 @@ function clamp(value: number, min: number, max: number): number {
 
 /**
  * Fills the template's start positions role-first instead of in whatever
- * order units happen to be listed: tanks land on whichever positions are
- * actually closest (by the same Manhattan metric the AI's nearest-enemy
- * targeting uses) to the enemies, dps take the next-closest, and healers
- * land farthest back. Otherwise a tank stuck in a back row can't draw
- * aggro, and a squishier ally standing closer eats the hits meant for it.
- * On top of that row choice, tanks then push one column toward the
- * enemies and healers pull one column back, so the party isn't just a
- * single-file line — it has an actual front and back.
+ * order units happen to be listed: rows are ranked by closeness (by the same
+ * Manhattan metric the AI's nearest-enemy targeting uses) to the enemy
+ * centroid, and tanks + healers claim the closest rows first — both need to
+ * be near the action and near each other, a tank to draw aggro and a healer
+ * to keep them alive from turn one. dps take whatever rows are left,
+ * including the far edges, since they don't need to be adjacent to anyone.
+ * On top of that row choice, tanks then push one column toward the enemies
+ * and healers pull one column back, so the party isn't just a single-file
+ * line — it has an actual front and back, with the healer tucked in right
+ * behind the tank instead of off at the edge of the formation.
  */
 function positionParty(partyUnits: CombatUnit[], template: EncounterTemplate): CombatUnit[] {
   const enemyPositions = template.enemies.map((e) => e.position)
@@ -80,7 +87,7 @@ function positionParty(partyUnits: CombatUnit[], template: EncounterTemplate): C
           (a, b) => manhattanDistance(a, enemyCentroid) - manhattanDistance(b, enemyCentroid),
         )
 
-  const orderedUnits = [...partyUnits].sort((a, b) => ROLE_FRONT_PRIORITY[a.role] - ROLE_FRONT_PRIORITY[b.role])
+  const orderedUnits = [...partyUnits].sort((a, b) => ROLE_ROW_PRIORITY[a.role] - ROLE_ROW_PRIORITY[b.role])
   const positionById = new Map(orderedUnits.map((u, i) => [u.id, orderedPositions[i % orderedPositions.length]]))
 
   const partyBaseX = averagePosition(template.partyStartPositions).x
