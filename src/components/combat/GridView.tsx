@@ -1,6 +1,6 @@
 import { formatNumber } from '../../format'
 import type { CombatUnit } from '../../game/combat/types'
-import { ROLE_ICON } from '../icons'
+import { EnemySprite, PlayerSprite } from './sprites'
 
 export function GridView({ units, width, height }: { units: CombatUnit[]; width: number; height: number }) {
   // If two units ever end up sharing a cell, never let a dead one's token
@@ -35,7 +35,11 @@ export function GridView({ units, width, height }: { units: CombatUnit[]; width:
               }`}
               title={`${unit.name} (${formatNumber(unit.hp)}/${formatNumber(unit.maxHp)} HP)`}
             >
-              <span>{ROLE_ICON[unit.role]}</span>
+              {unit.side === 'party' ? (
+                <PlayerSprite role={unit.role} level={unit.level} />
+              ) : (
+                <EnemySprite name={unit.name} />
+              )}
               <span className="w-full truncate px-0.5 text-center">{unit.name.split(' ')[0]}</span>
               <span className="text-[9px] text-slate-300">
                 {formatNumber(unit.hp)}/{formatNumber(unit.maxHp)}
