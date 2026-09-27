@@ -4,7 +4,7 @@ import { runEncounter } from './combat/simulate'
 import type { EncounterTemplate, EnemySpawn } from './combat/types'
 import { getArtifactById } from './data/artifacts'
 import { getIslandById } from './data/islands'
-import { getModuleById } from './data/modules'
+import { getModuleById, getNextUnlockedCampaignModule, getPreviousUnlockedCampaignModule } from './data/modules'
 import { DEFAULT_TROPHY_PARTS, getTrophyQuality } from './data/trophies'
 import { getUpgradeById } from './data/upgrades'
 import { dominantTrait } from './personality'
@@ -28,6 +28,11 @@ export const MAX_OFFLINE_MS = 8 * 60 * 60 * 1000
 // synchronous tick's work, not to limit how much time a purchase is worth.
 const MAX_OFFLINE_ENCOUNTERS_PER_TABLE = 200_000
 const MAX_OFFLINE_VOYAGES_PER_SHIP = 200_000
+// Auto-Advance samples a table's most recent result rather than reacting to
+// every encounter — at high level a table can resolve a fight roughly once a
+// second, so checking after every single one would be both pointless
+// (nothing meaningfully changes fight to fight) and expensive at scale.
+export const AUTO_ADVANCE_CHECK_INTERVAL_MS = 3 * 60 * 1000
 
 // Buy Offline Progress: spends a fraction of CURRENT gold (not a fixed or
 // escalating amount) to instantly simulate that much wall-clock time via the
@@ -100,6 +105,10 @@ export function hasRoleSelectionUnlock(dm: DMState): boolean {
 
 export function hasQuickRefillUnlock(dm: DMState): boolean {
   return dm.purchasedUpgradeIds.some((id) => getUpgradeById(id)?.effect.kind === 'unlockQuickRefill')
+}
+
+export function hasAutoAdvanceUnlock(dm: DMState): boolean {
+  return dm.purchasedUpgradeIds.some((id) => getUpgradeById(id)?.effect.kind === 'unlockAutoAdvance')
 }
 
 export function effectiveTableCapacity(dm: DMState): number {
@@ -410,6 +419,32 @@ export function resolveEncounter(
 }
 
 /**
+ * Auto-Advance: judges the table's most recently recorded battle result — a
+ * flawless victory (zero casualties) climbs to the next-higher unlocked
+ * campaign module, any casualty drops back to the next-lower one. Sampled
+ * periodically by tickTable (AUTO_ADVANCE_CHECK_INTERVAL_MS), not reacted to
+ * per encounter. Only trusts the recorded result if it actually came from
+ * the currently-assigned module — otherwise it's stale evidence left over
+ * from before the last reassignment.
+ */
+function evaluateAutoAdvance(table: Table, dm: DMState): Pick<Table, 'assignedModuleId' | 'encounterIndex' | 'cooldownRemaining'> | null {
+  if (!table.assignedModuleId || !table.lastBattleRewards) return null
+  const moduleDef = getModuleById(table.assignedModuleId)
+  if (!moduleDef || moduleDef.kind !== 'campaign') return null
+  if (table.lastBattleModuleName !== moduleDef.name) return null
+
+  const { outcome, infamy } = table.lastBattleRewards
+  if (outcome === 'victory' && infamy === 0) {
+    const next = getNextUnlockedCampaignModule(moduleDef.id, dm.unlockedModuleIds)
+    if (next) return { assignedModuleId: next.id, encounterIndex: 0, cooldownRemaining: 500 }
+  } else {
+    const previous = getPreviousUnlockedCampaignModule(moduleDef.id, dm.unlockedModuleIds)
+    if (previous) return { assignedModuleId: previous.id, encounterIndex: 0, cooldownRemaining: 500 }
+  }
+  return null
+}
+
+/**
  * Advances a single table by `dtMs` of wall-clock time, resolving as many
  * encounters as fit (used for both live ticks and offline catch-up). Reads
  * and writes back into the full player roster since table membership is
@@ -443,6 +478,20 @@ export function tickTable(
     const updatedById = new Map(resolved.players.map((p) => [p.id, p]))
     allPlayers = allPlayers.map((p) => updatedById.get(p.id) ?? p)
     iterations++
+  }
+
+  if (hasAutoAdvanceUnlock(d)) {
+    const autoAdvanceRemaining = t.autoAdvanceCheckRemaining - dtMs
+    // At most one adjustment per tickTable call even if dtMs spans several
+    // intervals (e.g. a large Buy Offline Progress purchase) — a single
+    // nudge per call is enough, and avoids leapfrogging several tiers off
+    // one sampled battle's stale evidence.
+    if (autoAdvanceRemaining <= 0) {
+      const adjustment = evaluateAutoAdvance(t, d)
+      t = { ...t, ...adjustment, autoAdvanceCheckRemaining: AUTO_ADVANCE_CHECK_INTERVAL_MS }
+    } else {
+      t = { ...t, autoAdvanceCheckRemaining: autoAdvanceRemaining }
+    }
   }
 
   return { table: t, players: allPlayers, dm: d }

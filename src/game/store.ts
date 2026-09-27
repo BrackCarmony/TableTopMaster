@@ -7,6 +7,7 @@ import { legacyTierCost } from './data/legacy'
 import { shipNameForIndex } from './data/names'
 import { trophyStartingLevelBonus } from './data/trophies'
 import {
+  AUTO_ADVANCE_CHECK_INTERVAL_MS,
   MAX_OFFLINE_MS,
   OFFLINE_PROGRESS_GOLD_FRACTION,
   effectiveShipSlots,
@@ -40,6 +41,7 @@ function createTable(name: string): Table {
     lastBattleModuleName: null,
     lastBattleRewards: null,
     lastWipeRoster: null,
+    autoAdvanceCheckRemaining: AUTO_ADVANCE_CHECK_INTERVAL_MS,
   }
 }
 
@@ -429,7 +431,7 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: 'tabletopmaster-save',
-      version: 11,
+      version: 12,
       partialize: (state) => ({
         dm: state.dm,
         players: state.players,
@@ -509,6 +511,16 @@ export const useGameStore = create<GameStore>()(
             // existing table has ever recorded this, so it just starts null
             // (nothing to quick-refill until the next wipe happens).
             state.tables = state.tables.map((t) => ({ ...t, lastWipeRoster: (t as Table & { lastWipeRoster?: unknown }).lastWipeRoster ?? null }))
+          }
+          if (version < 12) {
+            // v12 adds the Auto-Advance perk's periodic-check countdown.
+            // Existing tables never had one — start each at a full interval,
+            // same as a freshly-created table, rather than firing an
+            // immediate check the moment someone unlocks the perk.
+            state.tables = state.tables.map((t) => ({
+              ...t,
+              autoAdvanceCheckRemaining: (t as Table & { autoAdvanceCheckRemaining?: number }).autoAdvanceCheckRemaining ?? AUTO_ADVANCE_CHECK_INTERVAL_MS,
+            }))
           }
           return state
         } catch (err) {

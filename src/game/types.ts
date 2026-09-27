@@ -76,6 +76,8 @@ export interface Table {
   lastBattleRewards: BattleRewards | null
   /** Who was seated here, in what roles, right before the most recent full wipe — null until the table has ever wiped. Powers Quick Refill; overwritten by each new wipe, never cleared by a refill itself. */
   lastWipeRoster: WipeRosterEntry[] | null
+  /** Ms until Auto-Advance's next periodic check (see engine.ts AUTO_ADVANCE_CHECK_INTERVAL_MS) — irrelevant unless that perk is unlocked. */
+  autoAdvanceCheckRemaining: number
 }
 
 export type UpgradeCurrency = 'gold' | 'infamy'
@@ -89,6 +91,7 @@ export type UpgradeEffect =
   | { kind: 'tableSlotBonus'; value: number }
   | { kind: 'unlockRoleSelection' }
   | { kind: 'unlockQuickRefill' }
+  | { kind: 'unlockAutoAdvance' }
   | { kind: 'unlockSailing' }
   | { kind: 'shipSlotBonus'; value: number }
   | { kind: 'sailSpeedMultiplier'; value: number }

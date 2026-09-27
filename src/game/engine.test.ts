@@ -6,6 +6,7 @@ import { getModuleById } from './data/modules'
 import { getTrophyQuality } from './data/trophies'
 import { UPGRADES } from './data/upgrades'
 import {
+  AUTO_ADVANCE_CHECK_INTERVAL_MS,
   BASE_COOLDOWN_MS,
   EXECUTION_GROWTH_RATE,
   EXECUTION_STARTING_TIER,
@@ -16,12 +17,14 @@ import {
   computeArtifactBonuses,
   computeInfamyReward,
   computeMultipliers,
+  hasAutoAdvanceUnlock,
   hasQuickRefillUnlock,
   hasRoleSelectionUnlock,
   hasSailingUnlock,
   offlineProgressDurationMs,
   resolveEncounter,
   tickShips,
+  tickTable,
   tickTables,
 } from './engine'
 import { createRng } from './rng'
@@ -95,6 +98,7 @@ function makeTable(overrides: Partial<Table> = {}): Table {
     lastBattleModuleName: null,
     lastBattleRewards: null,
     lastWipeRoster: null,
+    autoAdvanceCheckRemaining: AUTO_ADVANCE_CHECK_INTERVAL_MS,
     ...overrides,
   }
 }
@@ -437,6 +441,147 @@ describe('hasSailingUnlock', () => {
 
   it('is true once sailing-unlock is purchased', () => {
     expect(hasSailingUnlock(makeDm({ purchasedUpgradeIds: ['sailing-unlock'] }))).toBe(true)
+  })
+})
+
+describe('hasAutoAdvanceUnlock', () => {
+  it('is false until auto-advance-1 is purchased', () => {
+    expect(hasAutoAdvanceUnlock(makeDm())).toBe(false)
+  })
+
+  it('is true once auto-advance-1 is purchased', () => {
+    expect(hasAutoAdvanceUnlock(makeDm({ purchasedUpgradeIds: ['auto-advance-1'] }))).toBe(true)
+  })
+})
+
+describe('tickTable Auto-Advance periodic check', () => {
+  // A huge cooldownRemaining keeps tickTable's own encounter loop from
+  // running at all, so only the periodic Auto-Advance check is exercised —
+  // the table's lastBattleRewards/lastBattleModuleName stay exactly what the
+  // test set them to.
+  const NO_ENCOUNTER_COOLDOWN = 999_999_999
+
+  function makeAutoAdvanceDm(): DMState {
+    return makeDm({
+      purchasedUpgradeIds: ['auto-advance-1'],
+      unlockedModuleIds: ['titans-forge', 'undying-court', 'shattered-heavens'],
+    })
+  }
+
+  it('does nothing before the interval elapses, just counts the interval down', () => {
+    const table = makeTable({
+      assignedModuleId: 'undying-court',
+      cooldownRemaining: NO_ENCOUNTER_COOLDOWN,
+      lastBattleModuleName: 'The Court of the Undying King',
+      lastBattleRewards: { outcome: 'victory', xp: 100, gold: 100, infamy: 0 },
+      autoAdvanceCheckRemaining: AUTO_ADVANCE_CHECK_INTERVAL_MS,
+    })
+    const result = tickTable(table, [], makeAutoAdvanceDm(), 1000, createRng(1))
+
+    expect(result.table.assignedModuleId).toBe('undying-court')
+    expect(result.table.autoAdvanceCheckRemaining).toBe(AUTO_ADVANCE_CHECK_INTERVAL_MS - 1000)
+  })
+
+  it('climbs to the next unlocked tier once the interval elapses on a flawless victory', () => {
+    const table = makeTable({
+      assignedModuleId: 'undying-court',
+      cooldownRemaining: NO_ENCOUNTER_COOLDOWN,
+      lastBattleModuleName: 'The Court of the Undying King',
+      lastBattleRewards: { outcome: 'victory', xp: 100, gold: 100, infamy: 0 },
+      autoAdvanceCheckRemaining: AUTO_ADVANCE_CHECK_INTERVAL_MS,
+    })
+    const result = tickTable(table, [], makeAutoAdvanceDm(), AUTO_ADVANCE_CHECK_INTERVAL_MS, createRng(1))
+
+    expect(result.table.assignedModuleId).toBe('shattered-heavens')
+    expect(result.table.encounterIndex).toBe(0)
+    expect(result.table.autoAdvanceCheckRemaining).toBe(AUTO_ADVANCE_CHECK_INTERVAL_MS)
+  })
+
+  it('retreats to the previous tier once the interval elapses after any casualty', () => {
+    const table = makeTable({
+      assignedModuleId: 'undying-court',
+      cooldownRemaining: NO_ENCOUNTER_COOLDOWN,
+      lastBattleModuleName: 'The Court of the Undying King',
+      lastBattleRewards: { outcome: 'victory', xp: 100, gold: 100, infamy: 5 },
+      autoAdvanceCheckRemaining: AUTO_ADVANCE_CHECK_INTERVAL_MS,
+    })
+    const result = tickTable(table, [], makeAutoAdvanceDm(), AUTO_ADVANCE_CHECK_INTERVAL_MS, createRng(1))
+
+    expect(result.table.assignedModuleId).toBe('titans-forge')
+    expect(result.table.encounterIndex).toBe(0)
+  })
+
+  it('retreats to the previous tier after an outright defeat too', () => {
+    const table = makeTable({
+      assignedModuleId: 'undying-court',
+      cooldownRemaining: NO_ENCOUNTER_COOLDOWN,
+      lastBattleModuleName: 'The Court of the Undying King',
+      lastBattleRewards: { outcome: 'defeat', xp: 0, gold: 0, infamy: 0 },
+      autoAdvanceCheckRemaining: AUTO_ADVANCE_CHECK_INTERVAL_MS,
+    })
+    const result = tickTable(table, [], makeAutoAdvanceDm(), AUTO_ADVANCE_CHECK_INTERVAL_MS, createRng(1))
+
+    expect(result.table.assignedModuleId).toBe('titans-forge')
+  })
+
+  it('ignores a recorded result left over from a since-reassigned module', () => {
+    const table = makeTable({
+      assignedModuleId: 'undying-court',
+      cooldownRemaining: NO_ENCOUNTER_COOLDOWN,
+      // Stale: this result was recorded against a different module than the
+      // one currently assigned (e.g. from right before a reassignment).
+      lastBattleModuleName: "The Titan's Forge",
+      lastBattleRewards: { outcome: 'victory', xp: 100, gold: 100, infamy: 0 },
+      autoAdvanceCheckRemaining: AUTO_ADVANCE_CHECK_INTERVAL_MS,
+    })
+    const result = tickTable(table, [], makeAutoAdvanceDm(), AUTO_ADVANCE_CHECK_INTERVAL_MS, createRng(1))
+
+    expect(result.table.assignedModuleId).toBe('undying-court')
+    // The check still fired and reset its own countdown, even though it made
+    // no adjustment.
+    expect(result.table.autoAdvanceCheckRemaining).toBe(AUTO_ADVANCE_CHECK_INTERVAL_MS)
+  })
+
+  it('makes at most one adjustment per call, even when dtMs spans many intervals at once', () => {
+    const table = makeTable({
+      assignedModuleId: 'undying-court',
+      cooldownRemaining: NO_ENCOUNTER_COOLDOWN,
+      lastBattleModuleName: 'The Court of the Undying King',
+      lastBattleRewards: { outcome: 'victory', xp: 100, gold: 100, infamy: 0 },
+      autoAdvanceCheckRemaining: AUTO_ADVANCE_CHECK_INTERVAL_MS,
+    })
+    const result = tickTable(table, [], makeAutoAdvanceDm(), AUTO_ADVANCE_CHECK_INTERVAL_MS * 10, createRng(1))
+
+    // Not 'the-last-throne' or any tier beyond the immediate next one — a
+    // single stale sample only ever earns one nudge, however large the gap.
+    expect(result.table.assignedModuleId).toBe('shattered-heavens')
+  })
+
+  it('does nothing once already at the highest unlocked tier on a flawless victory', () => {
+    const table = makeTable({
+      assignedModuleId: 'shattered-heavens',
+      cooldownRemaining: NO_ENCOUNTER_COOLDOWN,
+      lastBattleModuleName: 'The Shattered Heavens',
+      lastBattleRewards: { outcome: 'victory', xp: 100, gold: 100, infamy: 0 },
+      autoAdvanceCheckRemaining: AUTO_ADVANCE_CHECK_INTERVAL_MS,
+    })
+    const result = tickTable(table, [], makeAutoAdvanceDm(), AUTO_ADVANCE_CHECK_INTERVAL_MS, createRng(1))
+
+    expect(result.table.assignedModuleId).toBe('shattered-heavens')
+  })
+
+  it('is a no-op entirely when the perk has not been purchased', () => {
+    const table = makeTable({
+      assignedModuleId: 'undying-court',
+      cooldownRemaining: NO_ENCOUNTER_COOLDOWN,
+      lastBattleModuleName: 'The Court of the Undying King',
+      lastBattleRewards: { outcome: 'victory', xp: 100, gold: 100, infamy: 0 },
+      autoAdvanceCheckRemaining: AUTO_ADVANCE_CHECK_INTERVAL_MS,
+    })
+    const result = tickTable(table, [], makeDm(), AUTO_ADVANCE_CHECK_INTERVAL_MS, createRng(1))
+
+    expect(result.table.assignedModuleId).toBe('undying-court')
+    expect(result.table.autoAdvanceCheckRemaining).toBe(AUTO_ADVANCE_CHECK_INTERVAL_MS)
   })
 })
 

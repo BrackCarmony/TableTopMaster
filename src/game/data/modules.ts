@@ -12,9 +12,15 @@ import {
   FROZEN_WASTES_2,
   GOBLIN_AMBUSH_1,
   GOBLIN_AMBUSH_2,
+  MAW_OF_CREATION_1,
+  MAW_OF_CREATION_2,
+  SHATTERED_HEAVENS_1,
+  SHATTERED_HEAVENS_2,
   SUNKEN_CRYPT_1,
   SUNKEN_CRYPT_2,
   TARRASQUE_AWAITS,
+  THE_LAST_THRONE_1,
+  THE_LAST_THRONE_2,
   TITANS_FORGE_1,
   TITANS_FORGE_2,
   UNDYING_COURT_1,
@@ -114,6 +120,36 @@ export const MODULES: AdventureModule[] = [
     unlockCost: 60000000,
     encounters: [UNDYING_COURT_1, UNDYING_COURT_2],
   },
+  // Tiers 11-13 pick up past Undying Court at a steeper 2.2x-per-tier scale
+  // (vs. the original ladder's 1.6x) — see encounters.ts. unlockCost keeps
+  // the same ~5x-per-tier pace as tiers 1-10.
+  {
+    id: 'shattered-heavens',
+    name: 'The Shattered Heavens',
+    description: 'A war in the sky that never ended — seraphim who kept fighting long after whatever they were defending was gone.',
+    kind: 'campaign',
+    tier: 11,
+    unlockCost: 300000000,
+    encounters: [SHATTERED_HEAVENS_1, SHATTERED_HEAVENS_2],
+  },
+  {
+    id: 'maw-of-creation',
+    name: 'The Maw of Creation',
+    description: 'A wound in reality that swallows everything it touches, patient enough to wait for you specifically.',
+    kind: 'campaign',
+    tier: 12,
+    unlockCost: 1500000000,
+    encounters: [MAW_OF_CREATION_1, MAW_OF_CREATION_2],
+  },
+  {
+    id: 'the-last-throne',
+    name: 'The Last Throne',
+    description: "Whatever sat here first is long gone. What's sitting here now isn't answering questions about that.",
+    kind: 'campaign',
+    tier: 13,
+    unlockCost: 7500000000,
+    encounters: [THE_LAST_THRONE_1, THE_LAST_THRONE_2],
+  },
   {
     id: 'tarrasque-execution',
     name: 'The Tarrasque Awaits',
@@ -140,4 +176,22 @@ export const MODULES: AdventureModule[] = [
 
 export function getModuleById(id: string): AdventureModule | undefined {
   return MODULES.find((m) => m.id === id)
+}
+
+/** The next-higher-tier unlocked campaign module after `currentModuleId`, or undefined if it's already the highest unlocked one. Used by the Auto-Advance perk. */
+export function getNextUnlockedCampaignModule(currentModuleId: string, unlockedModuleIds: string[]): AdventureModule | undefined {
+  const current = getModuleById(currentModuleId)
+  if (!current) return undefined
+  return MODULES.filter((m) => m.kind === 'campaign' && m.tier > current.tier && unlockedModuleIds.includes(m.id)).sort(
+    (a, b) => a.tier - b.tier,
+  )[0]
+}
+
+/** The next-lower-tier unlocked campaign module before `currentModuleId`, or undefined if it's already the lowest. Used by the Auto-Advance perk. */
+export function getPreviousUnlockedCampaignModule(currentModuleId: string, unlockedModuleIds: string[]): AdventureModule | undefined {
+  const current = getModuleById(currentModuleId)
+  if (!current) return undefined
+  return MODULES.filter((m) => m.kind === 'campaign' && m.tier < current.tier && unlockedModuleIds.includes(m.id)).sort(
+    (a, b) => b.tier - a.tier,
+  )[0]
 }

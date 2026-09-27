@@ -98,6 +98,14 @@ export const UPGRADES: Upgrade[] = [
     effect: { kind: 'unlockQuickRefill' },
   },
   {
+    id: 'auto-advance-1',
+    name: 'Delegate the Table',
+    description: 'Stop babysitting the module picker. Every few minutes, this table checks itself: a flawless win climbs it to the next tier it has unlocked, any casualty drops it back a tier — always hunting for the hardest module it can survive without a scratch.',
+    currency: 'infamy',
+    cost: 5000,
+    effect: { kind: 'unlockAutoAdvance' },
+  },
+  {
     id: 'reputation-killer-1',
     name: 'Reputation as a Killer',
     description: 'Word spreads about what happens to your parties. +25% Infamy from every TPK.',

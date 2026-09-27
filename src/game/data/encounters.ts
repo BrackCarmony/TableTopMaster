@@ -321,6 +321,114 @@ export const UNDYING_COURT_2: EncounterTemplate = {
   ],
 }
 
+// Tiers 11-13 continue the campaign past Undying Court at a steeper 2.2x
+// per tier (vs. the original ladder's 1.6x) — these are meant to consume a
+// levelled-up, sailing-artifact-equipped roster's growth noticeably faster
+// than the early game ever needed to. Same structure as tier 9/10 (a
+// tank+healer skirmish, then a boss + escort), same headcount cap of 7,
+// just scaled up off the Undying Court baseline.
+export const SHATTERED_HEAVENS_1: EncounterTemplate = {
+  id: 'shattered-heavens-1',
+  name: 'The Fallen Choir',
+  gridWidth: 10,
+  gridHeight: 10,
+  partyStartPositions: PARTY_START,
+  enemies: [
+    { name: 'Renegade Seraph', role: 'tank', position: { x: 8, y: 2 }, hp: 68031, attackPower: 11339, defense: 6800, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Renegade Seraph', role: 'tank', position: { x: 8, y: 7 }, hp: 68031, attackPower: 11339, defense: 6800, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Choir Warden', role: 'healer', position: { x: 8, y: 5 }, hp: 52917, attackPower: 6050, defense: 4536, healPower: 13603, moveRange: 4, attackRange: 3, speed: 16 },
+    { name: 'Renegade Seraph', role: 'tank', position: { x: 8, y: 0 }, hp: 68031, attackPower: 11339, defense: 6800, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Renegade Seraph', role: 'tank', position: { x: 8, y: 9 }, hp: 68031, attackPower: 11339, defense: 6800, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Renegade Seraph', role: 'tank', position: { x: 9, y: 3 }, hp: 68031, attackPower: 11339, defense: 6800, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Renegade Seraph', role: 'tank', position: { x: 9, y: 6 }, hp: 68031, attackPower: 11339, defense: 6800, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+  ],
+}
+
+export const SHATTERED_HEAVENS_2: EncounterTemplate = {
+  id: 'shattered-heavens-2',
+  name: "The Fallen Archon's Judgment",
+  gridWidth: 10,
+  gridHeight: 10,
+  partyStartPositions: PARTY_START,
+  enemies: [
+    { name: 'The Fallen Archon', role: 'tank', position: { x: 8, y: 5 }, hp: 148911, attackPower: 14212, defense: 7410, healPower: 0, moveRange: 4, attackRange: 2, speed: 18 },
+    { name: 'Renegade Seraph', role: 'tank', position: { x: 8, y: 2 }, hp: 68031, attackPower: 11339, defense: 6800, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Choir Warden', role: 'healer', position: { x: 8, y: 8 }, hp: 52917, attackPower: 6050, defense: 4536, healPower: 13603, moveRange: 4, attackRange: 3, speed: 16 },
+    { name: 'Renegade Seraph', role: 'tank', position: { x: 8, y: 0 }, hp: 68031, attackPower: 11339, defense: 6800, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Renegade Seraph', role: 'tank', position: { x: 8, y: 9 }, hp: 68031, attackPower: 11339, defense: 6800, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Renegade Seraph', role: 'tank', position: { x: 9, y: 3 }, hp: 68031, attackPower: 11339, defense: 6800, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Choir Warden', role: 'healer', position: { x: 9, y: 6 }, hp: 52917, attackPower: 6050, defense: 4536, healPower: 13603, moveRange: 4, attackRange: 3, speed: 16 },
+  ],
+}
+
+export const MAW_OF_CREATION_1: EncounterTemplate = {
+  id: 'maw-of-creation-1',
+  name: "Hunger's Vanguard",
+  gridWidth: 10,
+  gridHeight: 10,
+  partyStartPositions: PARTY_START,
+  enemies: [
+    { name: 'Voidling Colossus', role: 'tank', position: { x: 8, y: 2 }, hp: 149667, attackPower: 24945, defense: 14960, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Voidling Colossus', role: 'tank', position: { x: 8, y: 7 }, hp: 149667, attackPower: 24945, defense: 14960, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: "Hunger's Attendant", role: 'healer', position: { x: 8, y: 5 }, hp: 116417, attackPower: 13310, defense: 9980, healPower: 29926, moveRange: 4, attackRange: 3, speed: 16 },
+    { name: 'Voidling Colossus', role: 'tank', position: { x: 8, y: 0 }, hp: 149667, attackPower: 24945, defense: 14960, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Voidling Colossus', role: 'tank', position: { x: 8, y: 9 }, hp: 149667, attackPower: 24945, defense: 14960, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Voidling Colossus', role: 'tank', position: { x: 9, y: 3 }, hp: 149667, attackPower: 24945, defense: 14960, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Voidling Colossus', role: 'tank', position: { x: 9, y: 6 }, hp: 149667, attackPower: 24945, defense: 14960, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+  ],
+}
+
+export const MAW_OF_CREATION_2: EncounterTemplate = {
+  id: 'maw-of-creation-2',
+  name: 'The World-Eater',
+  gridWidth: 10,
+  gridHeight: 10,
+  partyStartPositions: PARTY_START,
+  enemies: [
+    { name: 'The World-Eater', role: 'tank', position: { x: 8, y: 5 }, hp: 327605, attackPower: 31266, defense: 16301, healPower: 0, moveRange: 4, attackRange: 2, speed: 18 },
+    { name: 'Voidling Colossus', role: 'tank', position: { x: 8, y: 2 }, hp: 149667, attackPower: 24945, defense: 14960, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: "Hunger's Attendant", role: 'healer', position: { x: 8, y: 8 }, hp: 116417, attackPower: 13310, defense: 9980, healPower: 29926, moveRange: 4, attackRange: 3, speed: 16 },
+    { name: 'Voidling Colossus', role: 'tank', position: { x: 8, y: 0 }, hp: 149667, attackPower: 24945, defense: 14960, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Voidling Colossus', role: 'tank', position: { x: 8, y: 9 }, hp: 149667, attackPower: 24945, defense: 14960, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Voidling Colossus', role: 'tank', position: { x: 9, y: 3 }, hp: 149667, attackPower: 24945, defense: 14960, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: "Hunger's Attendant", role: 'healer', position: { x: 9, y: 6 }, hp: 116417, attackPower: 13310, defense: 9980, healPower: 29926, moveRange: 4, attackRange: 3, speed: 16 },
+  ],
+}
+
+export const THE_LAST_THRONE_1: EncounterTemplate = {
+  id: 'the-last-throne-1',
+  name: 'Echoes of Every Ending',
+  gridWidth: 10,
+  gridHeight: 10,
+  partyStartPositions: PARTY_START,
+  enemies: [
+    { name: 'Nameless Guardian', role: 'tank', position: { x: 8, y: 2 }, hp: 329268, attackPower: 54880, defense: 32913, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Nameless Guardian', role: 'tank', position: { x: 8, y: 7 }, hp: 329268, attackPower: 54880, defense: 32913, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Herald of Endings', role: 'healer', position: { x: 8, y: 5 }, hp: 256116, attackPower: 29282, defense: 21956, healPower: 65837, moveRange: 4, attackRange: 3, speed: 16 },
+    { name: 'Nameless Guardian', role: 'tank', position: { x: 8, y: 0 }, hp: 329268, attackPower: 54880, defense: 32913, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Nameless Guardian', role: 'tank', position: { x: 8, y: 9 }, hp: 329268, attackPower: 54880, defense: 32913, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Nameless Guardian', role: 'tank', position: { x: 9, y: 3 }, hp: 329268, attackPower: 54880, defense: 32913, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Nameless Guardian', role: 'tank', position: { x: 9, y: 6 }, hp: 329268, attackPower: 54880, defense: 32913, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+  ],
+}
+
+export const THE_LAST_THRONE_2: EncounterTemplate = {
+  id: 'the-last-throne-2',
+  name: 'Whatever Sits the Throne',
+  gridWidth: 10,
+  gridHeight: 10,
+  partyStartPositions: PARTY_START,
+  enemies: [
+    { name: 'Whatever Sits the Throne', role: 'tank', position: { x: 8, y: 5 }, hp: 720731, attackPower: 68786, defense: 35862, healPower: 0, moveRange: 4, attackRange: 2, speed: 18 },
+    { name: 'Nameless Guardian', role: 'tank', position: { x: 8, y: 2 }, hp: 329268, attackPower: 54880, defense: 32913, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Herald of Endings', role: 'healer', position: { x: 8, y: 8 }, hp: 256116, attackPower: 29282, defense: 21956, healPower: 65837, moveRange: 4, attackRange: 3, speed: 16 },
+    { name: 'Nameless Guardian', role: 'tank', position: { x: 8, y: 0 }, hp: 329268, attackPower: 54880, defense: 32913, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Nameless Guardian', role: 'tank', position: { x: 8, y: 9 }, hp: 329268, attackPower: 54880, defense: 32913, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Nameless Guardian', role: 'tank', position: { x: 9, y: 3 }, hp: 329268, attackPower: 54880, defense: 32913, healPower: 0, moveRange: 3, attackRange: 1, speed: 14 },
+    { name: 'Herald of Endings', role: 'healer', position: { x: 9, y: 6 }, hp: 256116, attackPower: 29282, defense: 21956, healPower: 65837, moveRange: 4, attackRange: 3, speed: 16 },
+  ],
+}
+
 /**
  * Execution encounter: absurdly overtuned, meant to wipe the party on
  * purpose. Its attack power ramps every round it's still fighting, so no
