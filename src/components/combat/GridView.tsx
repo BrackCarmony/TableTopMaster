@@ -1,4 +1,4 @@
-import { formatNumber } from '../../format'
+import { formatCompact, formatNumber } from '../../format'
 import type { CombatUnit } from '../../game/combat/types'
 import { EnemySprite, PlayerSprite } from './sprites'
 
@@ -26,7 +26,7 @@ export function GridView({ units, width, height }: { units: CombatUnit[]; width:
         >
           {unit && (
             <div
-              className={`flex h-[85%] w-[85%] flex-col items-center justify-center rounded-md text-[10px] font-semibold leading-tight transition-opacity ${
+              className={`flex h-[90%] w-[90%] flex-col items-center justify-center gap-0.5 rounded-md text-[11px] font-semibold leading-tight transition-opacity ${
                 unit.alive ? 'opacity-100' : 'opacity-25 grayscale'
               } ${
                 unit.side === 'party'
@@ -41,8 +41,8 @@ export function GridView({ units, width, height }: { units: CombatUnit[]; width:
                 <EnemySprite name={unit.name} />
               )}
               <span className="w-full truncate px-0.5 text-center">{unit.name.split(' ')[0]}</span>
-              <span className="text-[9px] text-slate-300">
-                {formatNumber(unit.hp)}/{formatNumber(unit.maxHp)}
+              <span className="text-[10px] text-slate-300">
+                {formatCompact(unit.hp)}/{formatCompact(unit.maxHp)}
               </span>
             </div>
           )}

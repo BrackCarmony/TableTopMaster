@@ -98,7 +98,7 @@ function ArchetypeIcon({ archetype, color }: { archetype: EnemyArchetype | 'tank
   switch (archetype) {
     case 'grunt':
       return (
-        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0">
+        <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0">
           <circle cx="12" cy="6.5" r="3" fill={color} />
           <path d="M6.5 20 L8 11.5 Q12 9.5 16 11.5 L17.5 20 Z" fill={color} />
           <path d="M16.5 12.5 L20 15.5" stroke={color} strokeWidth="1.6" strokeLinecap="round" />
@@ -106,7 +106,7 @@ function ArchetypeIcon({ archetype, color }: { archetype: EnemyArchetype | 'tank
       )
     case 'archer':
       return (
-        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0">
+        <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0">
           <circle cx="10.5" cy="6.5" r="2.8" fill={color} />
           <path d="M5.5 20 L7 11.5 Q10.5 9.5 13.5 11.5 L15 20 Z" fill={color} />
           <path d="M17 5 Q21 12 17 19" stroke={color} strokeWidth="1.4" fill="none" />
@@ -115,7 +115,7 @@ function ArchetypeIcon({ archetype, color }: { archetype: EnemyArchetype | 'tank
       )
     case 'caster':
       return (
-        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0">
+        <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0">
           <circle cx="12" cy="6" r="2.6" fill={color} />
           <path d="M6 20 L9 10 Q12 8.5 15 10 L18 20 Z" fill={color} />
           <path d="M18 3 L18 13" stroke={color} strokeWidth="1.2" strokeLinecap="round" />
@@ -124,7 +124,7 @@ function ArchetypeIcon({ archetype, color }: { archetype: EnemyArchetype | 'tank
       )
     case 'champion':
       return (
-        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0">
+        <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0">
           <path d="M8.5 5 L12 2 L15.5 5 L14.5 7 L12 5.5 L9.5 7 Z" fill={color} />
           <circle cx="12" cy="8.5" r="2.8" fill={color} />
           <path d="M5.5 20 L7 13 Q12 10.5 17 13 L18.5 20 Z" fill={color} />
@@ -132,7 +132,7 @@ function ArchetypeIcon({ archetype, color }: { archetype: EnemyArchetype | 'tank
       )
     case 'undead':
       return (
-        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0">
+        <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0">
           <circle cx="12" cy="7" r="4" fill={color} />
           <circle cx="10.3" cy="6.5" r="0.8" fill="#0f172a" />
           <circle cx="13.7" cy="6.5" r="0.8" fill="#0f172a" />
@@ -142,7 +142,7 @@ function ArchetypeIcon({ archetype, color }: { archetype: EnemyArchetype | 'tank
       )
     case 'dragon':
       return (
-        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0">
+        <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0">
           <path d="M6 15 Q2.5 17.5 1.5 14.5 Z" fill={color} />
           <ellipse cx="11" cy="15" rx="5" ry="3" fill={color} />
           <path d="M15 13 L21 7 L18.5 15 Z" fill={color} />
@@ -153,7 +153,7 @@ function ArchetypeIcon({ archetype, color }: { archetype: EnemyArchetype | 'tank
       )
     case 'demon':
       return (
-        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0">
+        <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0">
           <path d="M7 4 L9.5 7.5 L7.5 8.5 Z" fill={color} />
           <path d="M17 4 L14.5 7.5 L16.5 8.5 Z" fill={color} />
           <circle cx="12" cy="8" r="3.4" fill={color} />
@@ -162,7 +162,7 @@ function ArchetypeIcon({ archetype, color }: { archetype: EnemyArchetype | 'tank
       )
     case 'giant':
       return (
-        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0">
+        <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0">
           <circle cx="12" cy="6" r="3.4" fill={color} />
           <path d="M5.5 20 L7 10.5 Q12 8 17 10.5 L18.5 20 Z" fill={color} />
           <ellipse cx="20" cy="14" rx="2.2" ry="3.4" fill={color} transform="rotate(30 20 14)" />
@@ -170,7 +170,7 @@ function ArchetypeIcon({ archetype, color }: { archetype: EnemyArchetype | 'tank
       )
     case 'construct':
       return (
-        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0">
+        <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0">
           <rect x="9" y="3" width="6" height="4.5" rx="1" fill={color} />
           <path d="M6 19 L7 11 L17 11 L18 19 Z" fill={color} />
           <circle cx="10" cy="15" r="1" fill="#0f172a" />
@@ -180,7 +180,7 @@ function ArchetypeIcon({ archetype, color }: { archetype: EnemyArchetype | 'tank
       )
     case 'eldritch':
       return (
-        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0">
+        <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0">
           <circle cx="12" cy="11" r="5" fill={color} />
           <path
             d="M8 15 Q6 18 4 19 M10.5 16 Q9.5 19.5 8 21 M13.5 16 Q14.5 19.5 16 21 M16 15 Q18 18 20 19"
@@ -194,7 +194,7 @@ function ArchetypeIcon({ archetype, color }: { archetype: EnemyArchetype | 'tank
       )
     case 'celestial':
       return (
-        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0">
+        <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0">
           <circle cx="12" cy="4.5" r="1.6" fill="none" stroke={color} strokeWidth="1" />
           <circle cx="12" cy="8.5" r="2.8" fill={color} />
           <path d="M9.5 11 L3 9 L6 15 Z M14.5 11 L21 9 L18 15 Z" fill={color} opacity="0.85" />
@@ -203,7 +203,7 @@ function ArchetypeIcon({ archetype, color }: { archetype: EnemyArchetype | 'tank
       )
     case 'tank':
       return (
-        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0">
+        <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0">
           <circle cx="10.5" cy="6.5" r="2.8" fill={color} />
           <path d="M5.5 20 L7 11.5 Q10.5 9.5 13.5 11.5 L15 20 Z" fill={color} />
           <path d="M15 9 Q19.5 10 19 15.5 Q17 18 14.5 17.5 Q13.5 12.5 15 9 Z" fill={color} opacity="0.9" />
@@ -211,7 +211,7 @@ function ArchetypeIcon({ archetype, color }: { archetype: EnemyArchetype | 'tank
       )
     case 'dps':
       return (
-        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0">
+        <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0">
           <circle cx="11" cy="6.5" r="2.8" fill={color} />
           <path d="M6 20 L7.5 11.5 Q11 9.5 14.5 11.5 L15.5 18 Z" fill={color} />
           <path d="M13 14 L20 5" stroke={color} strokeWidth="1.6" strokeLinecap="round" />
@@ -220,7 +220,7 @@ function ArchetypeIcon({ archetype, color }: { archetype: EnemyArchetype | 'tank
       )
     case 'healer':
       return (
-        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0">
+        <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0">
           <circle cx="12" cy="6" r="2.6" fill={color} />
           <path d="M6.5 20 L9 10.5 Q12 9 15 10.5 L17.5 20 Z" fill={color} />
           <path d="M18.5 3 L18.5 13" stroke={color} strokeWidth="1.3" strokeLinecap="round" />
