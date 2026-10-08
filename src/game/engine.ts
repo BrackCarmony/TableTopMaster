@@ -296,21 +296,25 @@ function scaleEncounterForTier(template: EncounterTemplate, tier: number): Encou
 // gets slower without getting any more lucrative.
 //
 // The extra stats compound tier over tier, and the per-tier RATE itself
-// climbs: a gentle 1.25x step at tier 4 growing to 3.5x per step by tier 13,
+// climbs: a gentle 1.25x step at tier 4 growing to 2.75x per step by tier 10,
 // so the gap widens faster the higher you go and a party can't just
 // out-level its way up the ladder — it needs the higher-tiered units to keep
-// pace. First-pass numbers: retune the start/end rates if progression still
-// feels too fast (or too walled) after playtesting.
+// pace. Past tier 10 the ramp stops and drops to a gentle flat step: tiers
+// 11-13 are already authored at 2.2x per tier (vs 1.6x before them), so
+// continuing to ramp on top of that walled the late game off. First-pass
+// numbers: retune if progression still feels too fast (or too walled).
 export const CAMPAIGN_HARDENING_START_TIER = 4
-export const CAMPAIGN_HARDENING_END_TIER = 13
+export const CAMPAIGN_HARDENING_PEAK_TIER = 10
 export const CAMPAIGN_HARDENING_START_RATE = 1.25
-export const CAMPAIGN_HARDENING_END_RATE = 3.5
+export const CAMPAIGN_HARDENING_PEAK_RATE = 2.75
+export const CAMPAIGN_HARDENING_LATE_RATE = 1.25
 
-/** The extra-stats step a single campaign tier adds on top of the one below it — linear from START_RATE at the first hardened tier to END_RATE at the last, flat at END_RATE beyond. */
+/** The extra-stats step a single campaign tier adds on top of the one below it — linear from START_RATE at the first hardened tier up to PEAK_RATE at the peak tier, then a flat LATE_RATE for every tier after. */
 export function campaignHardeningRate(tier: number): number {
-  const span = CAMPAIGN_HARDENING_END_TIER - CAMPAIGN_HARDENING_START_TIER
+  if (tier > CAMPAIGN_HARDENING_PEAK_TIER) return CAMPAIGN_HARDENING_LATE_RATE
+  const span = CAMPAIGN_HARDENING_PEAK_TIER - CAMPAIGN_HARDENING_START_TIER
   const progress = Math.min(1, Math.max(0, (tier - CAMPAIGN_HARDENING_START_TIER) / span))
-  return CAMPAIGN_HARDENING_START_RATE + (CAMPAIGN_HARDENING_END_RATE - CAMPAIGN_HARDENING_START_RATE) * progress
+  return CAMPAIGN_HARDENING_START_RATE + (CAMPAIGN_HARDENING_PEAK_RATE - CAMPAIGN_HARDENING_START_RATE) * progress
 }
 
 export function campaignDifficultyMultiplier(tier: number): number {

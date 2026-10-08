@@ -18,7 +18,8 @@ import {
   REPEAT_FIND_GOLD_FRACTION,
   computeArtifactBonuses,
   computeInfamyReward,
-  CAMPAIGN_HARDENING_END_RATE,
+  CAMPAIGN_HARDENING_LATE_RATE,
+  CAMPAIGN_HARDENING_PEAK_RATE,
   CAMPAIGN_HARDENING_START_RATE,
   campaignDifficultyMultiplier,
   campaignHardeningRate,
@@ -711,21 +712,26 @@ describe('campaign difficulty hardening', () => {
     expect(campaignDifficultyMultiplier(4)).toBeCloseTo(CAMPAIGN_HARDENING_START_RATE)
   })
 
-  it('has a per-tier rate that climbs from the start rate to the end rate, then holds', () => {
+  it('has a per-tier rate that climbs from the start rate to the peak by tier 10', () => {
     expect(campaignHardeningRate(4)).toBeCloseTo(CAMPAIGN_HARDENING_START_RATE)
-    expect(campaignHardeningRate(13)).toBeCloseTo(CAMPAIGN_HARDENING_END_RATE)
-    expect(campaignHardeningRate(20)).toBeCloseTo(CAMPAIGN_HARDENING_END_RATE)
-    for (let tier = 5; tier <= 13; tier++) {
+    expect(campaignHardeningRate(10)).toBeCloseTo(CAMPAIGN_HARDENING_PEAK_RATE)
+    for (let tier = 5; tier <= 10; tier++) {
       expect(campaignHardeningRate(tier)).toBeGreaterThan(campaignHardeningRate(tier - 1))
     }
   })
 
-  it('compounds those rates so each tier is a bigger jump than the last', () => {
+  it('drops to a gentle flat rate after tier 10 instead of continuing to ramp', () => {
+    for (const tier of [11, 12, 13, 20]) {
+      expect(campaignHardeningRate(tier)).toBeCloseTo(CAMPAIGN_HARDENING_LATE_RATE)
+      expect(campaignHardeningRate(tier)).toBeLessThan(CAMPAIGN_HARDENING_PEAK_RATE)
+    }
+  })
+
+  it('compounds those rates tier over tier', () => {
     for (let tier = 5; tier <= 13; tier++) {
       const step = campaignDifficultyMultiplier(tier) / campaignDifficultyMultiplier(tier - 1)
       expect(step).toBeCloseTo(campaignHardeningRate(tier))
     }
-    expect(campaignDifficultyMultiplier(13) / campaignDifficultyMultiplier(12)).toBeCloseTo(CAMPAIGN_HARDENING_END_RATE)
   })
 
   it('makes tier 4+ enemies tougher in the fight without raising the gold/XP reward', () => {
