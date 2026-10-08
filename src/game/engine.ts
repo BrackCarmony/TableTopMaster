@@ -184,10 +184,6 @@ export function computeArtifactBonuses(dm: DMState): ArtifactBonuses {
       case 'healerHealPowerBonus':
         bonuses.healerHealPowerBonusPercent += artifact.effect.value
         break
-      case 'tankCleave':
-        bonuses.tankBonusTargetsOnHit += artifact.effect.targets
-        bonuses.tankBonusTargetDamagePercent += artifact.effect.damagePercent
-        break
       case 'dpsRicochet':
         bonuses.dpsBonusTargetsOnHit += artifact.effect.targets
         bonuses.dpsBonusTargetDamagePercent += artifact.effect.damagePercent

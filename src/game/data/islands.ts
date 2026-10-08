@@ -51,7 +51,7 @@ export const ISLANDS: Island[] = [
     unlockCost: 234_375_000,
     baseGoldReward: 500_000,
     baseVoyageDurationMs: 210_000,
-    artifactPool: ['cleaving-strikes', 'ricochet-shot', 'chain-mending'],
+    artifactPool: ['rallying-cry', 'ricochet-shot', 'chain-mending'],
   },
   {
     id: 'maelstroms-eye',
@@ -60,7 +60,7 @@ export const ISLANDS: Island[] = [
     unlockCost: 1_000_000_000,
     baseGoldReward: 2_000_000,
     baseVoyageDurationMs: 300_000,
-    artifactPool: ['whirling-cleave', 'ricochet-barrage', 'cascading-mending'],
+    artifactPool: ['warlords-bellow', 'ricochet-barrage', 'cascading-mending'],
   },
   {
     id: 'titans-graveyard',

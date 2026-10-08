@@ -251,24 +251,12 @@ describe('toCombatUnit', () => {
     expect(toCombatUnit(makeCharacter({ role: 'tank', healPower: 10 }), null, bonuses).healPower).toBe(10)
   })
 
-  it('only gives Cleave to tanks, drawn from the tank-specific bonus fields', () => {
-    const bonuses = { ...DEFAULT_ARTIFACT_BONUSES, tankBonusTargetsOnHit: 2, tankBonusTargetDamagePercent: 0.75, dpsBonusTargetsOnHit: 5 }
-    const tank = toCombatUnit(makeCharacter({ role: 'tank' }), null, bonuses)
-    expect(tank.bonusTargetsOnHit).toBe(2)
-    expect(tank.bonusTargetDamagePercent).toBe(0.75)
-    const dps = toCombatUnit(makeCharacter({ role: 'dps' }), null, bonuses)
-    expect(dps.bonusTargetsOnHit).toBe(5) // dps draws from its own field, not the tank's
-    const healer = toCombatUnit(makeCharacter({ role: 'healer' }), null, bonuses)
-    expect(healer.bonusTargetsOnHit).toBeUndefined()
-  })
-
   it('only gives Ricochet to dps, drawn from the dps-specific bonus fields', () => {
     const bonuses = { ...DEFAULT_ARTIFACT_BONUSES, dpsBonusTargetsOnHit: 1, dpsBonusTargetDamagePercent: 0.5 }
     const dps = toCombatUnit(makeCharacter({ role: 'dps' }), null, bonuses)
     expect(dps.bonusTargetsOnHit).toBe(1)
     expect(dps.bonusTargetDamagePercent).toBe(0.5)
-    // A tank draws from its OWN (unset, defaulting to 0) field — never undefined for its own role, same as damageReductionPercent/defensePiercePercent.
-    expect(toCombatUnit(makeCharacter({ role: 'tank' }), null, bonuses).bonusTargetsOnHit).toBe(0)
+    expect(toCombatUnit(makeCharacter({ role: 'tank' }), null, bonuses).bonusTargetsOnHit).toBeUndefined() // tanks no longer cleave
   })
 
   it('only gives Chain Mending to healers', () => {

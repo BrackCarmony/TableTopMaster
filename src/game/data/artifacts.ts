@@ -4,9 +4,9 @@ export const ARTIFACTS: Artifact[] = [
   {
     id: 'commanding-presence',
     name: 'Commanding Presence',
-    description: "Your tanks' taunt reaches 4 tiles further, pulling enemies off your squishier party members from across the battlefield instead of only once they're close.",
+    description: "Your tanks' taunt reaches 2 tiles further, pulling enemies off your squishier party members before they get close.",
     role: 'tank',
-    effect: { kind: 'tankTauntRange', value: 4 },
+    effect: { kind: 'tankTauntRange', value: 2 },
   },
   {
     id: 'revivify',
@@ -65,11 +65,11 @@ export const ARTIFACTS: Artifact[] = [
     effect: { kind: 'healerHealPowerBonus', value: 0.5 },
   },
   {
-    id: 'cleaving-strikes',
-    name: 'Cleaving Strikes',
-    description: 'A landed tank attack also cleaves into one nearby enemy for 50% damage.',
+    id: 'rallying-cry',
+    name: 'Rallying Cry',
+    description: "Your tanks' taunt reaches 1 tile further, drawing enemy attention from a little more of the battlefield.",
     role: 'tank',
-    effect: { kind: 'tankCleave', targets: 1, damagePercent: 0.5 },
+    effect: { kind: 'tankTauntRange', value: 1 },
   },
   {
     id: 'ricochet-shot',
@@ -86,11 +86,11 @@ export const ARTIFACTS: Artifact[] = [
     effect: { kind: 'healerChainHeal', targets: 1, healPercent: 0.5 },
   },
   {
-    id: 'whirling-cleave',
-    name: 'Whirling Cleave',
-    description: 'Cleaving Strikes reaches another enemy, and cleave damage rises to 75%.',
+    id: 'warlords-bellow',
+    name: "Warlord's Bellow",
+    description: "Your tanks' taunt reaches another tile further, stacking with Commanding Presence and Rallying Cry.",
     role: 'tank',
-    effect: { kind: 'tankCleave', targets: 1, damagePercent: 0.75 },
+    effect: { kind: 'tankTauntRange', value: 1 },
   },
   {
     id: 'ricochet-barrage',

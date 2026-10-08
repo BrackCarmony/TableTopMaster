@@ -219,9 +219,6 @@ export interface ArtifactBonuses {
   dpsDefensePiercePercent: number
   /** Sum of every discovered healerHealPowerBonus artifact's value — a multiplicative bonus on the healer's own healPower. */
   healerHealPowerBonusPercent: number
-  /** Cleave — sum of every discovered tankCleave artifact's extra-target count / damage percent. */
-  tankBonusTargetsOnHit: number
-  tankBonusTargetDamagePercent: number
   /** Ricochet — sum of every discovered dpsRicochet artifact's extra-target count / damage percent. */
   dpsBonusTargetsOnHit: number
   dpsBonusTargetDamagePercent: number
@@ -244,8 +241,6 @@ export const DEFAULT_ARTIFACT_BONUSES: ArtifactBonuses = {
   tankDamageReductionPercent: 0,
   dpsDefensePiercePercent: 0,
   healerHealPowerBonusPercent: 0,
-  tankBonusTargetsOnHit: 0,
-  tankBonusTargetDamagePercent: 0,
   dpsBonusTargetsOnHit: 0,
   dpsBonusTargetDamagePercent: 0,
   healerBonusTargetsOnHeal: 0,
@@ -289,18 +284,8 @@ export function toCombatUnit(
     reviveHpFraction: character.role === 'healer' && artifactBonuses.healerRevive ? artifactBonuses.healerReviveHpFraction : undefined,
     damageReductionPercent: character.role === 'tank' ? artifactBonuses.tankDamageReductionPercent : undefined,
     defensePiercePercent: character.role === 'dps' ? artifactBonuses.dpsDefensePiercePercent : undefined,
-    bonusTargetsOnHit:
-      character.role === 'tank'
-        ? artifactBonuses.tankBonusTargetsOnHit
-        : character.role === 'dps'
-          ? artifactBonuses.dpsBonusTargetsOnHit
-          : undefined,
-    bonusTargetDamagePercent:
-      character.role === 'tank'
-        ? artifactBonuses.tankBonusTargetDamagePercent
-        : character.role === 'dps'
-          ? artifactBonuses.dpsBonusTargetDamagePercent
-          : undefined,
+    bonusTargetsOnHit: character.role === 'dps' ? artifactBonuses.dpsBonusTargetsOnHit : undefined,
+    bonusTargetDamagePercent: character.role === 'dps' ? artifactBonuses.dpsBonusTargetDamagePercent : undefined,
     bonusTargetsOnHeal: character.role === 'healer' ? artifactBonuses.healerBonusTargetsOnHeal : undefined,
     bonusHealPercent: character.role === 'healer' ? artifactBonuses.healerBonusHealPercent : undefined,
     damageReductionRampPercent: character.role === 'tank' ? artifactBonuses.tankDamageReductionRampPercent : undefined,

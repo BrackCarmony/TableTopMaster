@@ -431,7 +431,7 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: 'tabletopmaster-save',
-      version: 13,
+      version: 14,
       partialize: (state) => ({
         dm: state.dm,
         players: state.players,
@@ -529,6 +529,15 @@ export const useGameStore = create<GameStore>()(
             state.dm.discoveredArtifactIds = state.dm.discoveredArtifactIds.map((id: string) =>
               id === 'defensive-rush' ? 'commanding-presence' : id,
             )
+          }
+          if (version < 14) {
+            // v14 swaps the two tank Cleave artifacts for taunt-range ones
+            // (Rallying Cry, Warlord's Bellow); finds carry over by tier.
+            const renamed: Record<string, string> = {
+              'cleaving-strikes': 'rallying-cry',
+              'whirling-cleave': 'warlords-bellow',
+            }
+            state.dm.discoveredArtifactIds = state.dm.discoveredArtifactIds.map((id: string) => renamed[id] ?? id)
           }
           return state
         } catch (err) {
