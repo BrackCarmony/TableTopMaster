@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { livingOccupiedTiles, occupiedTiles } from './grid'
+import { chooseTarget, livingOccupiedTiles, occupiedTiles, TAUNT_RANGE } from './grid'
 import type { CombatUnit } from './types'
 
 function makeUnit(overrides: Partial<CombatUnit>): CombatUnit {
@@ -52,5 +52,40 @@ describe('livingOccupiedTiles', () => {
     const mover = makeUnit({ id: 'mover', position: { x: 0, y: 0 } })
     const blocked = livingOccupiedTiles([living, mover], 'mover')
     expect(blocked.has('4,4')).toBe(true)
+  })
+})
+
+describe('chooseTarget (taunt)', () => {
+  const enemy = (overrides: Partial<CombatUnit> = {}) => makeUnit({ id: 'e', side: 'enemy', position: { x: 8, y: 0 }, ...overrides })
+
+  it('sends an enemy after a tank within taunt range instead of a nearer squishy ally', () => {
+    const tank = makeUnit({ id: 'tank', role: 'tank', position: { x: 5, y: 0 } })
+    const dps = makeUnit({ id: 'dps', role: 'dps', position: { x: 7, y: 0 } }) // nearer than the tank
+    expect(chooseTarget(enemy(), [enemy(), tank, dps])?.id).toBe('tank')
+  })
+
+  it('picks the nearest tank when several are in range', () => {
+    const near = makeUnit({ id: 'near', role: 'tank', position: { x: 6, y: 0 } })
+    const far = makeUnit({ id: 'far', role: 'tank', position: { x: 4, y: 0 } })
+    expect(chooseTarget(enemy(), [enemy(), far, near])?.id).toBe('near')
+  })
+
+  it('ignores a tank beyond taunt range and falls back to the nearest unit', () => {
+    const tank = makeUnit({ id: 'tank', role: 'tank', position: { x: 8 - TAUNT_RANGE - 1, y: 0 } })
+    const dps = makeUnit({ id: 'dps', role: 'dps', position: { x: 7, y: 5 } })
+    expect(chooseTarget(enemy(), [enemy(), tank, dps])?.id).toBe('dps')
+  })
+
+  it('ignores a dead tank', () => {
+    const tank = makeUnit({ id: 'tank', role: 'tank', position: { x: 6, y: 0 }, alive: false })
+    const dps = makeUnit({ id: 'dps', role: 'dps', position: { x: 7, y: 3 } })
+    expect(chooseTarget(enemy(), [enemy(), tank, dps])?.id).toBe('dps')
+  })
+
+  it('does not taunt party units: they still just go for the nearest enemy', () => {
+    const hero = makeUnit({ id: 'hero', side: 'party', position: { x: 0, y: 0 } })
+    const enemyTank = enemy({ id: 'etank', role: 'tank', position: { x: 5, y: 0 } })
+    const enemyDps = enemy({ id: 'edps', role: 'dps', position: { x: 2, y: 0 } })
+    expect(chooseTarget(hero, [hero, enemyTank, enemyDps])?.id).toBe('edps')
   })
 })

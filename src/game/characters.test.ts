@@ -77,10 +77,10 @@ describe('createCharacterForPlayer', () => {
     const character = createCharacterForPlayer(player, createRng(1), 'tank', 5)
 
     expect(character.level).toBe(6) // started at 1, skipped 5 levels
-    // tank grows +6 maxHp / +1 attackPower / +1 defense per level
+    // tank grows +6 maxHp / +1 attackPower / +0.25 defense per level (defense is deliberately a quarter of what it once was)
     expect(character.maxHp).toBe(tierDef.baseMaxHp + 6 * 5)
     expect(character.attackPower).toBe(tierDef.baseAttackPower + 1 * 5)
-    expect(character.defense).toBe(tierDef.baseDefense + 1 * 5)
+    expect(character.defense).toBeCloseTo(tierDef.baseDefense + 0.25 * 5)
   })
 
   it('defaults to no bonus levels when none are passed', () => {
@@ -136,9 +136,9 @@ describe('createCharacterForPlayer', () => {
 })
 
 describe('computeGrowthPerLevel', () => {
-  it('reproduces the exact old flat per-level growth at tier 1 for every role', () => {
+  it('reproduces the old flat per-level growth at tier 1 for every role, except tank defense which is deliberately a quarter of it', () => {
     const oldFlatGrowth: Record<string, { maxHp: number; attackPower: number; defense: number; healPower: number }> = {
-      tank: { maxHp: 6, attackPower: 1, defense: 1, healPower: 0 },
+      tank: { maxHp: 6, attackPower: 1, defense: 0.25, healPower: 0 },
       dps: { maxHp: 3, attackPower: 2, defense: 0, healPower: 0 },
       healer: { maxHp: 4, attackPower: 1, defense: 0, healPower: 1 },
     }
@@ -332,6 +332,22 @@ describe('projectStatsAtLevel', () => {
         defense: leveled.defense,
         healPower: leveled.healPower,
       })
+    }
+  })
+})
+
+describe('tank defense growth', () => {
+  it('keeps fractional growth at low tiers instead of rounding to zero, so every tier still gains defense with level', () => {
+    for (let tier = 1; tier <= 10; tier++) {
+      const tierDef = getClassTier('tank', tier)
+      const growth = computeGrowthPerLevel('tank', {
+        maxHp: tierDef.baseMaxHp,
+        attackPower: tierDef.baseAttackPower,
+        defense: tierDef.baseDefense,
+        healPower: tierDef.baseHealPower,
+      })
+      expect(growth.defense).toBeGreaterThan(0)
+      expect(growth.defense).toBeCloseTo(tierDef.baseDefense / 12, 1)
     }
   })
 })

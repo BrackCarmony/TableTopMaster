@@ -120,7 +120,7 @@ export function ClassReferenceModal({ onClose }: { onClose: () => void }) {
                     <td className="py-1.5 pr-2">{tierDef.unlockCost === 0 ? 'Free' : `${formatNumber(tierDef.unlockCost)}g`}</td>
                     <td className="py-1.5 pr-2">{formatNumber(stats.maxHp)}</td>
                     <td className="py-1.5 pr-2">{formatNumber(stats.attackPower)}</td>
-                    <td className="py-1.5 pr-2">{formatNumber(stats.defense)}</td>
+                    <td className="py-1.5 pr-2">{formatNumber(Math.round(stats.defense))}</td>
                     <td className="py-1.5 pr-2">{stats.healPower > 0 ? formatNumber(stats.healPower) : '—'}</td>
                     <td className="py-1.5 pr-2">{tierDef.moveRange}</td>
                     <td className="py-1.5 pr-2">{tierDef.attackRange}</td>

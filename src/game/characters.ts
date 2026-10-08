@@ -46,9 +46,16 @@ export interface StatBlock {
  * (e.g. tank's 6/26 reproduces the old flat +6/level on a tier-1 base of
  * 26), so a tier-1 character's leveling feels identical to before — every
  * tier above that now grows proportionally faster instead of flatlining.
+ *
+ * Tank defense is the one exception: it grows at 1/12 of base per level, a
+ * quarter of its original 1/3. At 1/3 a leveled tank's defense outran every
+ * enemy's attack, so every hit on it landed at the 1-damage minimum — the
+ * tank (and the healer's job of keeping it up) stopped mattering. It's
+ * stored to two decimals (see computeGrowthPerLevel) so the low tiers, where
+ * 1/12 of a base of 3-5 is well under 1, don't round to zero growth.
  */
 const ROLE_GROWTH_RATE: Record<Role, StatBlock> = {
-  tank: { maxHp: 6 / 26, attackPower: 1 / 4, defense: 1 / 3, healPower: 0 },
+  tank: { maxHp: 6 / 26, attackPower: 1 / 4, defense: 1 / 12, healPower: 0 },
   dps: { maxHp: 3 / 16, attackPower: 2 / 6, defense: 0, healPower: 0 },
   healer: { maxHp: 4 / 18, attackPower: 1 / 3, defense: 0, healPower: 1 / 5 },
 }
@@ -63,7 +70,7 @@ export function computeGrowthPerLevel(role: Role, base: StatBlock): StatBlock {
   return {
     maxHp: Math.round(base.maxHp * rate.maxHp),
     attackPower: Math.round(base.attackPower * rate.attackPower),
-    defense: Math.round(base.defense * rate.defense),
+    defense: Math.round(base.defense * rate.defense * 100) / 100,
     healPower: Math.round(base.healPower * rate.healPower),
   }
 }

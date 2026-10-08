@@ -1,5 +1,5 @@
 import type { CombatUnit, GridCoord } from './types'
-import { inRange, livingOccupiedTiles, mostWoundedAllyInRange, nearestLivingEnemy, occupiedTiles } from './grid'
+import { chooseTarget, inRange, livingOccupiedTiles, mostWoundedAllyInRange, occupiedTiles } from './grid'
 import { findPathToward } from './pathfinding'
 
 export type TurnAction =
@@ -46,7 +46,7 @@ export function planTurn(unit: CombatUnit, units: CombatUnit[], gridWidth: numbe
     }
   }
 
-  const target = nearestLivingEnemy(unit, units)
+  const target = chooseTarget(unit, units)
   if (!target) return { kind: 'idle' }
 
   if (inRange(unit.position, target.position, unit.attackRange)) {
