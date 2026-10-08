@@ -22,6 +22,10 @@ function cloneUnits(units: CombatUnit[]): CombatUnit[] {
 }
 
 function buildEnemyUnits(template: EncounterTemplate): CombatUnit[] {
+  // Scales what the enemies actually fight with, never what the fight pays:
+  // rewards below are still derived from the template's raw enemy stats.
+  const m = template.difficultyMultiplier ?? 1
+  const scale = (value: number) => (m === 1 ? value : Math.round(value * m))
   return template.enemies.map((spawn, index) => ({
     id: `enemy-${template.id}-${index}`,
     name: spawn.name,
@@ -29,17 +33,17 @@ function buildEnemyUnits(template: EncounterTemplate): CombatUnit[] {
     role: spawn.role,
     level: 1,
     position: { ...spawn.position },
-    hp: spawn.hp,
-    maxHp: spawn.hp,
-    attackPower: spawn.attackPower,
-    defense: spawn.defense,
-    healPower: spawn.healPower,
+    hp: scale(spawn.hp),
+    maxHp: scale(spawn.hp),
+    attackPower: scale(spawn.attackPower),
+    defense: scale(spawn.defense),
+    healPower: scale(spawn.healPower),
     moveRange: spawn.moveRange,
     attackRange: spawn.attackRange,
     speed: spawn.speed,
     alive: true,
     flavor: null,
-    attackPowerRampPerRound: spawn.attackPowerRampPerRound,
+    attackPowerRampPerRound: spawn.attackPowerRampPerRound === undefined ? undefined : scale(spawn.attackPowerRampPerRound),
   }))
 }
 

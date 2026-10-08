@@ -18,6 +18,8 @@ import {
   REPEAT_FIND_GOLD_FRACTION,
   computeArtifactBonuses,
   computeInfamyReward,
+  CAMPAIGN_HARDENING_PER_TIER,
+  campaignDifficultyMultiplier,
   computeMultipliers,
   hasAutoAdvanceUnlock,
   hasQuickRefillUnlock,
@@ -697,6 +699,37 @@ describe('tickTable Auto-Advance periodic check', () => {
 
     expect(result.table.assignedModuleId).toBe('undying-court')
     expect(result.table.autoAdvanceCheckRemaining).toBe(AUTO_ADVANCE_CHECK_INTERVAL_MS)
+  })
+})
+
+describe('campaign difficulty hardening', () => {
+  it('leaves the first three tiers untouched and compounds per tier after that', () => {
+    expect(campaignDifficultyMultiplier(1)).toBe(1)
+    expect(campaignDifficultyMultiplier(3)).toBe(1)
+    expect(campaignDifficultyMultiplier(4)).toBeCloseTo(CAMPAIGN_HARDENING_PER_TIER)
+    expect(campaignDifficultyMultiplier(6)).toBeCloseTo(CAMPAIGN_HARDENING_PER_TIER ** 3)
+  })
+
+  it('makes tier 4+ enemies tougher in the fight without raising the gold/XP reward', () => {
+    const hardModule = getModuleById('dragons-peak')! // tier 4
+    const easyModule = getModuleById('sunken-crypt')! // tier 3
+    expect(campaignDifficultyMultiplier(hardModule.tier)).toBeGreaterThan(1)
+    expect(campaignDifficultyMultiplier(easyModule.tier)).toBe(1)
+
+    const dm = makeDm({ unlockedModuleIds: [hardModule.id, easyModule.id] })
+
+    const hardTable = makeTable({ assignedModuleId: hardModule.id })
+    const hard = resolveEncounter(hardTable, [makeUnstoppableSeatedPlayer(hardTable.id, createRng(2))], dm, createRng(3))
+    const baseHp = hardModule.encounters[0].enemies[0].hp
+    expect(enemyMaxHpFromLog(hard.table.lastBattleLog)).toBe(Math.round(baseHp * campaignDifficultyMultiplier(hardModule.tier)))
+
+    // Same payout as the authored (unhardened) encounter would give.
+    const rawPower = hardModule.encounters[0].enemies.reduce((sum, e) => sum + e.hp / 10 + e.attackPower + e.defense + e.healPower, 0)
+    expect(hard.table.lastBattleRewards!.gold).toBe(Math.round(rawPower * 2.5))
+
+    const easyTable = makeTable({ assignedModuleId: easyModule.id })
+    const easy = resolveEncounter(easyTable, [makeUnstoppableSeatedPlayer(easyTable.id, createRng(2))], dm, createRng(3))
+    expect(enemyMaxHpFromLog(easy.table.lastBattleLog)).toBe(easyModule.encounters[0].enemies[0].hp)
   })
 })
 

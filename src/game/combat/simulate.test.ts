@@ -653,4 +653,34 @@ describe('runEncounter', () => {
     expect(result.xpReward).toBeGreaterThan(0)
     expect(result.goldReward).toBe(0)
   })
+
+  it('scales enemies by difficultyMultiplier in the fight but leaves the gold/XP reward untouched', () => {
+    const template: EncounterTemplate = {
+      id: 'difficulty-test',
+      name: 'Difficulty Test',
+      gridWidth: 8,
+      gridHeight: 8,
+      partyStartPositions: [{ x: 0, y: 0 }],
+      enemies: [
+        { name: 'Dummy', role: 'dps', position: { x: 1, y: 0 }, hp: 10, attackPower: 1, defense: 0, healPower: 0, moveRange: 1, attackRange: 1, speed: 1 },
+      ],
+    }
+    const party = () => [makeUnit({ id: 'hero', attackPower: 9999, hp: 9999, maxHp: 9999 })]
+    const plain = runEncounter(party(), template, createRng(1))
+    const hardened = runEncounter(party(), { ...template, difficultyMultiplier: 3 }, createRng(1))
+
+    const enemyOf = (r: typeof plain) => {
+      const start = r.log[0]
+      if (start.type !== 'encounter_start') throw new Error('expected encounter_start')
+      return start.units.find((u) => u.side === 'enemy')!
+    }
+    expect(enemyOf(plain).maxHp).toBe(10)
+    expect(enemyOf(hardened).maxHp).toBe(30)
+    expect(enemyOf(hardened).attackPower).toBe(3)
+
+    expect(plain.outcome).toBe('victory')
+    expect(hardened.outcome).toBe('victory')
+    expect(hardened.goldReward).toBe(plain.goldReward)
+    expect(hardened.xpReward).toBe(plain.xpReward)
+  })
 })

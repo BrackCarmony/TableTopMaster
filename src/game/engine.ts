@@ -289,6 +289,27 @@ function scaleEncounterForTier(template: EncounterTemplate, tier: number): Encou
   return { ...template, enemies: template.enemies.map((spawn) => scaleEnemySpawn(spawn, multiplier)) }
 }
 
+// The first three campaign tiers are the learning curve and stay exactly as
+// authored. From tier 4 on, enemies fight with extra stats on top of their
+// authored ones — compounding per tier — but the gold/XP a win pays out is
+// still based on the authored stats (see EncounterTemplate.difficultyMultiplier),
+// so climbing gets slower without getting any more lucrative. First-pass
+// numbers: retune CAMPAIGN_HARDENING_PER_TIER if progression still feels too
+// fast (or too walled) after playtesting.
+export const CAMPAIGN_UNHARDENED_TIERS = 3
+export const CAMPAIGN_HARDENING_PER_TIER = 1.25
+
+export function campaignDifficultyMultiplier(tier: number): number {
+  if (tier <= CAMPAIGN_UNHARDENED_TIERS) return 1
+  return CAMPAIGN_HARDENING_PER_TIER ** (tier - CAMPAIGN_UNHARDENED_TIERS)
+}
+
+function hardenCampaignEncounter(template: EncounterTemplate, tier: number): EncounterTemplate {
+  const multiplier = campaignDifficultyMultiplier(tier)
+  if (multiplier === 1) return template
+  return { ...template, difficultyMultiplier: multiplier }
+}
+
 /**
  * Resolves the table's currently-assigned encounter exactly once against its
  * seated players. Any player whose character isn't among the survivors is
@@ -319,7 +340,7 @@ export function resolveEncounter(
   const difficultyTier = isExecution ? winCount + EXECUTION_STARTING_TIER : 0
   const encounterTemplate = isExecution
     ? scaleEncounterForTier(moduleDef.encounters[table.encounterIndex % moduleDef.encounters.length], difficultyTier)
-    : moduleDef.encounters[table.encounterIndex % moduleDef.encounters.length]
+    : hardenCampaignEncounter(moduleDef.encounters[table.encounterIndex % moduleDef.encounters.length], moduleDef.tier)
 
   const artifactBonuses = computeArtifactBonuses(dm)
   const partyUnits = seatedPlayers.map((p) => toCombatUnit(p.character!, dominantTrait(p.personality), artifactBonuses))

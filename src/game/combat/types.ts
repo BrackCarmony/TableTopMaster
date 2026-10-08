@@ -103,6 +103,13 @@ export interface EncounterTemplate {
    * encounters where a stalemate is a legitimate, harmless outcome.
    */
   stalemateFinisher?: string
+  /**
+   * Multiplies every enemy's hp/attack/defense/heal (and enrage ramp) for the
+   * fight itself, but NOT the gold/XP reward — that's still computed from the
+   * template's own unscaled enemy stats. This is what lets a module be made
+   * harder without paying out more for it. Unset means 1x.
+   */
+  difficultyMultiplier?: number
 }
 
 export interface EncounterResult {
