@@ -299,19 +299,28 @@ function scaleEncounterForTier(template: EncounterTemplate, tier: number): Encou
 // climbs: a gentle 1.25x step at tier 4 growing to 2.75x per step by tier 10,
 // so the gap widens faster the higher you go and a party can't just
 // out-level its way up the ladder — it needs the higher-tiered units to keep
-// pace. Past tier 10 the ramp stops and drops to a gentle flat step: tiers
-// 11-13 are already authored at 2.2x per tier (vs 1.6x before them), so
-// continuing to ramp on top of that walled the late game off. First-pass
-// numbers: retune if progression still feels too fast (or too walled).
+// pace. Past tier 10 the ramp stops: tiers 11-13 are already authored at 2.2x
+// per tier (vs 1.6x before them), so continuing to ramp on top of that walled
+// the late game off. The step instead drops to a gentle 1.25x at tier 11 and
+// tapers to 1.0x (no extra hardening, only the authored growth) by tier 13.
+// First-pass numbers: retune if progression still feels too fast (or too
+// walled).
 export const CAMPAIGN_HARDENING_START_TIER = 4
 export const CAMPAIGN_HARDENING_PEAK_TIER = 10
 export const CAMPAIGN_HARDENING_START_RATE = 1.25
 export const CAMPAIGN_HARDENING_PEAK_RATE = 2.75
-export const CAMPAIGN_HARDENING_LATE_RATE = 1.25
+export const CAMPAIGN_HARDENING_LATE_START_TIER = 11
+export const CAMPAIGN_HARDENING_LATE_END_TIER = 13
+export const CAMPAIGN_HARDENING_LATE_START_RATE = 1.25
+export const CAMPAIGN_HARDENING_LATE_END_RATE = 1.0
 
-/** The extra-stats step a single campaign tier adds on top of the one below it — linear from START_RATE at the first hardened tier up to PEAK_RATE at the peak tier, then a flat LATE_RATE for every tier after. */
+/** The extra-stats step a single campaign tier adds on top of the one below it — linear from START_RATE at the first hardened tier up to PEAK_RATE at the peak tier, then a lower LATE_START_RATE that tapers linearly to LATE_END_RATE by the last tier (flat beyond). */
 export function campaignHardeningRate(tier: number): number {
-  if (tier > CAMPAIGN_HARDENING_PEAK_TIER) return CAMPAIGN_HARDENING_LATE_RATE
+  if (tier > CAMPAIGN_HARDENING_PEAK_TIER) {
+    const span = CAMPAIGN_HARDENING_LATE_END_TIER - CAMPAIGN_HARDENING_LATE_START_TIER
+    const progress = Math.min(1, Math.max(0, (tier - CAMPAIGN_HARDENING_LATE_START_TIER) / span))
+    return CAMPAIGN_HARDENING_LATE_START_RATE + (CAMPAIGN_HARDENING_LATE_END_RATE - CAMPAIGN_HARDENING_LATE_START_RATE) * progress
+  }
   const span = CAMPAIGN_HARDENING_PEAK_TIER - CAMPAIGN_HARDENING_START_TIER
   const progress = Math.min(1, Math.max(0, (tier - CAMPAIGN_HARDENING_START_TIER) / span))
   return CAMPAIGN_HARDENING_START_RATE + (CAMPAIGN_HARDENING_PEAK_RATE - CAMPAIGN_HARDENING_START_RATE) * progress

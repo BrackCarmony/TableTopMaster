@@ -18,7 +18,8 @@ import {
   REPEAT_FIND_GOLD_FRACTION,
   computeArtifactBonuses,
   computeInfamyReward,
-  CAMPAIGN_HARDENING_LATE_RATE,
+  CAMPAIGN_HARDENING_LATE_END_RATE,
+  CAMPAIGN_HARDENING_LATE_START_RATE,
   CAMPAIGN_HARDENING_PEAK_RATE,
   CAMPAIGN_HARDENING_START_RATE,
   campaignDifficultyMultiplier,
@@ -720,10 +721,13 @@ describe('campaign difficulty hardening', () => {
     }
   })
 
-  it('drops to a gentle flat rate after tier 10 instead of continuing to ramp', () => {
-    for (const tier of [11, 12, 13, 20]) {
-      expect(campaignHardeningRate(tier)).toBeCloseTo(CAMPAIGN_HARDENING_LATE_RATE)
-      expect(campaignHardeningRate(tier)).toBeLessThan(CAMPAIGN_HARDENING_PEAK_RATE)
+  it('drops after tier 10 and tapers down to no extra hardening by tier 13', () => {
+    expect(campaignHardeningRate(11)).toBeCloseTo(CAMPAIGN_HARDENING_LATE_START_RATE)
+    expect(campaignHardeningRate(13)).toBeCloseTo(CAMPAIGN_HARDENING_LATE_END_RATE)
+    expect(campaignHardeningRate(20)).toBeCloseTo(CAMPAIGN_HARDENING_LATE_END_RATE)
+    expect(campaignHardeningRate(11)).toBeLessThan(CAMPAIGN_HARDENING_PEAK_RATE)
+    for (let tier = 12; tier <= 13; tier++) {
+      expect(campaignHardeningRate(tier)).toBeLessThan(campaignHardeningRate(tier - 1))
     }
   })
 
