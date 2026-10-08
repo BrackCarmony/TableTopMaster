@@ -431,7 +431,7 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: 'tabletopmaster-save',
-      version: 12,
+      version: 13,
       partialize: (state) => ({
         dm: state.dm,
         players: state.players,
@@ -521,6 +521,14 @@ export const useGameStore = create<GameStore>()(
               ...t,
               autoAdvanceCheckRemaining: (t as Table & { autoAdvanceCheckRemaining?: number }).autoAdvanceCheckRemaining ?? AUTO_ADVANCE_CHECK_INTERVAL_MS,
             }))
+          }
+          if (version < 13) {
+            // v13 replaces the Defensive Rush artifact with Commanding Presence
+            // (a taunt-range artifact). Anyone who'd already found it keeps
+            // the tank artifact they earned, just under its new id.
+            state.dm.discoveredArtifactIds = state.dm.discoveredArtifactIds.map((id: string) =>
+              id === 'defensive-rush' ? 'commanding-presence' : id,
+            )
           }
           return state
         } catch (err) {

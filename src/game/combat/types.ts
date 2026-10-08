@@ -27,8 +27,8 @@ export interface CombatUnit {
   flavor: DominantTrait | null
   /** If set, this unit's attackPower grows by this much at the end of every round — a boss "enrage" so a long fight can't out-sustain it forever. */
   attackPowerRampPerRound?: number
-  /** Defensive Rush artifact — this unit acts once in a pre-round pass before round 0 begins. Never reset; only ever consulted once per encounter. */
-  extraTurnAtStart?: boolean
+  /** Tiles within which a living party tank pulls enemies onto itself (see grid.ts chooseTarget). Only meaningful on party tanks; unset falls back to the base TAUNT_RANGE. */
+  tauntRange?: number
   /** Revivify artifact — true until this healer has used their once-per-battle revive, then set false. */
   reviveAvailable?: boolean
   /** Fraction of maxHp a Revivify revive restores. Only meaningful alongside reviveAvailable. */

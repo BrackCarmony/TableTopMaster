@@ -24,7 +24,7 @@ export const ISLANDS: Island[] = [
     unlockCost: 0,
     baseGoldReward: 5000,
     baseVoyageDurationMs: 60_000,
-    artifactPool: ['defensive-rush', 'revivify', 'extra-range'],
+    artifactPool: ['commanding-presence', 'revivify', 'extra-range'],
   },
   {
     id: 'storm-coast',

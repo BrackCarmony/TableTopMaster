@@ -63,7 +63,7 @@ export function nearestLivingEnemy(unit: CombatUnit, units: CombatUnit[]): Comba
 }
 
 /** How far (Manhattan tiles) a party tank's taunt reaches: any enemy within this of a living tank is pulled onto it. 10 covers the whole battlefield on the largest grids — at 6, enemies still reached the dps and healer before closing to taunt range. */
-export const TAUNT_RANGE = 10
+export const TAUNT_RANGE = 3
 
 /**
  * Who a unit decides to go after. Enemies are taunted: if any living party
@@ -80,7 +80,7 @@ export function chooseTarget(unit: CombatUnit, units: CombatUnit[]): CombatUnit 
     for (const other of units) {
       if (!other.alive || other.side === unit.side || other.role !== 'tank') continue
       const d = manhattanDistance(unit.position, other.position)
-      if (d <= TAUNT_RANGE && d < taunterDist) {
+      if (d <= (other.tauntRange ?? TAUNT_RANGE) && d < taunterDist) {
         taunterDist = d
         taunter = other
       }

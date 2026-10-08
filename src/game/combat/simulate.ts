@@ -198,7 +198,7 @@ function performRevive(healer: CombatUnit, target: CombatUnit, log: CombatLogEve
   log.push({ type: 'revive', healerId: healer.id, targetId: target.id, targetHpAfter: target.hp })
 }
 
-/** Resolves a single unit's turn (heal / revive / move+maybe-attack / attack / idle) and applies its effects in place. Shared by the pre-round Defensive Rush pass and the normal round loop so the dispatch logic isn't duplicated. */
+/** Resolves a single unit's turn (heal / revive / move+maybe-attack / attack / idle) and applies its effects in place. Called once per living unit each round. */
 function takeTurn(
   unit: CombatUnit,
   units: CombatUnit[],
@@ -278,13 +278,6 @@ export function runEncounter(partyUnits: CombatUnit[], template: EncounterTempla
   ]
 
   const initiativeOrder = [...units].sort((a, b) => b.speed - a.speed)
-
-  // Defensive Rush — a tank with an extra turn at the start of battle acts
-  // once here, before round 0 even begins, then never again (the flag is
-  // never reset).
-  for (const unit of initiativeOrder) {
-    if (unit.alive && unit.extraTurnAtStart) takeTurn(unit, units, unitById, template, rng, log)
-  }
 
   let outcome: 'victory' | 'defeat' | 'stalemate' | null = checkOutcome(units)
   let roundsElapsed = 0

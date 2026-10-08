@@ -18,7 +18,7 @@ describe('ARTIFACTS', () => {
 
 describe('getArtifactById', () => {
   it('finds a known artifact', () => {
-    expect(getArtifactById('defensive-rush')?.role).toBe('tank')
+    expect(getArtifactById('commanding-presence')?.role).toBe('tank')
   })
 
   it('returns undefined for an unknown id', () => {

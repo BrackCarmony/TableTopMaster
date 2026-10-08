@@ -143,7 +143,7 @@ export interface Island {
 }
 
 export type ArtifactEffect =
-  | { kind: 'tankExtraTurnAtStart' }
+  | { kind: 'tankTauntRange'; value: number }
   | { kind: 'healerReviveOnce'; hpFraction: number }
   | { kind: 'dpsExtraRange'; value: number }
   | { kind: 'tankDamageReduction'; value: number }

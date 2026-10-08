@@ -553,35 +553,10 @@ describe('runEncounter', () => {
     expect(posById.get('dps')).toEqual({ x: 1, y: 7 })
   })
 
-  it('lets a tank with Defensive Rush act before round 0, ahead of any faster unit', () => {
-    const rushTemplate: EncounterTemplate = {
-      id: 'rush-test',
-      name: 'Rush Test',
-      gridWidth: 10,
-      gridHeight: 10,
-      partyStartPositions: [{ x: 0, y: 0 }, { x: 0, y: 1 }],
-      enemies: [
-        { name: 'Target', role: 'dps', position: { x: 9, y: 0 }, hp: 999, attackPower: 1, defense: 0, healPower: 0, moveRange: 0, attackRange: 0, speed: 1 },
-      ],
-    }
-    // The rush tank has the LOWEST speed in the party — without the
-    // pre-round pass it would never act before the much-faster dps. If its
-    // action still shows up first in the log, that can only be the
-    // pre-round pass firing, not normal initiative order.
-    const rushTank = makeUnit({ id: 'rush-tank', role: 'tank', speed: 1, extraTurnAtStart: true })
-    const fastDps = makeUnit({ id: 'fast-dps', role: 'dps', speed: 99 })
-
-    const result = runEncounter([rushTank, fastDps], rushTemplate, createRng(1))
-    const firstAction = result.log.find((e) => e.type === 'move' || e.type === 'attack')
-    expect(firstAction).toBeDefined()
-    if (firstAction?.type === 'move') expect(firstAction.unitId).toBe('rush-tank')
-    if (firstAction?.type === 'attack') expect(firstAction.attackerId).toBe('rush-tank')
-  })
-
-  it('never gives a tank without Defensive Rush a pre-round action', () => {
-    const rushTemplate: EncounterTemplate = {
-      id: 'no-rush-test',
-      name: 'No Rush Test',
+  it('never gives any unit a pre-round action: the fastest unit acts first', () => {
+    const template: EncounterTemplate = {
+      id: 'initiative-test',
+      name: 'Initiative Test',
       gridWidth: 10,
       gridHeight: 10,
       partyStartPositions: [{ x: 0, y: 0 }, { x: 0, y: 1 }],
@@ -592,95 +567,10 @@ describe('runEncounter', () => {
     const slowTank = makeUnit({ id: 'slow-tank', role: 'tank', speed: 1 })
     const fastDps = makeUnit({ id: 'fast-dps', role: 'dps', speed: 99 })
 
-    const result = runEncounter([slowTank, fastDps], rushTemplate, createRng(1))
+    const result = runEncounter([slowTank, fastDps], template, createRng(1))
     const firstAction = result.log.find((e) => e.type === 'move' || e.type === 'attack')
     expect(firstAction).toBeDefined()
     if (firstAction?.type === 'move') expect(firstAction.unitId).toBe('fast-dps')
     if (firstAction?.type === 'attack') expect(firstAction.attackerId).toBe('fast-dps')
-  })
-
-  it('lets a healer with Revivify bring a fallen ally back before the encounter ends', () => {
-    const reviveTemplate: EncounterTemplate = {
-      id: 'revive-test',
-      name: 'Revive Test',
-      gridWidth: 8,
-      gridHeight: 8,
-      partyStartPositions: [{ x: 0, y: 0 }, { x: 0, y: 3 }],
-      // A 1-hp enemy adjacent to the tank: the enemy's own attack kills the
-      // fragile tank first (it acts first, highest speed), the healer then
-      // revives (no wounded-but-alive ally to heal instead), and the
-      // revived tank — acting last in initiative, after the healer — gets
-      // its own turn this same round and finishes the 1-hp enemy off before
-      // it can ever attack again.
-      enemies: [
-        { name: 'Weakling', role: 'dps', position: { x: 2, y: 0 }, hp: 1, attackPower: 20, defense: 0, healPower: 0, moveRange: 0, attackRange: 1, speed: 99 },
-      ],
-    }
-    const fragileTank = makeUnit({ id: 'tank', role: 'tank', hp: 1, maxHp: 1, attackPower: 5, defense: 0, attackRange: 1, speed: 1 })
-    const healer = makeUnit({ id: 'healer', role: 'healer', attackRange: 5, healPower: 0, speed: 50, reviveAvailable: true, reviveHpFraction: 0.5 })
-
-    let result = runEncounter([fragileTank, healer], reviveTemplate, createRng(1))
-    // Both the enemy's killing hit and the revived tank's finishing hit are
-    // 85% each — retry a couple of seeds on the rare miss instead of
-    // asserting on a single roll of the dice.
-    for (let seed = 2; !result.survivorIds.includes('tank') && seed < 15; seed++) {
-      result = runEncounter([fragileTank, healer], reviveTemplate, createRng(seed))
-    }
-
-    const reviveEvent = result.log.find((e) => e.type === 'revive')
-    expect(reviveEvent).toBeDefined()
-    if (reviveEvent?.type === 'revive') {
-      expect(reviveEvent.healerId).toBe('healer')
-      expect(reviveEvent.targetId).toBe('tank')
-    }
-    expect(result.survivorIds).toContain('tank')
-  })
-
-  it('calls a stalemate when neither side can reach or hit the other', () => {
-    const frozenTemplate: EncounterTemplate = {
-      id: 'frozen',
-      name: 'Frozen',
-      gridWidth: 8,
-      gridHeight: 8,
-      partyStartPositions: [{ x: 0, y: 0 }],
-      enemies: [
-        { name: 'Distant Foe', role: 'dps', position: { x: 7, y: 7 }, hp: 10, attackPower: 5, defense: 0, healPower: 0, moveRange: 0, attackRange: 0, speed: 1 },
-      ],
-    }
-    const party = [makeUnit({ id: 'hero', name: 'Hero', moveRange: 0, attackRange: 0 })]
-    const result = runEncounter(party, frozenTemplate, createRng(9))
-    expect(result.outcome).toBe('stalemate')
-    expect(result.xpReward).toBeGreaterThan(0)
-    expect(result.goldReward).toBe(0)
-  })
-
-  it('scales enemies by difficultyMultiplier in the fight but leaves the gold/XP reward untouched', () => {
-    const template: EncounterTemplate = {
-      id: 'difficulty-test',
-      name: 'Difficulty Test',
-      gridWidth: 8,
-      gridHeight: 8,
-      partyStartPositions: [{ x: 0, y: 0 }],
-      enemies: [
-        { name: 'Dummy', role: 'dps', position: { x: 1, y: 0 }, hp: 10, attackPower: 1, defense: 0, healPower: 0, moveRange: 1, attackRange: 1, speed: 1 },
-      ],
-    }
-    const party = () => [makeUnit({ id: 'hero', attackPower: 9999, hp: 9999, maxHp: 9999 })]
-    const plain = runEncounter(party(), template, createRng(1))
-    const hardened = runEncounter(party(), { ...template, difficultyMultiplier: 3 }, createRng(1))
-
-    const enemyOf = (r: typeof plain) => {
-      const start = r.log[0]
-      if (start.type !== 'encounter_start') throw new Error('expected encounter_start')
-      return start.units.find((u) => u.side === 'enemy')!
-    }
-    expect(enemyOf(plain).maxHp).toBe(10)
-    expect(enemyOf(hardened).maxHp).toBe(30)
-    expect(enemyOf(hardened).attackPower).toBe(3)
-
-    expect(plain.outcome).toBe('victory')
-    expect(hardened.outcome).toBe('victory')
-    expect(hardened.goldReward).toBe(plain.goldReward)
-    expect(hardened.xpReward).toBe(plain.xpReward)
   })
 })

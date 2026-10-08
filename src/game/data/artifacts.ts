@@ -2,11 +2,11 @@ import type { Artifact } from '../types'
 
 export const ARTIFACTS: Artifact[] = [
   {
-    id: 'defensive-rush',
-    name: 'Defensive Rush',
-    description: 'Your tanks charge in before the first round even begins — a free extra turn to close the distance and draw aggro immediately.',
+    id: 'commanding-presence',
+    name: 'Commanding Presence',
+    description: "Your tanks' taunt reaches 4 tiles further, pulling enemies off your squishier party members from across the battlefield instead of only once they're close.",
     role: 'tank',
-    effect: { kind: 'tankExtraTurnAtStart' },
+    effect: { kind: 'tankTauntRange', value: 4 },
   },
   {
     id: 'revivify',

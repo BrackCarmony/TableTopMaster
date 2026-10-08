@@ -64,6 +64,14 @@ describe('chooseTarget (taunt)', () => {
     expect(chooseTarget(enemy(), [enemy(), tank, dps])?.id).toBe('tank')
   })
 
+  it("uses each tank's own taunt range, so a wider-reaching tank pulls enemies a plain one cannot", () => {
+    const plain = makeUnit({ id: 'plain', role: 'tank', position: { x: 8 - TAUNT_RANGE - 2, y: 0 } })
+    const wide = makeUnit({ id: 'wide', role: 'tank', tauntRange: TAUNT_RANGE + 4, position: { x: 8 - TAUNT_RANGE - 3, y: 0 } })
+    const dps = makeUnit({ id: 'dps', role: 'dps', position: { x: 7, y: 1 } }) // nearer than either tank
+    expect(chooseTarget(enemy(), [enemy(), plain, dps])?.id).toBe('dps')
+    expect(chooseTarget(enemy(), [enemy(), plain, wide, dps])?.id).toBe('wide')
+  })
+
   it('picks the nearest tank when several are in range', () => {
     const near = makeUnit({ id: 'near', role: 'tank', position: { x: 6, y: 0 } })
     const far = makeUnit({ id: 'far', role: 'tank', position: { x: 4, y: 0 } })
@@ -72,7 +80,7 @@ describe('chooseTarget (taunt)', () => {
 
   it('ignores a tank beyond taunt range and falls back to the nearest unit', () => {
     const tank = makeUnit({ id: 'tank', role: 'tank', position: { x: 8 - TAUNT_RANGE - 1, y: 0 } })
-    const dps = makeUnit({ id: 'dps', role: 'dps', position: { x: 7, y: 5 } })
+    const dps = makeUnit({ id: 'dps', role: 'dps', position: { x: 7, y: 1 } }) // nearer than the out-of-range tank
     expect(chooseTarget(enemy(), [enemy(), tank, dps])?.id).toBe('dps')
   })
 

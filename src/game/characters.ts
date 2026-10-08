@@ -1,4 +1,5 @@
 import type { RngFn } from './rng'
+import { TAUNT_RANGE } from './combat/grid'
 import type { CombatUnit, Role } from './combat/types'
 import { getClassTier, rollClassName, rollRole, type ClassTierDef } from './data/classes'
 import { legacyStatMultiplier } from './data/legacy'
@@ -207,7 +208,8 @@ export function applyXp(character: Character, xp: number): Character {
 
 /** Sailing artifact bonuses, derived once per encounter from the DM's discoveredArtifactIds (see engine.ts computeArtifactBonuses) and baked onto each CombatUnit at build time — keeps combat/simulate.ts free of any dependency on DM/store types. */
 export interface ArtifactBonuses {
-  tankExtraTurn: boolean
+  /** Sum of every discovered tankTauntRange artifact's value — extra tiles added to a tank's taunt reach. */
+  tankTauntRangeBonus: number
   healerRevive: boolean
   healerReviveHpFraction: number
   dpsExtraRangeBonus: number
@@ -235,7 +237,7 @@ export interface ArtifactBonuses {
 }
 
 export const DEFAULT_ARTIFACT_BONUSES: ArtifactBonuses = {
-  tankExtraTurn: false,
+  tankTauntRangeBonus: 0,
   healerRevive: false,
   healerReviveHpFraction: 0.5,
   dpsExtraRangeBonus: 0,
@@ -282,7 +284,7 @@ export function toCombatUnit(
     // tier, not an artifact bonus, and applies no matter what role this
     // character actually rolled (see Character.selfRegenPercent).
     selfRegenPercent: character.selfRegenPercent || undefined,
-    extraTurnAtStart: character.role === 'tank' && artifactBonuses.tankExtraTurn ? true : undefined,
+    tauntRange: character.role === 'tank' ? TAUNT_RANGE + artifactBonuses.tankTauntRangeBonus : undefined,
     reviveAvailable: character.role === 'healer' && artifactBonuses.healerRevive ? true : undefined,
     reviveHpFraction: character.role === 'healer' && artifactBonuses.healerRevive ? artifactBonuses.healerReviveHpFraction : undefined,
     damageReductionPercent: character.role === 'tank' ? artifactBonuses.tankDamageReductionPercent : undefined,

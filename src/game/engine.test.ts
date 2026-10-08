@@ -880,16 +880,16 @@ describe('tickTable campaign fast-forward', () => {
 describe('computeArtifactBonuses', () => {
   it('grants nothing with no artifacts discovered', () => {
     const bonuses = computeArtifactBonuses(makeDm())
-    expect(bonuses.tankExtraTurn).toBe(false)
+    expect(bonuses.tankTauntRangeBonus).toBe(0)
     expect(bonuses.healerRevive).toBe(false)
     expect(bonuses.dpsExtraRangeBonus).toBe(0)
   })
 
   it('maps each discovered artifact to its own bonus', () => {
     const bonuses = computeArtifactBonuses(
-      makeDm({ discoveredArtifactIds: ['defensive-rush', 'revivify', 'extra-range'] }),
+      makeDm({ discoveredArtifactIds: ['commanding-presence', 'revivify', 'extra-range'] }),
     )
-    expect(bonuses.tankExtraTurn).toBe(true)
+    expect(bonuses.tankTauntRangeBonus).toBe(4)
     expect(bonuses.healerRevive).toBe(true)
     expect(bonuses.healerReviveHpFraction).toBe(0.5)
     expect(bonuses.dpsExtraRangeBonus).toBe(1)

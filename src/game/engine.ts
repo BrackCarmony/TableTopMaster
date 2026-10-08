@@ -165,8 +165,8 @@ export function computeArtifactBonuses(dm: DMState): ArtifactBonuses {
     const artifact = getArtifactById(id)
     if (!artifact) continue
     switch (artifact.effect.kind) {
-      case 'tankExtraTurnAtStart':
-        bonuses.tankExtraTurn = true
+      case 'tankTauntRange':
+        bonuses.tankTauntRangeBonus += artifact.effect.value
         break
       case 'healerReviveOnce':
         bonuses.healerRevive = true

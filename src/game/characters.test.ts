@@ -9,6 +9,7 @@ import {
   projectStatsAtLevel,
   toCombatUnit,
 } from './characters'
+import { TAUNT_RANGE } from './combat/grid'
 import { getClassTier } from './data/classes'
 import { legacyStatMultiplier } from './data/legacy'
 import { createRng } from './rng'
@@ -199,15 +200,16 @@ function makeCharacter(overrides: Partial<Character>): Character {
 describe('toCombatUnit', () => {
   it('applies no Sailing bonuses by default', () => {
     const tank = toCombatUnit(makeCharacter({ role: 'tank', attackRange: 1 }), null)
-    expect(tank.extraTurnAtStart).toBeUndefined()
+    expect(tank.tauntRange).toBe(TAUNT_RANGE)
     expect(tank.reviveAvailable).toBeUndefined()
     expect(tank.attackRange).toBe(1)
   })
 
-  it('only gives Defensive Rush to tanks, only when discovered', () => {
-    const bonuses = { ...DEFAULT_ARTIFACT_BONUSES, tankExtraTurn: true }
-    expect(toCombatUnit(makeCharacter({ role: 'tank' }), null, bonuses).extraTurnAtStart).toBe(true)
-    expect(toCombatUnit(makeCharacter({ role: 'dps' }), null, bonuses).extraTurnAtStart).toBeUndefined()
+  it('gives only tanks a taunt range, widened by the Commanding Presence bonus', () => {
+    const bonuses = { ...DEFAULT_ARTIFACT_BONUSES, tankTauntRangeBonus: 4 }
+    expect(toCombatUnit(makeCharacter({ role: 'tank' }), null, bonuses).tauntRange).toBe(TAUNT_RANGE + 4)
+    expect(toCombatUnit(makeCharacter({ role: 'dps' }), null, bonuses).tauntRange).toBeUndefined()
+    expect(toCombatUnit(makeCharacter({ role: 'healer' }), null, bonuses).tauntRange).toBeUndefined()
   })
 
   it('only gives Revivify to healers, carrying the configured hpFraction, only when discovered', () => {
