@@ -18,8 +18,10 @@ import {
   REPEAT_FIND_GOLD_FRACTION,
   computeArtifactBonuses,
   computeInfamyReward,
-  CAMPAIGN_HARDENING_PER_TIER,
+  CAMPAIGN_HARDENING_END_RATE,
+  CAMPAIGN_HARDENING_START_RATE,
   campaignDifficultyMultiplier,
+  campaignHardeningRate,
   computeMultipliers,
   hasAutoAdvanceUnlock,
   hasQuickRefillUnlock,
@@ -703,11 +705,27 @@ describe('tickTable Auto-Advance periodic check', () => {
 })
 
 describe('campaign difficulty hardening', () => {
-  it('leaves the first three tiers untouched and compounds per tier after that', () => {
+  it('leaves the first three tiers untouched and starts gently at tier 4', () => {
     expect(campaignDifficultyMultiplier(1)).toBe(1)
     expect(campaignDifficultyMultiplier(3)).toBe(1)
-    expect(campaignDifficultyMultiplier(4)).toBeCloseTo(CAMPAIGN_HARDENING_PER_TIER)
-    expect(campaignDifficultyMultiplier(6)).toBeCloseTo(CAMPAIGN_HARDENING_PER_TIER ** 3)
+    expect(campaignDifficultyMultiplier(4)).toBeCloseTo(CAMPAIGN_HARDENING_START_RATE)
+  })
+
+  it('has a per-tier rate that climbs from the start rate to the end rate, then holds', () => {
+    expect(campaignHardeningRate(4)).toBeCloseTo(CAMPAIGN_HARDENING_START_RATE)
+    expect(campaignHardeningRate(13)).toBeCloseTo(CAMPAIGN_HARDENING_END_RATE)
+    expect(campaignHardeningRate(20)).toBeCloseTo(CAMPAIGN_HARDENING_END_RATE)
+    for (let tier = 5; tier <= 13; tier++) {
+      expect(campaignHardeningRate(tier)).toBeGreaterThan(campaignHardeningRate(tier - 1))
+    }
+  })
+
+  it('compounds those rates so each tier is a bigger jump than the last', () => {
+    for (let tier = 5; tier <= 13; tier++) {
+      const step = campaignDifficultyMultiplier(tier) / campaignDifficultyMultiplier(tier - 1)
+      expect(step).toBeCloseTo(campaignHardeningRate(tier))
+    }
+    expect(campaignDifficultyMultiplier(13) / campaignDifficultyMultiplier(12)).toBeCloseTo(CAMPAIGN_HARDENING_END_RATE)
   })
 
   it('makes tier 4+ enemies tougher in the fight without raising the gold/XP reward', () => {

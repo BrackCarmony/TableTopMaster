@@ -291,17 +291,32 @@ function scaleEncounterForTier(template: EncounterTemplate, tier: number): Encou
 
 // The first three campaign tiers are the learning curve and stay exactly as
 // authored. From tier 4 on, enemies fight with extra stats on top of their
-// authored ones — compounding per tier — but the gold/XP a win pays out is
-// still based on the authored stats (see EncounterTemplate.difficultyMultiplier),
-// so climbing gets slower without getting any more lucrative. First-pass
-// numbers: retune CAMPAIGN_HARDENING_PER_TIER if progression still feels too
-// fast (or too walled) after playtesting.
-export const CAMPAIGN_UNHARDENED_TIERS = 3
-export const CAMPAIGN_HARDENING_PER_TIER = 1.25
+// authored ones — but the gold/XP a win pays out is still based on the
+// authored stats (see EncounterTemplate.difficultyMultiplier), so climbing
+// gets slower without getting any more lucrative.
+//
+// The extra stats compound tier over tier, and the per-tier RATE itself
+// climbs: a gentle 1.25x step at tier 4 growing to 3.5x per step by tier 13,
+// so the gap widens faster the higher you go and a party can't just
+// out-level its way up the ladder — it needs the higher-tiered units to keep
+// pace. First-pass numbers: retune the start/end rates if progression still
+// feels too fast (or too walled) after playtesting.
+export const CAMPAIGN_HARDENING_START_TIER = 4
+export const CAMPAIGN_HARDENING_END_TIER = 13
+export const CAMPAIGN_HARDENING_START_RATE = 1.25
+export const CAMPAIGN_HARDENING_END_RATE = 3.5
+
+/** The extra-stats step a single campaign tier adds on top of the one below it — linear from START_RATE at the first hardened tier to END_RATE at the last, flat at END_RATE beyond. */
+export function campaignHardeningRate(tier: number): number {
+  const span = CAMPAIGN_HARDENING_END_TIER - CAMPAIGN_HARDENING_START_TIER
+  const progress = Math.min(1, Math.max(0, (tier - CAMPAIGN_HARDENING_START_TIER) / span))
+  return CAMPAIGN_HARDENING_START_RATE + (CAMPAIGN_HARDENING_END_RATE - CAMPAIGN_HARDENING_START_RATE) * progress
+}
 
 export function campaignDifficultyMultiplier(tier: number): number {
-  if (tier <= CAMPAIGN_UNHARDENED_TIERS) return 1
-  return CAMPAIGN_HARDENING_PER_TIER ** (tier - CAMPAIGN_UNHARDENED_TIERS)
+  let multiplier = 1
+  for (let t = CAMPAIGN_HARDENING_START_TIER; t <= tier; t++) multiplier *= campaignHardeningRate(t)
+  return multiplier
 }
 
 function hardenCampaignEncounter(template: EncounterTemplate, tier: number): EncounterTemplate {
