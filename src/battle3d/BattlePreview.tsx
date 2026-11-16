@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { BattleModal } from '../components/combat/BattleModal'
 import { runEncounter } from '../game/combat/simulate'
-import type { CombatUnit, EncounterTemplate, Role } from '../game/combat/types'
+import type { CombatLogEvent, CombatUnit, EncounterTemplate, Role } from '../game/combat/types'
 import { CLASS_TIERS } from '../game/data/classes'
 import * as ENCOUNTER_EXPORTS from '../game/data/encounters'
 import { MODULES } from '../game/data/modules'
@@ -12,6 +12,7 @@ import { createRng } from '../game/rng'
 // playing up to it.  http://localhost:5173/?battle=dragons-peak-2&tier=4&size=5&seed=3
 //   battle  an encounter id (see ?battle=list), tier 1-10, size 1-8 party members,
 //   power   multiplies the party's stats (default 4, enough to see a fight through), seed.
+//   ?battle=lineup&role=tank|dps|healer[&race=Elf] stands every class of a role in rows.
 
 const ENCOUNTERS = Object.values(ENCOUNTER_EXPORTS).filter(
   (v): v is EncounterTemplate => typeof v === 'object' && v !== null && 'enemies' in v && 'id' in v,
@@ -50,8 +51,40 @@ function partyFor(tier: number, size: number, power: number, seed: number): Comb
   })
 }
 
+/** Every class of a role (or every race) standing in rows, to compare looks: ?battle=lineup&role=tank&race=Elf */
+function lineupLog(role: Role, race: string | null): CombatLogEvent[] {
+  const units: CombatUnit[] = []
+  CLASS_TIERS[role].forEach((t, i) =>
+    t.names.forEach((className, j) =>
+      units.push({
+        ...partyFor(t.tier, 1, 1, i)[0],
+        id: `${className}-${j}`,
+        name: className,
+        role,
+        className,
+        race: race ?? RACES[(i + j) % RACES.length],
+        attackRange: t.attackRange,
+        position: { x: i, y: j * 2 + 1 },
+      }),
+    ),
+  )
+  return [{ type: 'encounter_start', units, gridWidth: 10, gridHeight: 6, encounterId: 'goblin-ambush-1' }]
+}
+
 export default function BattlePreview() {
   const q = new URLSearchParams(location.search)
+  if (q.get('battle') === 'lineup') {
+    const role = (q.get('role') ?? 'tank') as Role
+    return (
+      <div className="min-h-screen bg-slate-950">
+        <BattleModal log={lineupLog(role, q.get('race'))} moduleName={`${role} lineup`} rewards={null} onClose={() => {}} />
+      </div>
+    )
+  }
+  return <Preview q={q} />
+}
+
+function Preview({ q }: { q: URLSearchParams }) {
   const id = q.get('battle') ?? 'list'
   const enc = ENCOUNTERS.find((e) => e.id === id)
   const [run, setRun] = useState(0)

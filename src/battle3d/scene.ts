@@ -37,6 +37,8 @@ interface UnitView {
   flashColor: THREE.Color
   bob: number
   hopUntil: number
+  /** The name plate's size, measured once. */
+  labelSize?: { w: number; h: number }
 }
 
 interface Pose {
@@ -312,14 +314,20 @@ export class BattleScene {
     v.bar.style.background = v.side === 'party' ? (k > 0.35 ? '#34d399' : '#fbbf24') : k > 0.35 ? '#f87171' : '#fb923c'
     v.hpText.textContent = `${formatCompact(Math.max(0, v.hp))}/${formatCompact(v.maxHp)}`
     v.label.classList.toggle('dead', !v.alive)
+    v.hpText.style.display = v.alive ? '' : 'none'
+    v.labelSize = undefined
   }
 
   // ---------- camera ----------
 
   private placeCamera() {
     const span = Math.max(this.width, this.height * 1.15)
-    const dist = span * 0.86 + 2.6
-    this.camTarget.set(0, 0.2, 0.6)
+    // Tall figures (giants, the Kraken, the World-Eater) need more room above the board.
+    let tallest = 1
+    for (const v of this.units.values()) tallest = Math.max(tallest, v.fig.height + (v.fig.hover ? 0.3 : 0))
+    const extra = Math.max(0, tallest - 1.6)
+    const dist = (span * 0.86 + 2.6 + extra * 0.9) * (this.setting.camera?.dist ?? 1)
+    this.camTarget.set(0, 0.2 + extra * 0.3 + (this.setting.camera?.lift ?? 0), 0.6)
     this.camBase.set(0, dist * 0.66, dist * 0.9)
     this.intro = 1
   }
@@ -457,7 +465,9 @@ export class BattleScene {
             t.flash = 1
             t.flashColor.setHex(0xffffff)
             t.pose = { kind: 'hit', start: this.time, dur: 0.35, dir: dir.clone(), reach: 0.12 }
-            this.burst(t.pos.clone().setY(t.fig.height * 0.55), style === 'melee' || style === 'slam' ? 0xffffff : a.fig.boltColor, 10)
+            this.burst(t.pos.clone().setY(t.fig.height * 0.55), style === 'melee' || style === 'slam' ? 0xffffff : a.fig.boltColor, a.fig.big ? 22 : 10, a.fig.big ? 2.4 : 1.6)
+            // Giants, dragons and the like land their blows with weight.
+            if (a.fig.big) this.shake = Math.max(this.shake, 0.4)
             this.floatText(t, `-${formatCompact(e.damage)}`, 'dmg')
             if (style === 'slam') {
               this.shockwave(t.pos, a.fig.boltColor === 0xffffff ? 0xd8c8a0 : a.fig.boltColor)
@@ -933,7 +943,13 @@ export class BattleScene {
     pos.needsUpdate = true
   }
 
+  /**
+   * Name plates follow their figures, but never sit on top of each other: living units nearest
+   * the camera keep their spot, and any plate that would overlap one already placed is nudged
+   * up above it (the fallen give way to the living).
+   */
   private updateLabels() {
+    const items: { v: UnitView; x: number; y: number; w: number; h: number }[] = []
     for (const v of this.units.values()) {
       const p = this.project(v.fig.root.position.clone().setY(v.fig.root.position.y + (v.alive ? v.fig.height + (v.fig.hover ? 0.3 : 0.12) : 0.5)))
       if (!p) {
@@ -941,7 +957,20 @@ export class BattleScene {
         continue
       }
       v.label.style.display = ''
-      v.label.style.transform = `translate(${p.x}px, ${p.y}px) translate(-50%, -100%)`
+      if (!v.labelSize) v.labelSize = { w: v.label.offsetWidth || 50, h: v.label.offsetHeight || 28 }
+      items.push({ v, x: p.x, y: p.y, w: v.labelSize.w + 4, h: v.labelSize.h + 1 })
+    }
+    items.sort((a, b) => Number(b.v.alive) - Number(a.v.alive) || b.y - a.y)
+    const placed: { x: number; y: number; w: number; h: number }[] = []
+    for (const it of items) {
+      // The plate's box: centred on x, bottom edge at y.
+      for (let guard = 0; guard < 12; guard++) {
+        const hit = placed.find((o) => Math.abs(o.x - it.x) < (o.w + it.w) / 2 && it.y > o.y - o.h && it.y - it.h < o.y)
+        if (!hit) break
+        it.y = hit.y - hit.h
+      }
+      placed.push(it)
+      it.v.label.style.transform = `translate(${it.x}px, ${it.y}px) translate(-50%, -100%)`
     }
   }
 

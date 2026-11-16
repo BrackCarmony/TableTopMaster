@@ -4,7 +4,7 @@ import { CLASS_TIERS } from '../game/data/classes'
 import * as ENCOUNTER_EXPORTS from '../game/data/encounters'
 import type { EncounterTemplate } from '../game/combat/types'
 import { RACES } from '../game/data/names'
-import { buildFigure, hasCustomLook } from './figures'
+import { buildFigure, hasClassStyle, hasCustomLook } from './figures'
 import { SETTINGS, settingFor } from './settings'
 
 const ENCOUNTERS = Object.values(ENCOUNTER_EXPORTS).filter(
@@ -43,6 +43,11 @@ describe('3D battle figures', () => {
             expect(f.height).toBeGreaterThan(0.3)
             expect(f.legs.length).toBeGreaterThan(0)
           }
+  })
+
+  it('gives every class name its own style', () => {
+    for (const role of Object.keys(CLASS_TIERS) as Role[])
+      for (const t of CLASS_TIERS[role]) for (const n of t.names) expect(hasClassStyle(n), n).toBe(true)
   })
 
   it('gives every enemy in every encounter its own hand-made look', () => {

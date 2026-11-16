@@ -194,7 +194,85 @@ function partyLook(u: CombatUnit): { look: HumanoidLook; attack: AttackStyle; bo
     look.trim = trim
     look.cape = tier >= 6 ? (trim ?? 0xf2efe6) : null
   }
+  // Each class name's own touches, so the two (or three) names at a tier never look alike.
+  const style = CLASS_STYLE[cls]
+  if (style) {
+    const { attack: a, bolt: b, ...rest } = style
+    Object.assign(look, rest)
+    if (a) attack = a
+    if (b) bolt = b
+  }
   return { look, attack, bolt }
+}
+
+type ClassStyle = Partial<HumanoidLook> & { attack?: AttackStyle; bolt?: number }
+
+/**
+ * Per-class touches on top of the role-and-tier defaults above (armour metal and glowing trim
+ * still come from the tier). Every class name in data/classes.ts is listed.
+ */
+const CLASS_STYLE: Record<string, ClassStyle> = {
+  // Tanks.
+  Squire: { helmet: 'cap', left: 'shield', right: 'sword' },
+  Fighter: { helmet: 'cap', left: 'shield', right: 'axe', cape: null },
+  Knight: { helmet: 'full', left: 'kite', right: 'sword', cape: 0x2f5d8a },
+  Paladin: { helmet: 'full', left: 'kite', right: 'mace', cape: 0xf2efe6, halo: null },
+  Crusader: { helmet: 'full', left: 'kite', right: 'sword', cape: 0x9e2b38 },
+  Templar: { helmet: 'full', left: 'tower', right: 'mace', cape: 0xf2efe6, helmetColor: 0xe8e2d4 },
+  Warlord: { helmet: 'horned', left: 'tower', right: 'axe', cape: 0x7a1e1e },
+  Titan: { helmet: 'horned', left: 'tower', right: 'hammer', width: 1.3 },
+  'Immortal Guardian': { helmet: 'crown', left: 'kite', right: 'mace', cape: 0xe0b33e },
+  Colossus: { helmet: 'full', left: 'tower', right: 'hammer', width: 1.4 },
+  'Bulwark of the Ages': { helmet: 'full', left: 'tower', right: 'sword', cape: 0x40485a },
+  'Adamant Sentinel': { helmet: 'full', left: 'tower', right: 'spear' },
+  "Mountain's Wrath": { helmet: 'horned', left: 'shield', right: 'hammer', width: 1.35 },
+  'World-Breaker': { helmet: 'horned', left: 'tower', right: 'hammer', cape: 0x5a1e1e },
+  'Eternal Rampart': { helmet: 'crown', left: 'tower', right: 'sword', cape: 0xf2efe6 },
+  'God-Forged Aegis': { helmet: 'crown', left: 'kite', right: 'sword', halo: 0xfff2a8 },
+  'Unbreakable One': { helmet: 'full', left: 'tower', right: 'mace', width: 1.3 },
+  'Avatar of Stone': { helmet: 'full', left: 'tower', right: 'hammer', skin: 0x8a8580, width: 1.4 },
+  'The Last Wall': { helmet: 'crown', left: 'tower', right: 'sword', cape: 0xe7a8ff },
+  // Damage.
+  Brigand: { right: 'axe', left: null, helmet: null },
+  Rogue: { right: 'dagger', left: 'dagger', helmet: 'hood', helmetColor: 0x2f2f38 },
+  Ranger: { left: 'bow', helmet: 'hood', helmetColor: 0x3f5a2e, cape: 0x3f5a2e },
+  Assassin: { right: 'dagger', left: 'dagger', helmet: 'hood', helmetColor: 0x14141a, shirt: 0x1c1c22, cape: 0x14141a },
+  Sharpshooter: { left: 'crossbow', helmet: 'cap', helmetColor: 0x5a4a3a, shirt: 0x6a5a3a },
+  Battlemage: { robe: 0x3a3f8a, right: 'orbstaff', left: 'sword', helmet: 'circlet' },
+  Blademaster: { right: 'sword', left: 'sword', helmet: null, cape: 0x8a2e4f },
+  Deadeye: { left: 'crossbow', helmet: 'hood', helmetColor: 0x40485a },
+  'Shadow Reaper': { right: 'scythe', helmet: 'hood', helmetColor: 0x1c1a24, eyes: 0xb8a8ff, eyeGlow: 1 },
+  'Archfiend Hunter': { left: 'crossbow', helmet: 'horned', cape: 0x5a1e1e },
+  'Void Stalker': { right: 'dagger', left: 'dagger', helmet: 'hood', helmetColor: 0x2a1e48, eyes: 0xc8a8ff, eyeGlow: 1.2 },
+  "Death's Herald": { right: 'scythe', helmet: 'hood', helmetColor: 0x0e0e12, robe: 0x1c1a24 },
+  'Soul Render': { right: 'scythe', helmet: 'horned', eyes: 0x8af06a, eyeGlow: 1.2 },
+  'Storm of Blades': { right: 'sword', left: 'sword', helmet: 'circlet', cape: 0x2e6f6a },
+  'World Ender': { right: 'greatsword', helmet: 'horned', cape: 0x3a1010 },
+  "Oblivion's Edge": { right: 'greatsword', helmet: 'hood', helmetColor: 0x14141a, eyes: 0xff5a5a, eyeGlow: 1.2 },
+  'Apex Predator': { left: 'bow', helmet: 'antlers', helmetColor: 0xe8e0c8, cape: 0x6a4a2e },
+  'Doom Incarnate': { right: 'greatsword', helmet: 'horned', eyes: 0xff7a2e, eyeGlow: 1.4 },
+  'The Final Cut': { right: 'greatsword', helmet: 'circlet', cape: 0xf2efe6 },
+  Annihilator: { right: 'hammer', helmet: 'full', width: 1.25 },
+  // Healers.
+  Acolyte: { right: 'book', helmet: null },
+  Cleric: { right: 'holystaff', helmet: 'hood', helmetColor: 0xd8c48a },
+  Druid: { right: 'leafstaff', helmet: 'hood', helmetColor: 0x4a6a32 },
+  'High Priest': { right: 'holystaff', left: 'book', helmet: 'circlet' },
+  Archdruid: { right: 'leafstaff', helmet: 'antlers' },
+  Bishop: { right: 'holystaff', helmet: 'mitre', helmetColor: 0xf2efe6 },
+  'Grand Shaman': { right: 'leafstaff', helmet: 'horned', robe: 0x6a4a2e, helmetColor: 0x8a6a4a },
+  'Living Saint': { right: 'holystaff', helmet: 'circlet', halo: 0xfff2a8 },
+  "Nature's Avatar": { right: 'leafstaff', helmet: 'antlers', helmetColor: 0x5fbf4a, halo: 0x9af07a },
+  'Divine Conduit': { right: 'orbstaff', magic: 0xfff2a8, helmet: 'circlet', halo: 0xfff2a8 },
+  'Worldtree Warden': { right: 'leafstaff', helmet: 'antlers', robe: 0x3f5a2e, cape: 0x5fbf4a },
+  Seraph: { right: 'holystaff', helmet: 'circlet', wings: 'feather', wingColor: 0xfdfbf2, halo: 0xfff2a8 },
+  'Life-Weaver': { right: 'leafstaff', helmet: 'circlet', helmetColor: 0x8af06a, wings: 'feather', wingColor: 0xc8f0b0 },
+  'Archon of Mercy': { right: 'holystaff', helmet: 'crown', wings: 'feather', wingColor: 0xfdfbf2 },
+  'Eternal Spring': { right: 'leafstaff', helmet: 'antlers', helmetColor: 0xf2a8c6, robe: 0x5a8a3a },
+  'Voice of Creation': { right: 'orbstaff', magic: 0xffffff, helmet: 'circlet', wings: 'feather', wingColor: 0xe8e0ff },
+  'Astral Matriarch': { right: 'orbstaff', magic: 0xc8b8ff, robe: 0x2e2a5a, helmet: 'crown', helmetColor: 0xc8b8ff, bolt: 0xc8b8ff },
+  'Hand of the Divine': { right: 'holystaff', helmet: 'crown', wings: 'feather', wingColor: 0xfff6d8, halo: 0xfff2a8 },
+  'The Last Light': { right: 'orbstaff', magic: 0xfff6c8, helmet: 'circlet', wings: 'feather', wingColor: 0xffffff, halo: 0xffffff },
 }
 
 // ---------- enemies ----------
@@ -392,6 +470,10 @@ function fallbackEnemy(name: string): EnemyBuild {
     default:
       return { kind: 'humanoid', look: { skin: 0xd9a47c, shirt: c, pants: shade(c, -0.4), boots: 0x2a2018, right: 'sword' } }
   }
+}
+
+export function hasClassStyle(name: string): boolean {
+  return name in CLASS_STYLE
 }
 
 export function hasCustomLook(name: string): boolean {

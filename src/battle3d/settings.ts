@@ -23,6 +23,8 @@ export interface Setting {
   hemi: { sky: number; ground: number; intensity: number }
   particles: Particles
   particleColor: number
+  /** Pull the camera further back (dist, a multiplier) or aim it higher (lift) for this setting. */
+  camera?: { dist?: number; lift?: number }
   /** Scatter props around the board; returns anything that animates (flames, lava, water). */
   props: (scene: THREE.Group, w: number, h: number, mats: MaterialBag, rnd: () => number) => Animated[]
 }
@@ -563,6 +565,7 @@ export const SETTINGS: Record<string, Setting> = {
     hemi: { sky: 0xb8d0e8, ground: 0x1e3a4a, intensity: 1.0 },
     particles: 'none',
     particleColor: 0xffffff,
+    camera: { dist: 1.0, lift: 0.3 },
     props(g, w, h, mats) {
       // The sea, rolling under the ship.
       const water = new THREE.Mesh(new THREE.PlaneGeometry(80, 80, 40, 40).rotateX(-Math.PI / 2), mats.get(0x1e5a7a))
@@ -572,14 +575,62 @@ export const SETTINGS: Record<string, Setting> = {
       g.add(water)
       const pos = water.geometry.attributes.position
       const base0 = Float32Array.from(pos.array as Float32Array)
-      // Rails along the long sides of the deck, and a mast behind.
+      // The hull under the deck, sitting in the water, with a pointed bow toward the enemy end.
       const wood = mats.get(0x5a3a22)
+      const hullMat = mats.get(0x4a2e1a)
+      g.add(mesh(box(w + 0.5, 0.9, h + 0.5), hullMat, 0, -0.75, 0))
+      // A diamond turned and stretched into a pointed prow past the deck's far end.
+      const side = (h + 0.5) / Math.SQRT2
+      const bow = mesh(box(side, 0.9, side), hullMat, w / 2 + 0.25, -0.75, 0)
+      bow.rotation.y = Math.PI / 4
+      const prow = new THREE.Group()
+      prow.add(bow)
+      prow.scale.x = 1.5
+      prow.position.x = (w / 2 + 0.25) * -0.5
+      g.add(prow)
+      // The Kraken's other arms, rising out of the sea around the ship.
+      const arms: { root: THREE.Group; segs: THREE.Group[]; phase: number }[] = []
+      const flesh = mats.get(0x1c7a8a)
+      const sucker = mats.get(0x8ad8d0)
+      const spots: [number, number, number][] = [
+        [w / 2 + 2.6, -h / 2 - 1.2, 1.2],
+        [w / 2 + 3.2, h / 2 + 0.6, 1.0],
+        [-w / 2 - 1.8, -h / 2 - 1.6, 0.9],
+        [1, -h / 2 - 2.6, 1.3],
+        [w / 2 + 1.0, -h / 2 - 2.8, 1.1],
+      ]
+      spots.forEach(([x, z, size], i) => {
+        const root = new THREE.Group()
+        root.position.set(x, -0.6, z)
+        root.rotation.y = Math.atan2(-x, -z) // curl toward the ship
+        const segs: THREE.Group[] = []
+        let parent: THREE.Object3D = root
+        for (let k = 0; k < 7; k++) {
+          const seg = new THREE.Group()
+          seg.position.y = k === 0 ? 0 : 0.55 * size
+          const r = (0.32 - k * 0.04) * size
+          seg.add(mesh(cyl(r * 0.85, r, 0.6 * size, 7), flesh, 0, 0.27 * size, 0))
+          seg.add(mesh(ball(r * 0.3, 0), sucker, 0, 0.27 * size, r * 0.85))
+          parent.add(seg)
+          segs.push(seg)
+          parent = seg
+        }
+        g.add(root)
+        arms.push({ root, segs, phase: i * 1.7 })
+      })
+      // Rails along the long sides of the deck, and a mast behind.
       for (const s of [-1, 1]) g.add(mesh(box(w + 0.6, 0.25, 0.15), wood, 0, 0.12, s * (h / 2 + 0.25)))
       g.add(mesh(cyl(0.15, 0.2, 7, 7), wood, -w / 2 + 1, 3.5, -h / 2 - 0.6))
       g.add(mesh(box(0.05, 3, 2.6), mats.get(0xe8e0c8), -w / 2 + 1.1, 4.2, -h / 2 - 0.6))
       return [
         {
           update(t) {
+            for (const a of arms)
+              a.segs.forEach((seg, k) => {
+                // Each arm rises, curls over toward the deck and sways.
+                seg.rotation.x = 0.22 + Math.sin(t * 0.9 + a.phase - k * 0.5) * 0.12
+                seg.rotation.z = Math.sin(t * 0.6 + a.phase + k * 0.3) * 0.08
+              })
             for (let i = 0; i < pos.count; i++) {
               const x = base0[i * 3]
               const z = base0[i * 3 + 2]
