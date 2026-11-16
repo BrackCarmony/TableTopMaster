@@ -7,11 +7,13 @@ import * as ENCOUNTER_EXPORTS from '../game/data/encounters'
 import { MODULES } from '../game/data/modules'
 import { RACES } from '../game/data/names'
 import { createRng } from '../game/rng'
+import { SIGNATURE_BOSSES } from './timing'
 
 // Dev-only battle preview for working on the 3D view: any encounter, any party tier, without
 // playing up to it.  http://localhost:5173/?battle=dragons-peak-2&tier=4&size=5&seed=3
 //   battle  an encounter id (see ?battle=list), tier 1-10, size 1-8 party members,
 //   power   multiplies the party's stats (default 4, enough to see a fight through), seed.
+//   &showcase  just the boss's signature attack, three times (the third misses).
 //   ?battle=lineup&role=tank|dps|healer[&race=Elf] stands every class of a role in rows.
 
 const ENCOUNTERS = Object.values(ENCOUNTER_EXPORTS).filter(
@@ -92,10 +94,12 @@ function Preview({ q }: { q: URLSearchParams }) {
   const size = Number(q.get('size') ?? 5)
   const power = Number(q.get('power') ?? 4)
   const seed = Number(q.get('seed') ?? 1) + run
-  const result = useMemo(
-    () => (enc ? runEncounter(partyFor(tier, size, power, seed), enc, createRng(seed)) : null),
-    [enc, tier, size, power, seed],
-  )
+  const showcase = q.has('showcase')
+  const result = useMemo(() => {
+    if (!enc) return null
+    const r = runEncounter(partyFor(tier, size, power, seed), enc, createRng(seed))
+    return showcase ? { ...r, log: showcaseLog(r.log) } : r
+  }, [enc, tier, size, power, seed, showcase])
   const moduleName = MODULES.find((m) => m.encounters.some((e) => e.id === id))?.name ?? null
 
   if (!enc || !result)
@@ -125,6 +129,21 @@ function Preview({ q }: { q: URLSearchParams }) {
       />
     </div>
   )
+}
+
+/** Just the opening and the boss (the first enemy listed with a signature, else the first enemy) attacking three party members in turn: &showcase */
+function showcaseLog(log: CombatLogEvent[]): CombatLogEvent[] {
+  const start = log[0]
+  if (start?.type !== 'encounter_start') return log
+  const enemies = start.units.filter((u) => u.side === 'enemy')
+  const boss = enemies.find((u) => SIGNATURE_BOSSES.includes(u.name)) ?? enemies[0]
+  const party = start.units.filter((u) => u.side === 'party')
+  const events: CombatLogEvent[] = [start]
+  for (let i = 0; i < 3; i++) {
+    const t = party[i % party.length]
+    events.push({ type: 'attack', attackerId: boss.id, targetId: t.id, hit: i !== 2, damage: 10, targetHpAfter: t.hp - 10 * (i + 1) })
+  }
+  return events
 }
 
 /** A party tier that roughly matches the module (modules are listed in tier order). */

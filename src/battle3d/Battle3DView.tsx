@@ -24,6 +24,7 @@ export default function Battle3DView({
     if (!box.current) return
     const s = new BattleScene(box.current, log, moduleId)
     scene.current = s
+    if (import.meta.env.DEV) (window as unknown as { b3d: BattleScene }).b3d = s
     return () => {
       s.dispose()
       scene.current = null

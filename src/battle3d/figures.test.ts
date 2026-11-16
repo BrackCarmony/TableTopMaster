@@ -6,6 +6,8 @@ import type { EncounterTemplate } from '../game/combat/types'
 import { RACES } from '../game/data/names'
 import { buildFigure, hasClassStyle, hasCustomLook } from './figures'
 import { SETTINGS, settingFor } from './settings'
+import { SIGNATURES } from './signatures'
+import { SIGNATURE_BOSSES } from './timing'
 
 const ENCOUNTERS = Object.values(ENCOUNTER_EXPORTS).filter(
   (v): v is EncounterTemplate => typeof v === 'object' && v !== null && 'enemies' in v && 'id' in v,
@@ -74,5 +76,11 @@ describe('3D battle figures', () => {
       expect(s.id, enc.id).toBe(expected)
       expect(SETTINGS[s.id]).toBeDefined()
     }
+  })
+
+  it('gives each boss a signature attack, and gives it time to play', () => {
+    expect(Object.keys(SIGNATURES).sort()).toEqual([...SIGNATURE_BOSSES].sort())
+    const names = new Set(ENCOUNTERS.flatMap((e) => e.enemies.map((x) => x.name)))
+    for (const boss of SIGNATURE_BOSSES) expect(names.has(boss), boss).toBe(true)
   })
 })

@@ -84,7 +84,9 @@ export function BattleModal({
   // grid keeps its steady beat.
   useEffect(() => {
     if (!playing || step >= lastStep) return
-    const ms = view === '3d' ? eventDuration3D(log[step]) : STEP_MS_2D
+    const start = log[0]
+    const units = start?.type === 'encounter_start' ? start.units : undefined
+    const ms = view === '3d' ? eventDuration3D(log[step], units) : STEP_MS_2D
     const timer = setTimeout(() => setStep((s) => Math.min(lastStep, s + 1)), ms / speed)
     return () => clearTimeout(timer)
   }, [playing, speed, step, lastStep, view, log])

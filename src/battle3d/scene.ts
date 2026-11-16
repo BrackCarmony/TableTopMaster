@@ -5,6 +5,7 @@ import { formatCompact } from '../format'
 import { buildFigure, type Figure } from './figures'
 import { MaterialBag, seeded } from './kit'
 import { settingFor, type Animated, type Setting } from './settings'
+import { SIGNATURES, type FxHost } from './signatures'
 import { PER_TILE, eventDuration3D } from './timing'
 
 // Plays a battle's combat log as a little 3D diorama: the grid as a tabletop board in the
@@ -14,6 +15,10 @@ import { PER_TILE, eventDuration3D } from './timing'
 
 interface UnitView {
   id: string
+  name: string
+  /** Added to its position (leaps, being pulled); see signatures.ts. */
+  offset: THREE.Vector3
+  baseScale: number
   side: 'party' | 'enemy'
   fig: Figure
   cell: GridCoord
@@ -96,7 +101,27 @@ export class BattleScene {
   private shake = 0
   private fxMats = new MaterialBag()
   private resizeObs: ResizeObserver
+  /** What boss signature attacks (signatures.ts) draw with. */
+  private fx: FxHost = {
+    scene: this.scene,
+    mats: this.fxMats,
+    tween: (dur, update, done, delay = 0) => this.tween(dur, update, done, delay),
+    at: (delay, fn) => this.at(delay, fn),
+    particle: (at, vel, color, life, size, grow = 0, gravity = 0) => this.addParticle(at, vel, color, life, size, grow, gravity),
+    burst: (at, color, n, speed) => this.burst(at, color, n, speed),
+    shockwave: (at, color) => this.shockwave(at, color),
+    pillar: (at, color, dur) => this.pillar(at, color, dur),
+    shake: (amount) => (this.shake = Math.max(this.shake, amount)),
+    muzzle: (u) => this.muzzleWorld(u as UnitView),
+    pose: (u, kind, dur, reach = 0, dir) => {
+      const v = u as UnitView
+      const d = dir ?? this.nearestFoe(v)?.pos.clone().sub(v.pos).setY(0).normalize() ?? new THREE.Vector3(1, 0, 0)
+      v.pose = { kind, start: this.time, dur, dir: d.clone(), reach }
+    },
+  }
   private disposed = false
+  /** Slow motion for looking at effects (dev: window.b3d.timeScale = 0.1). */
+  timeScale = 1
 
   constructor(
     private container: HTMLElement,
@@ -284,6 +309,9 @@ export class BattleScene {
     this.overlay.appendChild(label)
     const view: UnitView = {
       id: u.id,
+      name: u.name,
+      offset: new THREE.Vector3(),
+      baseScale: fig.root.scale.x,
       side: u.side,
       fig,
       cell: { ...u.position },
@@ -374,7 +402,20 @@ export class BattleScene {
 
   private snap(step: number) {
     this.step = step
+    // Finish anything still playing (so effects clean themselves up), then set the board.
+    for (let round = 0; round < 10 && this.tweens.length; round++) {
+      const list = this.tweens
+      this.tweens = []
+      for (const tw of list) {
+        tw.update(1)
+        tw.done?.()
+      }
+    }
     this.tweens = []
+    for (const v of this.units.values()) {
+      v.offset.set(0, 0, 0)
+      v.fig.root.scale.setScalar(v.baseScale)
+    }
     this.clearBanner()
     const state = computeBoardStateAtStep(this.log, step)
     for (const u of state) {
@@ -396,7 +437,8 @@ export class BattleScene {
   }
 
   private dur(e: CombatLogEvent) {
-    return eventDuration3D(e) / this.speed / 1000
+    const start = this.log[0]
+    return eventDuration3D(e, start?.type === 'encounter_start' ? start.units : undefined) / this.speed / 1000
   }
 
   private tween(dur: number, update: (k: number) => void, done?: () => void, delay = 0) {
@@ -452,12 +494,20 @@ export class BattleScene {
         const dir = t.pos.clone().sub(a.pos).setY(0)
         const dist = dir.length()
         dir.normalize()
-        const reach = style === 'melee' || style === 'slam' ? Math.max(0, Math.min(dist - (a.fig.big ? 0.9 : 0.55), 0.45)) : 0
-        const kind = style === 'melee' ? 'swing' : style === 'arrow' ? 'shoot' : style === 'bolt' ? 'cast' : style === 'breath' ? 'breath' : 'slam'
-        a.pose = { kind, start: this.time, dur: D * 0.8, dir, reach }
-        const impactAt = D * (style === 'melee' ? 0.42 : style === 'slam' ? 0.5 : 0.6)
-        if (style === 'arrow' || style === 'bolt') this.at(D * 0.33, () => this.projectile(a, t, style, D * 0.27))
-        if (style === 'breath') this.at(D * 0.28, () => this.breath(a, t, D * 0.35))
+        // Bosses have their own signature attack; everyone else attacks by style.
+        const sig = SIGNATURES[a.name]
+        let impactAt: number
+        if (sig) {
+          sig.run(this.fx, a, t, D)
+          impactAt = D * sig.impact
+        } else {
+          const reach = style === 'melee' || style === 'slam' ? Math.max(0, Math.min(dist - (a.fig.big ? 0.9 : 0.55), 0.45)) : 0
+          const kind = style === 'melee' ? 'swing' : style === 'arrow' ? 'shoot' : style === 'bolt' ? 'cast' : style === 'breath' ? 'breath' : 'slam'
+          a.pose = { kind, start: this.time, dur: D * 0.8, dir, reach }
+          impactAt = D * (style === 'melee' ? 0.42 : style === 'slam' ? 0.5 : 0.6)
+          if (style === 'arrow' || style === 'bolt') this.at(D * 0.33, () => this.projectile(a, t, style, D * 0.27))
+          if (style === 'breath') this.at(D * 0.28, () => this.breath(a, t, D * 0.35))
+        }
         this.at(impactAt, () => {
           if (e.hit) {
             t.hp = e.targetHpAfter
@@ -465,11 +515,13 @@ export class BattleScene {
             t.flash = 1
             t.flashColor.setHex(0xffffff)
             t.pose = { kind: 'hit', start: this.time, dur: 0.35, dir: dir.clone(), reach: 0.12 }
-            this.burst(t.pos.clone().setY(t.fig.height * 0.55), style === 'melee' || style === 'slam' ? 0xffffff : a.fig.boltColor, a.fig.big ? 22 : 10, a.fig.big ? 2.4 : 1.6)
-            // Giants, dragons and the like land their blows with weight.
-            if (a.fig.big) this.shake = Math.max(this.shake, 0.4)
+            const color = sig ? sig.color : style === 'melee' || style === 'slam' ? 0xffffff : a.fig.boltColor
+            this.burst(t.pos.clone().setY(t.fig.height * 0.55), color, a.fig.big || sig ? 22 : 10, a.fig.big || sig ? 2.4 : 1.6)
+            // Bosses, giants, dragons and the like land their blows with weight.
+            if (sig) this.shake = Math.max(this.shake, sig.shake)
+            else if (a.fig.big) this.shake = Math.max(this.shake, 0.4)
             this.floatText(t, `-${formatCompact(e.damage)}`, 'dmg')
-            if (style === 'slam') {
+            if (style === 'slam' && !sig) {
               this.shockwave(t.pos, a.fig.boltColor === 0xffffff ? 0xd8c8a0 : a.fig.boltColor)
               this.shake = 0.6
             }
@@ -740,7 +792,7 @@ export class BattleScene {
   private loop = () => {
     if (this.disposed) return
     this.raf = requestAnimationFrame(this.loop)
-    const dt = Math.min(this.clock.getDelta(), 0.05)
+    const dt = Math.min(this.clock.getDelta(), 0.05) * this.timeScale
     this.time += dt
     // Tweens, in the order they were queued (anything a done() queues runs next frame).
     const list = this.tweens
@@ -772,7 +824,7 @@ export class BattleScene {
     let dy = v.yaw - f.root.rotation.y
     dy = Math.atan2(Math.sin(dy), Math.cos(dy))
     f.root.rotation.y += dy * Math.min(1, dt * 9)
-    f.root.position.copy(v.pos)
+    f.root.position.copy(v.pos).add(v.offset)
     // Idle breathing / hovering.
     const hoverY = f.hover ? 0.25 + Math.sin(v.bob * 2) * 0.06 : 0
     f.body.position.set(0, hoverY + (v.walking ? Math.abs(Math.sin(v.bob * 11)) * 0.05 : Math.sin(v.bob * 2.2) * 0.008), 0)

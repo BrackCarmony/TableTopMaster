@@ -6,14 +6,37 @@ import type { CombatLogEvent } from '../game/combat/types'
 
 const PER_TILE = 420
 
-export function eventDuration3D(event: CombatLogEvent): number {
+/** Bosses with their own signature attack (see signatures.ts) get longer to play it. */
+export const SIGNATURE_BOSSES = [
+  'Goblin Boss',
+  'Bandit Captain',
+  'Lich',
+  'Elder Wyrm',
+  'Demon Prince',
+  'Frost Giant',
+  'Iron Golem',
+  'Void Horror',
+  'Fire Titan',
+  'The Undying King',
+  'The Fallen Archon',
+  'The World-Eater',
+  'Whatever Sits the Throne',
+  'Tarrasque',
+  'The Kraken',
+]
+export const BOSS_ATTACK_MS = 2200
+
+/** `units` (the battle's starting units) lets a boss's signature attack take its longer time. */
+export function eventDuration3D(event: CombatLogEvent, units?: { id: string; name: string }[]): number {
   switch (event.type) {
     case 'encounter_start':
       return 2200
     case 'move':
       return 400 + Math.max(1, event.path.length) * PER_TILE
-    case 'attack':
-      return 1300
+    case 'attack': {
+      const attacker = units?.find((u) => u.id === event.attackerId)
+      return attacker && SIGNATURE_BOSSES.includes(attacker.name) ? BOSS_ATTACK_MS : 1300
+    }
     case 'heal':
       return 1300
     case 'revive':
