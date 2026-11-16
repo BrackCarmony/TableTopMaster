@@ -48,6 +48,14 @@ export interface Figure {
   knees: THREE.Group[]
   /** How the arms rest when doing nothing: shoulder pitch and elbow bend, [left, right]. */
   stance: { shoulder: [number, number]; elbow: [number, number] }
+  /** Beasts: which way each knee bends (+1 front, -1 hind), neck segments, lower jaw, tail
+   * segments, outer wing joints and tentacle segments (see beasts.ts). Empty for people. */
+  kneeSign: number[]
+  neck: THREE.Group[]
+  jaw: THREE.Group | null
+  tailSegs: THREE.Group[]
+  wingTips: THREE.Group[]
+  tentacleSegs: THREE.Group[][]
   /** What each hand holds, [left, right]: picks how it attacks and aims. */
   hands: [Weapon | null, Weapon | null]
   wings: THREE.Group[]
@@ -748,6 +756,12 @@ function fromHumanoid(look: HumanoidLook, attack: AttackStyle, bolt: number, hov
     knees: p.knees,
     stance: { shoulder: [sl, sr], elbow: [el, er] },
     hands: [look.left ?? null, look.right ?? null],
+    kneeSign: [],
+    neck: [],
+    jaw: null,
+    tailSegs: [],
+    wingTips: [],
+    tentacleSegs: [],
     wings: [p.wingL, p.wingR].filter((w): w is THREE.Group => !!w),
     tentacles: [],
     tail: p.tail ?? null,
@@ -775,9 +789,15 @@ function fromBeast(build: (m: MaterialBag) => Beast, attack: AttackStyle, bolt: 
     legs: p.legs,
     arms: [],
     elbows: [],
-    knees: [],
+    knees: p.knees ?? [],
     stance: { shoulder: [0, 0], elbow: [0, 0] },
     hands: [null, null],
+    kneeSign: p.kneeSign ?? [],
+    neck: p.neck ?? [],
+    jaw: p.jaw ?? null,
+    tailSegs: p.tailSegs ?? [],
+    wingTips: p.wingTips ?? [],
+    tentacleSegs: p.tentacleSegs ?? [],
     wings: p.wings,
     tentacles: p.tentacles,
     tail: p.tail,

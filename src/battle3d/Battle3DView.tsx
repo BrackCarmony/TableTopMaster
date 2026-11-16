@@ -24,7 +24,12 @@ export default function Battle3DView({
     if (!box.current) return
     const s = new BattleScene(box.current, log, moduleId)
     scene.current = s
-    if (import.meta.env.DEV) (window as unknown as { b3d: BattleScene }).b3d = s
+    if (import.meta.env.DEV) {
+      ;(window as unknown as { b3d: BattleScene }).b3d = s
+      // The lineup pages (?battle=enemies, ?battle=lineup) turn everyone round slowly.
+      const preview = new URLSearchParams(location.search).get('battle')
+      s.turntable = preview === 'enemies' || preview === 'lineup'
+    }
     return () => {
       s.dispose()
       scene.current = null

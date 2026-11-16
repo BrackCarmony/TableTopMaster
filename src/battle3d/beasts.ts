@@ -14,6 +14,19 @@ export interface BeastParts {
   tentacles: THREE.Group[]
   tail: THREE.Group | null
   muzzle: THREE.Object3D
+  /** Shin pivots matching `legs`; `kneeSign` is the way each one bends (+1 front, -1 hind). */
+  knees?: THREE.Group[]
+  kneeSign?: number[]
+  /** Neck segments from the shoulders up, each with its resting tilt in userData.rest. */
+  neck?: THREE.Group[]
+  /** The lower jaw (opens to bite and breathe). */
+  jaw?: THREE.Group | null
+  /** Tail segments from the root out, for a rippling wave. */
+  tailSegs?: THREE.Group[]
+  /** Outer wing joints (fold and flap after the inner ones). */
+  wingTips?: THREE.Group[]
+  /** Each tentacle's segments, root first. */
+  tentacleSegs?: THREE.Group[][]
 }
 
 export interface Beast {
@@ -40,8 +53,10 @@ export function buildDragon(
   const under = mesh(ball(0.26, 1), belly, 0, 0.36, 0.02)
   under.scale.set(0.9, 0.6, 1.35)
   body.add(under)
-  // Legs.
+  // Legs: thigh from the hip, shin from the knee, a clawed foot.
   const legs: THREE.Group[] = []
+  const knees: THREE.Group[] = []
+  const kneeSign: number[] = []
   for (const [x, z] of [
     [-0.2, 0.28],
     [0.2, -0.28],
@@ -49,61 +64,110 @@ export function buildDragon(
     [-0.2, -0.28],
   ]) {
     const leg = pivot(x, 0.38, z)
-    leg.add(mesh(cyl(0.07, 0.06, 0.34, 6), hide, 0, -0.17, 0))
-    leg.add(mesh(box(0.13, 0.06, 0.16), hide, 0, -0.35, 0.04))
+    leg.add(mesh(cyl(0.065, 0.075, 0.2, 6), hide, 0, -0.09, 0))
+    const knee = pivot(0, -0.18, 0)
+    knee.add(mesh(cyl(0.05, 0.06, 0.18, 6), hide, 0, -0.08, 0))
+    knee.add(mesh(box(0.13, 0.05, 0.16), hide, 0, -0.17, 0.04))
+    for (const c of [-1, 0, 1]) {
+      const claw = mesh(cone(0.015, 0.06, 4), horn, c * 0.04, -0.18, 0.13)
+      claw.rotation.x = Math.PI / 2
+      knee.add(claw)
+    }
+    leg.add(knee)
     body.add(leg)
     legs.push(leg)
+    knees.push(knee)
+    kneeSign.push(z > 0 ? 1 : -1)
   }
-  // Neck and head.
-  const neck = mesh(cyl(0.08, 0.14, 0.42, 6), hide, 0, 0.62, 0.42)
-  neck.rotation.x = 0.7
-  body.add(neck)
-  const head = pivot(0, 0.82, 0.6)
-  head.add(mesh(box(0.2, 0.17, 0.26), hide, 0, 0, 0))
-  head.add(mesh(box(0.15, 0.1, 0.22), hide, 0, -0.03, 0.2))
+  // Neck: three segments rising forward from the shoulders, the head on the last.
+  const neck: THREE.Group[] = []
+  let parent: THREE.Object3D = body
+  const rest = [0.7, 0.05, 0.05]
+  for (let k = 0; k < 3; k++) {
+    const seg = pivot(0, k === 0 ? 0.46 : 0.14, k === 0 ? 0.28 : 0)
+    seg.rotation.x = rest[k]
+    seg.userData.rest = rest[k]
+    seg.add(mesh(cyl(0.085 - k * 0.012, 0.11 - k * 0.012, 0.17, 6), hide, 0, 0.07, 0))
+    if (opts.spikes !== false) seg.add(mesh(cone(0.035, 0.1, 4), horn, 0, 0.08, -0.08 + k * 0.01))
+    parent.add(seg)
+    neck.push(seg)
+    parent = seg
+  }
+  const head = pivot(0, 0.14, 0)
+  head.userData.rest = -(rest[0] + rest[1] + rest[2]) + 0.05
+  head.rotation.x = head.userData.rest
+  head.add(mesh(box(0.2, 0.17, 0.26), hide, 0, 0.02, 0.05))
+  head.add(mesh(box(0.15, 0.08, 0.22), hide, 0, 0.0, 0.25))
   const eye = mats.get(opts.fire ?? 0xffd23a, 1.2)
-  for (const s of [-1, 1]) {
-    head.add(mesh(ball(0.025, 0), eye, s * 0.09, 0.04, 0.1))
-    const h = mesh(cone(0.035, 0.22, 5), horn, s * 0.07, 0.12, -0.1)
+  for (const sd of [-1, 1]) {
+    head.add(mesh(ball(0.025, 0), eye, sd * 0.09, 0.06, 0.15))
+    const h = mesh(cone(0.035, 0.22, 5), horn, sd * 0.07, 0.14, -0.05)
     h.rotation.x = -1.0
     head.add(h)
   }
+  // The lower jaw, hinged at the back of the mouth, with a row of teeth.
+  const jaw = pivot(0, -0.06, 0.1)
+  jaw.add(mesh(box(0.13, 0.04, 0.24), belly, 0, -0.015, 0.13))
+  for (const tx of [-0.045, 0.045]) {
+    const tooth = mesh(cone(0.012, 0.04, 3), horn, tx, 0.02, 0.22)
+    jaw.add(tooth)
+  }
+  head.add(jaw)
   const muzzle = new THREE.Object3D()
-  muzzle.position.set(0, -0.02, 0.33)
+  muzzle.position.set(0, -0.03, 0.36)
   head.add(muzzle)
-  body.add(head)
+  parent.add(head)
   // Tail.
   const tail = pivot(0, 0.42, -0.4)
+  const tailSegs: THREE.Group[] = []
   let seg: THREE.Object3D = tail
-  for (let k = 0; k < 4; k++) {
-    const s = pivot(0, 0, -0.16)
-    s.add(mesh(cone(0.09 - k * 0.018, 0.2, 6).rotateX(-Math.PI / 2), hide, 0, 0, -0.08))
-    s.rotation.x = 0.12
+  for (let k = 0; k < 5; k++) {
+    const s = pivot(0, 0, k === 0 ? 0 : -0.16)
+    s.add(mesh(cone(0.09 - k * 0.015, 0.2, 6).rotateX(-Math.PI / 2), hide, 0, 0, -0.08))
+    if (opts.spikes !== false && k < 4) s.add(mesh(cone(0.03, 0.08, 4), horn, 0, 0.07 - k * 0.01, -0.08))
+    s.rotation.x = 0.1
     seg.add(s)
+    tailSegs.push(s)
     seg = s
   }
   body.add(tail)
   // Spikes down the back.
   if (opts.spikes !== false)
     for (let k = 0; k < 5; k++) body.add(mesh(cone(0.05, 0.14, 4), horn, 0, 0.66 - Math.abs(k - 2) * 0.03, 0.3 - k * 0.15))
-  // Wings.
+  // Wings: an inner arm from the shoulder and an outer one from the wrist, each with its sail.
   const wings: THREE.Group[] = []
+  const wingTips: THREE.Group[] = []
   if (opts.wings) {
     const membrane = mats.get(shade(opts.color, -0.25))
-    for (const s of [-1, 1]) {
-      const w = pivot(s * 0.15, 0.6, 0.05)
-      const bone = mesh(cyl(0.02, 0.025, 0.6, 4), hide, s * 0.3, 0.12, 0)
-      bone.rotation.z = -s * 1.2
+    membrane.side = THREE.DoubleSide
+    for (const sd of [-1, 1]) {
+      const w = pivot(sd * 0.15, 0.6, 0.05)
+      const bone = mesh(cyl(0.02, 0.025, 0.34, 4), hide, sd * 0.16, 0, 0)
+      bone.rotation.z = Math.PI / 2
       w.add(bone)
-      const sail = mesh(new THREE.ConeGeometry(0.35, 0.65, 3).rotateZ(-s * Math.PI / 2), membrane, s * 0.33, 0.02, -0.12)
-      sail.scale.set(1, 1, 0.12)
+      const sail = mesh(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(sd * 0.32, 0, 0), new THREE.Vector3(sd * 0.2, 0, -0.32)]), membrane)
+      sail.geometry.computeVertexNormals()
       w.add(sail)
+      const tip = pivot(sd * 0.32, 0, 0)
+      const bone2 = mesh(cyl(0.012, 0.02, 0.36, 4), hide, sd * 0.17, 0, 0)
+      bone2.rotation.z = Math.PI / 2
+      tip.add(bone2)
+      const sail2 = mesh(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(sd * 0.36, 0, 0.02), new THREE.Vector3(sd * 0.05, 0, -0.38)]), membrane)
+      sail2.geometry.computeVertexNormals()
+      tip.add(sail2)
+      tip.add(mesh(cone(0.015, 0.06, 4), horn, sd * 0.37, 0, 0).rotateZ(-sd * Math.PI / 2))
+      w.add(tip)
       body.add(w)
       wings.push(w)
+      wingTips.push(tip)
     }
   }
   g.scale.setScalar(opts.scale)
-  return { group: g, parts: { body, head, legs, wings, tentacles: [], tail, muzzle }, height: 0.95 * opts.scale }
+  return {
+    group: g,
+    parts: { body, head, legs, wings, tentacles: [], tail, muzzle, knees, kneeSign, neck, jaw, tailSegs, wingTips },
+    height: 0.95 * opts.scale,
+  }
 }
 
 /** A hound: four legs, a long snout, glowing eyes. */
@@ -112,41 +176,67 @@ export function buildHound(mats: MaterialBag, color: number, scale: number, eyes
   const body = new THREE.Group()
   g.add(body)
   const fur = mats.get(color)
+  const dark = mats.get(shade(color, -0.3))
   const torso = mesh(ball(0.2, 1), fur, 0, 0.36, 0)
   torso.scale.set(0.9, 0.85, 1.6)
   body.add(torso)
   const legs: THREE.Group[] = []
+  const knees: THREE.Group[] = []
+  const kneeSign: number[] = []
   for (const [x, z] of [
     [-0.1, 0.2],
     [0.1, -0.2],
     [0.1, 0.2],
     [-0.1, -0.2],
   ]) {
-    const leg = pivot(x, 0.3, z)
-    leg.add(mesh(box(0.06, 0.3, 0.06), fur, 0, -0.15, 0))
+    const leg = pivot(x, 0.32, z)
+    leg.add(mesh(box(0.07, 0.17, 0.08), fur, 0, -0.08, 0))
+    const knee = pivot(0, -0.16, 0)
+    knee.add(mesh(box(0.05, 0.15, 0.05), fur, 0, -0.07, 0))
+    knee.add(mesh(box(0.06, 0.03, 0.08), dark, 0, -0.15, 0.02))
+    leg.add(knee)
     body.add(leg)
     legs.push(leg)
+    knees.push(knee)
+    kneeSign.push(z > 0 ? 1 : -1)
   }
-  const head = pivot(0, 0.5, 0.3)
-  head.add(mesh(box(0.17, 0.15, 0.18), fur, 0, 0, 0))
-  head.add(mesh(box(0.1, 0.08, 0.16), fur, 0, -0.03, 0.15))
+  const neck = pivot(0, 0.42, 0.24)
+  neck.userData.rest = 0
+  body.add(neck)
+  const head = pivot(0, 0.08, 0.06)
+  head.userData.rest = 0
+  head.add(mesh(box(0.17, 0.14, 0.18), fur, 0, 0.01, 0))
+  head.add(mesh(box(0.1, 0.06, 0.16), fur, 0, 0.0, 0.15))
   const eye = mats.get(eyes, 1.3)
   for (const s of [-1, 1]) {
-    head.add(mesh(ball(0.02, 0), eye, s * 0.06, 0.03, 0.09))
-    const ear = mesh(cone(0.035, 0.1, 4), fur, s * 0.06, 0.11, -0.03)
-    head.add(ear)
+    head.add(mesh(ball(0.02, 0), eye, s * 0.06, 0.04, 0.09))
+    head.add(mesh(cone(0.035, 0.1, 4), fur, s * 0.06, 0.12, -0.03))
   }
+  const jaw = pivot(0, -0.04, 0.06)
+  jaw.add(mesh(box(0.09, 0.03, 0.16), dark, 0, -0.01, 0.09))
+  head.add(jaw)
   const muzzle = new THREE.Object3D()
   muzzle.position.set(0, -0.03, 0.25)
   head.add(muzzle)
-  body.add(head)
+  neck.add(head)
   const tail = pivot(0, 0.42, -0.3)
-  const t = mesh(cone(0.04, 0.3, 5), fur, 0, 0.1, -0.08)
-  t.rotation.x = -0.7
-  tail.add(t)
+  const tailSegs: THREE.Group[] = []
+  let parent: THREE.Object3D = tail
+  for (let k = 0; k < 2; k++) {
+    const s = pivot(0, k === 0 ? 0 : 0.15, 0)
+    s.add(mesh(cone(0.04 - k * 0.012, 0.17, 5), fur, 0, 0.08, 0))
+    s.rotation.x = k === 0 ? -0.8 : -0.3
+    parent.add(s)
+    tailSegs.push(s)
+    parent = s
+  }
   body.add(tail)
   g.scale.setScalar(scale)
-  return { group: g, parts: { body, head, legs, wings: [], tentacles: [], tail, muzzle }, height: 0.65 * scale }
+  return {
+    group: g,
+    parts: { body, head, legs, wings: [], tentacles: [], tail, muzzle, knees, kneeSign, neck: [neck], jaw, tailSegs },
+    height: 0.65 * scale,
+  }
 }
 
 /** A floating eldritch thing: a round body, one great eye (or several), and tentacles below. */
@@ -191,17 +281,21 @@ export function buildEldritch(
     }
   }
   const tentacles: THREE.Group[] = []
+  const tentacleSegs: THREE.Group[][] = []
   const count = opts.tentacles ?? 6
   for (let k = 0; k < count; k++) {
     const a = (k / count) * Math.PI * 2
     const t = pivot(Math.cos(a) * 0.18, 0.55, Math.sin(a) * 0.18)
     let seg: THREE.Object3D = t
-    for (let j = 0; j < 3; j++) {
-      const s = pivot(0, -0.15, 0)
-      s.add(mesh(cyl(0.05 - j * 0.013, 0.04 - j * 0.012, 0.16, 5), j % 2 ? dark : flesh, 0, -0.08, 0))
+    const segs: THREE.Group[] = []
+    for (let j = 0; j < 4; j++) {
+      const s = pivot(0, j === 0 ? 0 : -0.13, 0)
+      s.add(mesh(cyl(0.05 - j * 0.01, 0.04 - j * 0.009, 0.15, 5), j % 2 ? dark : flesh, 0, -0.07, 0))
       seg.add(s)
+      segs.push(s)
       seg = s
     }
+    tentacleSegs.push(segs)
     t.rotation.set(Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5)
     body.add(t)
     tentacles.push(t)
@@ -210,7 +304,7 @@ export function buildEldritch(
   muzzle.position.set(0, 0.05, 0.35)
   head.add(muzzle)
   g.scale.setScalar(opts.scale)
-  return { group: g, parts: { body, head, legs: [], wings: [], tentacles, tail: null, muzzle }, height: 1.15 * opts.scale }
+  return { group: g, parts: { body, head, legs: [], wings: [], tentacles, tail: null, muzzle, tentacleSegs }, height: 1.15 * opts.scale }
 }
 
 /** A little flying repair drone: a brass ball, one glowing eye, a spinning rotor. */

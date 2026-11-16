@@ -124,6 +124,8 @@ export class BattleScene {
   private disposed = false
   /** Slow motion for looking at effects (dev: window.b3d.timeScale = 0.1). */
   timeScale = 1
+  /** Turn every figure slowly in place, to see them from all sides (the dev lineup pages). */
+  turntable = false
 
   constructor(
     private container: HTMLElement,
@@ -857,6 +859,7 @@ export class BattleScene {
     const f = v.fig
     const t = this.time
     v.bob += dt
+    if (this.turntable) v.yaw = this.time * 0.45
     // Turn toward the facing.
     let dy = v.yaw - f.root.rotation.y
     dy = Math.atan2(Math.sin(dy), Math.cos(dy))
@@ -873,7 +876,12 @@ export class BattleScene {
       l.rotation.x = s
       // The knee bends as the leg swings back (and hangs bent when floating).
       const knee = f.knees[i]
-      if (knee) knee.rotation.x = f.hover ? 0.55 : Math.max(0, s) * 1.2 + (v.walking ? 0.12 : 0.04)
+      if (!knee) return
+      if (f.kneeSign.length) {
+        // Four legs: front knees fold back and hind hocks forward as each foot lifts.
+        const lift = v.walking ? Math.max(0, Math.sin(v.bob * 11 + (i % 2 ? Math.PI : 0) + 1)) * 0.9 : 0
+        knee.rotation.x = f.kneeSign[i] * (0.12 + lift)
+      } else knee.rotation.x = f.hover ? 0.55 : Math.max(0, s) * 1.2 + (v.walking ? 0.12 : 0.04)
     })
     // Arms rest in the figure's stance (weapon ready, staff held out, shield across), swinging
     // a little when walking and breathing when still.
@@ -884,18 +892,38 @@ export class BattleScene {
       const elbow = f.elbows[i]
       if (elbow) elbow.rotation.set(f.stance.elbow[i] - (v.walking ? 0.2 : 0) + Math.sin(v.bob * 2.2 + i) * 0.03, 0, 0)
     })
-    for (const w of f.wings) {
+    f.wings.forEach((w, i) => {
       const side = Math.sign(w.position.x) || 1
+      const tip = f.wingTips[i]
+      if (tip) {
+        // Jointed wings rest folded back along the body, breathing a little.
+        w.rotation.set(0, side * 0.55, side * (0.6 + Math.sin(v.bob * 1.3) * 0.05))
+        tip.rotation.set(0, side * 0.5, -side * 1.35)
+        return
+      }
       w.rotation.z = side * (0.15 + Math.sin(t * (f.hover ? 9 : 2) + side) * (f.hover ? 0.5 : 0.08))
       if (w.children.length === 2 && f.wings.length === 1) w.rotation.y = t * 25 // a drone's rotor
-    }
+    })
+    // Necks sway in an S, tails ripple from the root out, jaws breathe, tentacles curl.
+    f.neck.forEach((n, k) => {
+      n.rotation.set((n.userData.rest as number) + Math.sin(v.bob * 0.9 - k * 0.6) * 0.04, Math.sin(v.bob * 0.6 - k * 0.5) * 0.09, 0)
+    })
+    f.tailSegs.forEach((seg, k) => (seg.rotation.y = Math.sin(t * 1.6 + v.bob - k * 0.7) * (v.walking ? 0.3 : 0.18)))
+    if (f.jaw) f.jaw.rotation.x = Math.max(0, Math.sin(v.bob * 0.8)) * 0.08
+    f.tentacleSegs.forEach((segs, i) =>
+      segs.forEach((seg, k) => {
+        if (k === 0) return
+        seg.rotation.x = Math.sin(t * 1.9 + i * 1.1 - k * 0.8) * 0.3
+        seg.rotation.z = Math.cos(t * 1.4 + i * 1.7 - k * 0.6) * 0.22
+      }),
+    )
     for (const anim of f.anims) anim(t, v.alive)
     f.tentacles.forEach((tt, i) => {
       tt.rotation.x = Math.sin(t * 1.7 + i) * 0.35 + 0.2
       tt.rotation.z = Math.cos(t * 1.3 + i * 1.7) * 0.35
     })
-    if (f.tail) f.tail.rotation.y = Math.sin(t * 1.6 + v.bob) * 0.3
-    if (f.head) f.head.rotation.set(0, Math.sin(v.bob * 0.7) * 0.08, 0)
+    if (f.tail && !f.tailSegs.length) f.tail.rotation.y = Math.sin(t * 1.6 + v.bob) * 0.3
+    if (f.head) f.head.rotation.set(((f.head.userData.rest as number | undefined) ?? 0) + Math.sin(v.bob * 1.1) * 0.04, Math.sin(v.bob * 0.7) * 0.08, 0)
 
     // Action poses.
     const p = v.pose
@@ -931,8 +959,137 @@ export class BattleScene {
     }
   }
 
+  /** Attack and reaction poses for things without arms: dragons, hounds, eldritch horrors. */
+  private applyBeastPose(v: UnitView, p: Pose, k: number) {
+    const f = v.fig
+    const ease = (x: number) => {
+      const c = Math.min(1, Math.max(0, x))
+      return c * c * (3 - 2 * c)
+    }
+    const lunge = (amount: number) => f.root.position.add(p.dir.clone().multiplyScalar(amount))
+    const neckBend = (amount: number) => f.neck.forEach((n) => (n.rotation.x += amount / Math.max(1, f.neck.length)))
+    const jaw = (open: number) => f.jaw && (f.jaw.rotation.x = open)
+    const flap = (strength: number, speed = 9) =>
+      f.wings.forEach((w, i) => {
+        const tip = f.wingTips[i]
+        if (!tip || strength <= 0) return
+        const side = Math.sign(w.position.x) || 1
+        const beat = Math.sin(this.time * speed + i * 0.2)
+        // Spread out from folded, then beat.
+        w.rotation.set(0, side * 0.55 * (1 - strength), side * (0.6 * (1 - strength) + strength * (0.25 + beat * 0.55)))
+        tip.rotation.set(0, side * 0.5 * (1 - strength), -side * 1.35 * (1 - strength) + side * strength * Math.sin(this.time * speed - 0.7) * 0.5)
+      })
+    const tentacles = (forward: number, spread: number) =>
+      f.tentacleSegs.forEach((segs, i) => {
+        const a = (i / Math.max(1, f.tentacleSegs.length)) * Math.PI * 2
+        segs.forEach((seg, j) => {
+          if (j === 0) return
+          seg.rotation.x += forward * 0.35 + Math.sin(a) * spread * 0.3
+          seg.rotation.z += -Math.cos(a) * spread * 0.3
+        })
+      })
+    const front = (fn: (leg: THREE.Group, knee: THREE.Group | undefined, i: number) => void) =>
+      f.legs.forEach((leg, i) => f.kneeSign[i] > 0 && fn(leg, f.knees[i], i))
+    const hind = (fn: (leg: THREE.Group, knee: THREE.Group | undefined) => void) =>
+      f.legs.forEach((leg, i) => f.kneeSign[i] < 0 && fn(leg, f.knees[i]))
+
+    switch (p.kind) {
+      case 'swing': {
+        // Rear the head back with jaws wide (0-.4), lunge and snap (.4-.55), settle; a front
+        // claw rakes as it strikes. Tentacled things coil and whip.
+        const w = ease(k / 0.4)
+        const st = ease((k - 0.4) / 0.15)
+        const r = ease((k - 0.55) / 0.45)
+        const coil = k < 0.4 ? w : k < 0.55 ? 1 - st * 2 : -1 * (1 - r)
+        neckBend(-coil * 0.6)
+        if (f.head) f.head.rotation.x += -coil * 0.25
+        jaw(k < 0.4 ? w * 0.7 : k < 0.55 ? 0.7 * (1 - st) : 0)
+        let claw = 0
+        front((leg, knee, i) => {
+          if (i !== 0) return
+          claw = k < 0.4 ? w : k < 0.55 ? 1 - st : 0
+          leg.rotation.x -= claw * 1.1
+          if (knee) knee.rotation.x += claw * 0.9
+        })
+        tentacles(-coil * 1.4, 0)
+        f.body.rotation.x = -coil * 0.12
+        const l = k < 0.4 ? -0.2 * w : k < 0.55 ? -0.2 + 1.2 * st : 1 - r
+        lunge(l * p.reach)
+        flap(Math.max(0, coil) * 0.6)
+        break
+      }
+      case 'breath':
+      case 'cast':
+      case 'shoot':
+      case 'heal': {
+        // Rear up and draw breath (0-.3), thrust the head forward with the jaws wide while it
+        // pours out (.3-.75), then close. Wings spread and beat; tentacles fan out.
+        const draw = ease(k / 0.3)
+        const pour = ease((k - 0.3) / 0.12) * (1 - ease((k - 0.75) / 0.25))
+        neckBend(-draw * (1 - pour) * 0.7 + pour * 0.45)
+        if (f.head) f.head.rotation.x += -draw * (1 - pour) * 0.3 + pour * 0.15
+        jaw(Math.max(draw * 0.25, pour * 0.85))
+        f.body.rotation.x = -draw * (1 - pour) * 0.15 + pour * 0.05
+        hind((leg, knee) => {
+          leg.rotation.x -= pour * 0.2
+          if (knee) knee.rotation.x -= pour * 0.3
+        })
+        if (!f.legs.length) f.body.position.y += Math.sin(Math.min(1, k * 1.3) * Math.PI) * 0.12
+        tentacles(pour * 0.6, Math.max(draw, pour) * 1.4)
+        flap(Math.max(draw, pour), 7)
+        break
+      }
+      case 'slam': {
+        // Rear up on the hind legs, forelegs (or tentacles) high (0-.5), and crash down (.5-.62).
+        const up = k < 0.5 ? ease(k / 0.5) : 1 - ease((k - 0.5) / 0.12)
+        const down = k >= 0.5 ? ease((k - 0.5) / 0.12) * (1 - ease((k - 0.7) / 0.3)) : 0
+        f.body.rotation.x = -up * 0.55 + down * 0.08
+        f.body.position.y += up * (f.legs.length ? 0.12 : 0.35)
+        front((leg, knee) => {
+          leg.rotation.x -= up * 1.2
+          if (knee) knee.rotation.x += up * 1.3
+        })
+        hind((leg, knee) => {
+          leg.rotation.x += up * 0.5
+          if (knee) knee.rotation.x -= (up + down) * 0.5
+        })
+        neckBend(up * 0.3 - down * 0.2)
+        jaw(up * 0.6)
+        tentacles(-up * 1.6 + down * 1.6, up * 0.5)
+        flap(up)
+        lunge(Math.sin(k * Math.PI) * p.reach)
+        break
+      }
+      case 'hit': {
+        const s = Math.sin(k * Math.PI)
+        lunge(s * p.reach)
+        f.body.rotation.x = -s * 0.2
+        neckBend(-s * 0.5)
+        jaw(s * 0.5)
+        tentacles(-s * 0.8, s * 0.5)
+        break
+      }
+      case 'dodge': {
+        const s = Math.sin(k * Math.PI)
+        f.root.position.add(new THREE.Vector3(-p.dir.z, 0, p.dir.x).multiplyScalar(s * p.reach))
+        f.body.rotation.z = s * 0.25
+        flap(s * 0.6)
+        break
+      }
+      case 'cheer': {
+        const s = Math.abs(Math.sin(k * Math.PI * 2))
+        f.body.position.y += s * 0.15
+        neckBend(-s * 0.5)
+        jaw(s * 0.6)
+        flap(s)
+        break
+      }
+    }
+  }
+
   private applyPose(v: UnitView, p: Pose, k: number) {
     const f = v.fig
+    if (!f.arms.length) return this.applyBeastPose(v, p, k)
     const ease = (x: number) => {
       const c = Math.min(1, Math.max(0, x))
       return c * c * (3 - 2 * c)
