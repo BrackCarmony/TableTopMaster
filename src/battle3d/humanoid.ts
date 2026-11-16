@@ -252,14 +252,17 @@ export function buildHumanoid(look: HumanoidLook, mats: MaterialBag): { group: T
         // down onto the shoulders behind.
         hm.side = THREE.DoubleSide
         const gap = 1.9 // radians of opening across the face (+z)
-        const cowl = mesh(
-          new THREE.SphereGeometry(hr * 1.2, 12, 7, Math.PI / 2 + gap / 2, Math.PI * 2 - gap, 0, Math.PI * 0.68),
-          hm,
-          0,
-          hr * 1.02,
-          -hr * 0.05,
+        const brow = Math.PI * 0.36 // closed all round above this: the opening starts at the hairline
+        head.add(mesh(new THREE.SphereGeometry(hr * 1.2, 12, 4, 0, Math.PI * 2, 0, brow), hm, 0, hr * 1.02, -hr * 0.05))
+        head.add(
+          mesh(
+            new THREE.SphereGeometry(hr * 1.2, 12, 4, Math.PI / 2 + gap / 2, Math.PI * 2 - gap, brow, Math.PI * 0.68 - brow),
+            hm,
+            0,
+            hr * 1.02,
+            -hr * 0.05,
+          ),
         )
-        head.add(cowl)
         const point = mesh(cone(hr * 0.42, hr * 0.9, 6), hm, 0, hr * 2.0, -hr * 0.75)
         point.rotation.x = -1.0
         head.add(point)
