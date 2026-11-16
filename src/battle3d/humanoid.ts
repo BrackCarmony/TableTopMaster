@@ -395,13 +395,17 @@ function attachWeapon(
       g.add(mesh(cyl(0.07, 0.03, 0.5, 6), wood, 0, 0.2, 0))
       break
     case 'spear':
+      g.rotation.x = Math.PI / 2 // long polearms stand upright like staves
       g.add(mesh(cyl(0.015, 0.015, 0.9, 5), wood, 0, 0.25, 0))
       g.add(mesh(cone(0.04, 0.16, 4), glow ?? steel, 0, 0.78, 0))
       break
     case 'scythe': {
+      g.rotation.x = Math.PI / 2
       g.add(mesh(cyl(0.016, 0.016, 0.9, 5), mats.get(0x2a2230), 0, 0.25, 0))
-      const blade = mesh(box(0.34, 0.05, 0.015), glow ?? steel, -0.15, 0.68, 0)
-      blade.rotation.z = -0.3
+      // The blade reaches forward from the top of the shaft (+z here is ahead of the holder)
+      // and curves down.
+      const blade = mesh(box(0.015, 0.05, 0.36), glow ?? steel, 0, 0.66, 0.16)
+      blade.rotation.x = 0.35
       g.add(blade)
       break
     }

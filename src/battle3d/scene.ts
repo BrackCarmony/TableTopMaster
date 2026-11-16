@@ -889,6 +889,7 @@ export class BattleScene {
       w.rotation.z = side * (0.15 + Math.sin(t * (f.hover ? 9 : 2) + side) * (f.hover ? 0.5 : 0.08))
       if (w.children.length === 2 && f.wings.length === 1) w.rotation.y = t * 25 // a drone's rotor
     }
+    for (const anim of f.anims) anim(t, v.alive)
     f.tentacles.forEach((tt, i) => {
       tt.rotation.x = Math.sin(t * 1.7 + i) * 0.35 + 0.2
       tt.rotation.z = Math.cos(t * 1.3 + i * 1.7) * 0.35
@@ -920,12 +921,13 @@ export class BattleScene {
         m.emissive.setHex(m.userData.baseEmissive as number)
         m.emissiveIntensity = m.userData.baseIntensity as number
       }
-      const wantTransparent = fade < 0.999
+      const base = (m.userData.baseOpacity as number | undefined) ?? 1
+      const wantTransparent = fade < 0.999 || base < 1
       if (m.transparent !== wantTransparent) {
         m.transparent = wantTransparent
         m.needsUpdate = true
       }
-      m.opacity = fade
+      m.opacity = base * fade
     }
   }
 

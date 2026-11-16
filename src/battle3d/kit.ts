@@ -16,7 +16,18 @@ export class MaterialBag {
     }
     m.userData.baseEmissive = m.emissive.getHex()
     m.userData.baseIntensity = m.emissiveIntensity
+    m.userData.baseOpacity = 1
     this.list.push(m)
+    return m
+  }
+
+  /** See-through (ghosts, flames, auras): `opacity` is kept as it fades out when it falls. */
+  see(color: number, opacity: number, glow = 0): THREE.MeshLambertMaterial {
+    const m = this.get(color, glow)
+    m.transparent = true
+    m.opacity = opacity
+    m.depthWrite = false
+    m.userData.baseOpacity = opacity
     return m
   }
 }

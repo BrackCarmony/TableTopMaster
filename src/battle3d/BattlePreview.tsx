@@ -17,6 +17,7 @@ import { SIGNATURE_BOSSES } from './timing'
 //   &showcase=party  each party member's attack (or heal) in turn instead;
 //   &showcase=close  the same, with the boss stepping up next to each first (melee range).
 //   &classes=Ranger,Knight,Druid  pick the party's classes (each at its own tier).
+//   ?battle=enemies&page=0..4  every enemy, three modules to a page.
 //   ?battle=lineup&role=tank|dps|healer[&race=Elf] stands every class of a role in rows.
 
 const ENCOUNTERS = Object.values(ENCOUNTER_EXPORTS).filter(
@@ -86,8 +87,43 @@ function lineupLog(role: Role, race: string | null): CombatLogEvent[] {
   return [{ type: 'encounter_start', units, gridWidth: 10, gridHeight: 6, encounterId: 'goblin-ambush-1' }]
 }
 
+/**
+ * Every enemy, three modules to a page, one row per module (both of its encounters), all facing
+ * the camera: ?battle=enemies&page=0 (pages 0-4).
+ */
+function enemyLineupLog(page: number): CombatLogEvent[] {
+  const modules = MODULES.slice(page * 3, page * 3 + 3)
+  const units: CombatUnit[] = []
+  modules.forEach((m, row) => {
+    const names = [...new Set(m.encounters.flatMap((e) => e.enemies.map((x) => x.name)))]
+    names.forEach((name, col) => {
+      const spawn = m.encounters.flatMap((e) => e.enemies).find((x) => x.name === name)!
+      units.push({
+        ...partyFor(1, 1, 1, 0)[0],
+        id: `${m.id}-${name}`,
+        name,
+        side: 'enemy',
+        role: spawn.role,
+        className: undefined,
+        race: undefined,
+        attackRange: spawn.attackRange,
+        position: { x: 1 + col * 3, y: 1 + row * 3 },
+      })
+    })
+  })
+  return [{ type: 'encounter_start', units, gridWidth: 12, gridHeight: 9, encounterId: modules[0]?.encounters[0]?.id }]
+}
+
 export default function BattlePreview() {
   const q = new URLSearchParams(location.search)
+  if (q.get('battle') === 'enemies') {
+    const page = Number(q.get('page') ?? 0)
+    return (
+      <div className="min-h-screen bg-slate-950">
+        <BattleModal log={enemyLineupLog(page)} moduleName={`Enemies, page ${page}`} rewards={null} onClose={() => {}} />
+      </div>
+    )
+  }
   if (q.get('battle') === 'lineup') {
     const role = (q.get('role') ?? 'tank') as Role
     return (

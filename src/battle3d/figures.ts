@@ -4,7 +4,30 @@ import { CLASS_TIERS } from '../game/data/classes'
 import { ENEMY_SPRITES } from '../components/combat/sprites'
 import { buildDragon, buildDrone, buildEldritch, buildHound, buildKraken, type Beast } from './beasts'
 import { buildHumanoid, type HumanoidLook, type Weapon } from './humanoid'
-import { MaterialBag, hex, pick, seeded, shade } from './kit'
+import { MaterialBag, box, cyl, hex, mesh, pick, seeded, shade } from './kit'
+import {
+  bandana,
+  boneNecklace,
+  chestGlow,
+  coatTails,
+  eyeCluster,
+  eyepatch,
+  fangs,
+  flame,
+  furMantle,
+  ghostify,
+  headR,
+  hourglass,
+  moss,
+  orbiter,
+  quiver,
+  satchel,
+  shoulderSpikes,
+  skull,
+  staffTop,
+  tricorn,
+  windupKey,
+} from './extras'
 
 // Every unit in a battle becomes a Figure: party members dressed by race, class and tier, and
 // each enemy by name (falling back to its 2D sprite archetype and colour for any name not
@@ -40,6 +63,8 @@ export interface Figure {
   /** Takes more than its cell (giants, dragons): pushed a little less far when lunging. */
   big: boolean
   mats: MaterialBag
+  /** Little animations of its own (flickering flames, a turning key), run every frame. */
+  anims: ((time: number, alive: boolean) => void)[]
 }
 
 // ---------- party ----------
@@ -284,55 +309,86 @@ const CLASS_STYLE: Record<string, ClassStyle> = {
 
 // ---------- enemies ----------
 
+/** Details added on top of the base model (masks, hats, flames...); see extras.ts. */
+type Extras = (fig: Figure) => void
+
 type EnemyBuild =
-  | { kind: 'humanoid'; look: HumanoidLook; attack?: AttackStyle; bolt?: number; hover?: boolean }
-  | { kind: 'beast'; build: (m: MaterialBag) => Beast; attack: AttackStyle; bolt?: number; hover?: boolean }
+  | { kind: 'humanoid'; look: HumanoidLook; attack?: AttackStyle; bolt?: number; hover?: boolean; extras?: Extras }
+  | { kind: 'beast'; build: (m: MaterialBag) => Beast; attack: AttackStyle; bolt?: number; hover?: boolean; extras?: Extras }
 
 const goblinSkin = 0x6fa04a
 const bone = 0xe8e2cf
 
 /** Hand-made looks for every enemy in the current modules. */
 const ENEMY_LOOKS: Record<string, () => EnemyBuild> = {
+  // ---- Goblin Ambush: scrappy little raiders with rusty gear, and a boss in a bone necklace.
   Goblin: () => ({
     kind: 'humanoid',
-    look: { scale: 0.62, headSize: 1.3, skin: goblinSkin, head: 'goblin', ears: 'long', shirt: 0x6a4a2e, pants: 0x4a3a28, boots: 0x3a2a1e, right: 'dagger', eyes: 0xffd23a, eyeGlow: 0.5 },
+    look: { scale: 0.62, headSize: 1.3, skin: goblinSkin, head: 'goblin', ears: 'long', shirt: 0x6a4a2e, pants: 0x4a3a28, boots: 0x3a2a1e, right: 'axe', steel: 0x8a6a4a, helmet: 'cap', helmetColor: 0x6a4a2e, eyes: 0xffd23a, eyeGlow: 0.5 },
   }),
   'Goblin Archer': () => ({
     kind: 'humanoid',
-    look: { scale: 0.6, headSize: 1.3, skin: goblinSkin, head: 'goblin', ears: 'long', shirt: 0x4a5a2e, pants: 0x4a3a28, boots: 0x3a2a1e, left: 'bow', helmet: 'hood', helmetColor: 0x3a4a22 },
+    look: { scale: 0.6, headSize: 1.3, skin: goblinSkin, head: 'goblin', ears: 'long', shirt: 0x4a5a2e, pants: 0x4a3a28, boots: 0x3a2a1e, left: 'bow', helmet: 'hood', helmetColor: 0x3a4a22, eyes: 0xffd23a, eyeGlow: 0.5 },
     attack: 'arrow',
+    extras: (f) => quiver(f, 0x5a3a22, 0xd8d0c0),
   }),
-  'Goblin Boss': () => ({
-    kind: 'humanoid',
-    look: { scale: 0.85, width: 1.3, headSize: 1.25, skin: 0x4f8a36, head: 'goblin', ears: 'long', shirt: 0x5a3a22, pants: 0x3a2a1e, boots: 0x2a1e14, armor: 0x7a5532, helmet: 'horned', helmetColor: 0x7d8189, right: 'club', eyes: 0xff5a2e, eyeGlow: 0.6 },
-  }),
-  Bandit: () => ({
-    kind: 'humanoid',
-    look: { skin: 0xd9a47c, hair: 0x3a2a1e, beard: 0x3a2a1e, shirt: 0x8a6a4a, pants: 0x4a3a2e, boots: 0x2a1e14, helmet: 'hood', helmetColor: 0x5a3a2a, right: 'sword' },
-  }),
-  'Bandit Crossbowman': () => ({
-    kind: 'humanoid',
-    look: { skin: 0xc98f6a, hair: 0x2b1d14, shirt: 0x6a5a3a, pants: 0x4a3a2e, boots: 0x2a1e14, helmet: 'cap', helmetColor: 0x6a4a2e, left: 'crossbow' },
-    attack: 'arrow',
-  }),
+  'Goblin Boss': () => {
+    const look: HumanoidLook = { scale: 0.9, width: 1.3, headSize: 1.25, skin: 0x4f8a36, head: 'goblin', ears: 'long', horns: 0xe8e0c8, shirt: 0x5a3a22, pants: 0x3a2a1e, boots: 0x2a1e14, armor: 0x7a5532, helmet: 'circlet', helmetColor: 0xb08a3a, right: 'club', eyes: 0xff5a2e, eyeGlow: 0.6 }
+    return {
+      kind: 'humanoid',
+      look,
+      extras: (f) => {
+        furMantle(f, look, 0x6a4a2e)
+        boneNecklace(f, look)
+      },
+    }
+  },
+  // ---- Bandit Hideout: masked cutthroats, and a captain in a tricorn and eyepatch.
+  Bandit: () => {
+    const look: HumanoidLook = { skin: 0xd9a47c, hair: 0x3a2a1e, shirt: 0x8a6a4a, pants: 0x4a3a2e, boots: 0x2a1e14, helmet: 'hood', helmetColor: 0x5a3a2a, right: 'sword' }
+    return { kind: 'humanoid', look, extras: (f) => bandana(f, look, 0x8a2e2e) }
+  },
+  'Bandit Crossbowman': () => {
+    const look: HumanoidLook = { skin: 0xc98f6a, hair: 0x2b1d14, shirt: 0x6a5a3a, pants: 0x4a3a2e, boots: 0x2a1e14, helmet: 'cap', helmetColor: 0x6a4a2e, left: 'crossbow' }
+    return {
+      kind: 'humanoid',
+      look,
+      attack: 'arrow',
+      extras: (f) => {
+        bandana(f, look, 0x3a3a40)
+        quiver(f, 0x4a3420, 0x9aa0a8)
+      },
+    }
+  },
   'Bandit Medic': () => ({
     kind: 'humanoid',
     look: { skin: 0xf1c9a5, hair: 0x9a6a2e, hairStyle: 'bun', shirt: 0xd8d0b8, pants: 0x4a3a2e, boots: 0x2a1e14, right: 'book', magic: 0xb8ff9a },
     attack: 'bolt',
     bolt: 0xb8ff9a,
+    extras: (f) => satchel(f, 0x8a6a4a, 0xc0303a),
   }),
-  'Bandit Captain': () => ({
-    kind: 'humanoid',
-    look: { scale: 1.12, width: 1.15, skin: 0xa8714b, hair: 0x1c1c24, beard: 0x1c1c24, shirt: 0x7a2e2e, pants: 0x2e2a2a, boots: 0x1e1610, armor: 0x5a4a3a, cape: 0x5a1e1e, helmet: 'cap', helmetColor: 0x2a2a2a, right: 'greatsword' },
-  }),
+  'Bandit Captain': () => {
+    const look: HumanoidLook = { scale: 1.12, width: 1.15, skin: 0xa8714b, hair: 0x1c1c24, hairStyle: 'long', beard: 0x1c1c24, shirt: 0x7a2e2e, pants: 0x2e2a2a, boots: 0x1e1610, armor: 0x5a4a3a, right: 'greatsword' }
+    return {
+      kind: 'humanoid',
+      look,
+      extras: (f) => {
+        tricorn(f, look, 0x1e1a1a, 0xe0b33e)
+        eyepatch(f, look)
+        coatTails(f, look, 0x5a1e1e)
+      },
+    }
+  },
+  // ---- The Sunken Crypt: rusty skeletons, a lich with its soul in an orbiting gem, a cult priest.
   'Skeleton Soldier': () => ({
     kind: 'humanoid',
-    look: { bony: true, skin: bone, head: 'skull', shirt: bone, pants: bone, boots: bone, eyes: 0x6ef0ff, eyeGlow: 0.9, right: 'sword', left: 'shield', steel: 0x8a8070 },
+    look: { bony: true, skin: bone, head: 'skull', shirt: bone, pants: bone, boots: bone, helmet: 'cap', helmetColor: 0x6a5a48, eyes: 0x6ef0ff, eyeGlow: 0.9, right: 'sword', left: 'shield', steel: 0x8a6a4a },
   }),
   'Skeleton Archer': () => ({
     kind: 'humanoid',
     look: { bony: true, skin: 0xd8d2c0, head: 'skull', shirt: bone, pants: bone, boots: bone, eyes: 0x6ef0ff, eyeGlow: 0.9, left: 'bow' },
     attack: 'arrow',
+    extras: (f) => quiver(f, 0x4a3a2a, 0xd8d0c0),
   }),
   Lich: () => ({
     kind: 'humanoid',
@@ -340,80 +396,208 @@ const ENEMY_LOOKS: Record<string, () => EnemyBuild> = {
     attack: 'bolt',
     bolt: 0xa78bfa,
     hover: true,
+    extras: (f) => orbiter(f, 0x8af06a, 0.32, 1.2, 1.4),
   }),
-  'Cultist Priest': () => ({
-    kind: 'humanoid',
-    look: { skin: 0xd9c8b8, shirt: 0x4a1e6a, pants: 0x2a1040, boots: 0x1e1030, robe: 0x4a1e6a, helmet: 'hood', helmetColor: 0x3a1458, right: 'orbstaff', magic: 0x9a4af0, eyes: 0xc08af0, eyeGlow: 0.8 },
-    attack: 'bolt',
-    bolt: 0x9a4af0,
-  }),
+  'Cultist Priest': () => {
+    const look: HumanoidLook = { skin: 0xd9c8b8, shirt: 0x4a1e6a, pants: 0x2a1040, boots: 0x1e1030, robe: 0x4a1e6a, helmet: 'hood', helmetColor: 0x3a1458, right: 'orbstaff', magic: 0x9a4af0, eyes: 0xc08af0, eyeGlow: 0.8 }
+    return { kind: 'humanoid', look, attack: 'bolt', bolt: 0x9a4af0, extras: (f) => chestGlow(f, look, 0xc08af0, 'sigil', 0.105) }
+  },
+  // ---- Dragon's Peak.
   Wyrmling: () => ({ kind: 'beast', build: (m) => buildDragon(m, { color: 0xe0782e, scale: 0.9, wings: true }), attack: 'breath', bolt: 0xff8a2e }),
   'Elder Wyrm': () => ({ kind: 'beast', build: (m) => buildDragon(m, { color: 0xb8401e, belly: 0xe8a050, scale: 2.0, wings: true }), attack: 'breath', bolt: 0xff6a1e }),
+  // ---- The Abyssal Rift: imps with tridents and a skull staff, a burning hellhound, the Demon Prince.
   Imp: () => ({
     kind: 'humanoid',
-    look: { scale: 0.55, headSize: 1.2, skin: 0xd8463a, ears: 'pointy', horns: 0x2a1e1e, tail: 0xd8463a, wings: 'bat', wingColor: 0x8a2a2a, shirt: 0xd8463a, pants: 0xb83a30, boots: 0x2a1e1e, eyes: 0xffd23a, eyeGlow: 1 },
+    look: { scale: 0.55, headSize: 1.2, skin: 0xd8463a, ears: 'pointy', horns: 0x2a1e1e, tail: 0xd8463a, wings: 'bat', wingColor: 0x8a2a2a, shirt: 0xd8463a, pants: 0xb83a30, boots: 0x2a1e1e, eyes: 0xffd23a, eyeGlow: 1, right: 'spear', steel: 0x3a2a2a },
     hover: true,
   }),
-  Hellhound: () => ({ kind: 'beast', build: (m) => buildHound(m, 0x3a1e1a, 1.2, 0xff5a1e), attack: 'breath', bolt: 0xff5a1e }),
-  'Imp Shaman': () => ({
-    kind: 'humanoid',
-    look: { scale: 0.62, headSize: 1.2, skin: 0xb8302a, ears: 'pointy', horns: 0x2a1e1e, tail: 0xb8302a, shirt: 0x5a1e1e, pants: 0x3a1414, boots: 0x2a1e1e, robe: 0x5a1e1e, right: 'orbstaff', magic: 0xff4a2e, eyes: 0xffd23a, eyeGlow: 1 },
+  Hellhound: () => ({
+    kind: 'beast',
+    build: (m) => buildHound(m, 0x4a2420, 1.25, 0xff5a1e),
+    attack: 'breath',
+    bolt: 0xff5a1e,
+    extras: (f) => {
+      for (const z of [-0.18, -0.04, 0.1]) flame(f, f.body, 0, 0.5, z, 0xff6a1e, 0.9)
+    },
+  }),
+  'Imp Shaman': () => {
+    const look: HumanoidLook = { scale: 0.62, headSize: 1.2, skin: 0xb8302a, ears: 'pointy', horns: 0x2a1e1e, tail: 0xb8302a, shirt: 0x5a1e1e, pants: 0x3a1414, boots: 0x2a1e1e, robe: 0x5a1e1e, right: 'staff', magic: 0xff4a2e, eyes: 0xffd23a, eyeGlow: 1 }
+    return {
+      kind: 'humanoid',
+      look,
+      attack: 'bolt',
+      bolt: 0xff4a2e,
+      extras: (f) => {
+        staffTop(f, (m) => skull(m, 0.07))
+        boneNecklace(f, look)
+      },
+    }
+  },
+  'Demon Prince': () => {
+    const look: HumanoidLook = { scale: 1.6, width: 1.2, skin: 0x8a1e1e, horns: 0x1c1418, tail: 0x8a1e1e, wings: 'bat', wingColor: 0x4a1010, shirt: 0x8a1e1e, pants: 0x2a1010, boots: 0x1c1418, armor: 0x2a2028, trim: 0xff5a1e, right: 'greatsword', steel: 0x2a2028, eyes: 0xffd23a, eyeGlow: 1.3 }
+    return {
+      kind: 'humanoid',
+      look,
+      extras: (f) => {
+        for (const s of [-1, 1]) flame(f, f.body, s * 0.2 * 1.2, 0.84, 0, 0xff5a1e, 0.8)
+        chestGlow(f, look, 0xff7a2e, 'cracks', 0.11)
+      },
+    }
+  },
+  // ---- The Frozen Wastes: see-through wraiths with cold flames, an ice-crusted giant.
+  'Ice Wraith': () => {
+    const look: HumanoidLook = { skin: 0xbff0ff, head: 'skull', shirt: 0x8ad8f0, pants: 0x8ad8f0, boots: 0x8ad8f0, robe: 0x6ac8e8, helmet: 'hood', helmetColor: 0x4aa8d0, eyes: 0xe0ffff, eyeGlow: 1.4, right: 'scythe', steel: 0xd8f6ff }
+    return {
+      kind: 'humanoid',
+      look,
+      hover: true,
+      extras: (f) => {
+        ghostify(f, 0x8ad8f0, 0.7)
+        if (f.head) flame(f, f.head, 0, headR(look) * 2.4, -headR(look) * 0.4, 0x9af0ff, 0.8)
+      },
+    }
+  },
+  'Frost Giant': () => {
+    const look: HumanoidLook = { scale: 1.75, width: 1.3, skin: 0x8ac0e0, hair: 0xf2f6fa, beard: 0xf2f6fa, shirt: 0x5a6a7a, pants: 0x3a4a5a, boots: 0x2a3440, armor: 0xa8c8e0, right: 'hammer', steel: 0xa8e0f8, eyes: 0xe0ffff, eyeGlow: 0.8 }
+    return {
+      kind: 'humanoid',
+      look,
+      attack: 'slam',
+      extras: (f) => {
+        furMantle(f, look, 0xe8eef2)
+        shoulderSpikes(f, look, 0xbff0ff, 0.4)
+      },
+    }
+  },
+  // ---- The Clockwork Vault: brass sentinels with wind-up keys, a furnace-hearted golem, a drone.
+  'Clockwork Sentinel': () => {
+    const look: HumanoidLook = { skin: 0x94a3b8, head: 'box', shirt: 0x6a5a3a, pants: 0x5a4a30, boots: 0x3a3430, armor: 0xb08a3a, trim: 0x6ef0ff, right: 'spear', left: 'kite', steel: 0x94a3b8, eyes: 0x6ef0ff, eyeGlow: 1.4 }
+    return {
+      kind: 'humanoid',
+      look,
+      extras: (f) => {
+        windupKey(f, 0xb08a3a)
+        chestGlow(f, look, 0x6ef0ff, 'gem', 0.12)
+      },
+    }
+  },
+  'Iron Golem': () => {
+    const look: HumanoidLook = { scale: 1.55, width: 1.45, skin: 0x64748b, head: 'box', shirt: 0x4a5463, pants: 0x3a4250, boots: 0x2a3038, armor: 0x7a8494, eyes: 0xff8a2e, eyeGlow: 1.4 }
+    return {
+      kind: 'humanoid',
+      look,
+      attack: 'slam',
+      extras: (f) => {
+        chestGlow(f, look, 0xff8a2e, 'grill', 0.115)
+        // Great iron fists, and smokestacks on the shoulders with fire at their mouths.
+        for (const e of f.elbows) e.add(mesh(box(0.13, 0.12, 0.13), f.mats.get(0x5a6474), 0, -0.2, 0))
+        for (const s of [-1, 1]) {
+          f.body.add(mesh(cyl(0.035, 0.04, 0.2, 7), f.mats.get(0x2a3038), s * 0.15 * 1.45, 0.88, -0.06))
+          flame(f, f.body, s * 0.15 * 1.45, 0.98, -0.06, 0xff8a2e, 0.45)
+        }
+      },
+    }
+  },
+  'Repair Drone': () => ({
+    kind: 'beast',
+    build: (m) => buildDrone(m, 0xb08a3a),
     attack: 'bolt',
-    bolt: 0xff4a2e,
-  }),
-  'Demon Prince': () => ({
-    kind: 'humanoid',
-    look: { scale: 1.6, width: 1.2, skin: 0x8a1e1e, horns: 0x1c1418, tail: 0x8a1e1e, wings: 'bat', wingColor: 0x4a1010, shirt: 0x8a1e1e, pants: 0x2a1010, boots: 0x1c1418, armor: 0x2a2028, trim: 0xff5a1e, right: 'greatsword', steel: 0x2a2028, eyes: 0xffd23a, eyeGlow: 1.3 },
-  }),
-  'Ice Wraith': () => ({
-    kind: 'humanoid',
-    look: { skin: 0xbff0ff, head: 'skull', shirt: 0x8ad8f0, pants: 0x8ad8f0, boots: 0x8ad8f0, robe: 0x6ac8e8, helmet: 'hood', helmetColor: 0x4aa8d0, eyes: 0xe0ffff, eyeGlow: 1.4, right: 'scythe', steel: 0xd8f6ff },
+    bolt: 0x6ef0ff,
     hover: true,
+    extras: (f) => {
+      f.root.children[0].scale.setScalar(1.35)
+      f.height *= 1.35
+      // A welding torch flickering on one arm.
+      flame(f, f.body, 0.2, 0.55, 0.1, 0x6ef0ff, 0.35)
+    },
   }),
-  'Frost Giant': () => ({
-    kind: 'humanoid',
-    look: { scale: 1.75, width: 1.3, skin: 0x8ac0e0, hair: 0xf2f6fa, beard: 0xf2f6fa, shirt: 0x5a6a7a, pants: 0x3a4a5a, boots: 0x2a3440, armor: 0xa8c8e0, right: 'club', eyes: 0xe0ffff, eyeGlow: 0.8 },
-    attack: 'slam',
+  // ---- The Void Between Stars.
+  'Star Spawn': () => ({
+    kind: 'beast',
+    build: (m) => buildEldritch(m, { color: 0x6a74e8, scale: 0.85, eyes: 3, tentacles: 5 }),
+    attack: 'bolt',
+    bolt: 0xc8b0ff,
+    hover: true,
+    extras: (f) => {
+      // Points of starlight in its hide.
+      const star = f.mats.get(0xffffff, 1.6)
+      for (let i = 0; i < 14; i++) {
+        const a = i * 2.4
+        const y = Math.cos(i * 1.3) * 0.25
+        const r = Math.sqrt(Math.max(0, 0.33 * 0.33 - y * y))
+        f.body.add(mesh(new THREE.OctahedronGeometry(0.018), star, Math.cos(a) * r, 0.75 + y, Math.sin(a) * r))
+      }
+    },
   }),
-  'Clockwork Sentinel': () => ({
-    kind: 'humanoid',
-    look: { skin: 0x94a3b8, head: 'box', shirt: 0xb08a3a, pants: 0x6a5a3a, boots: 0x3a3430, armor: 0x94a3b8, trim: 0x6ef0ff, right: 'spear', left: 'kite', eyes: 0x6ef0ff, eyeGlow: 1.4 },
-  }),
-  'Iron Golem': () => ({
-    kind: 'humanoid',
-    look: { scale: 1.55, width: 1.45, skin: 0x64748b, head: 'box', shirt: 0x4a5463, pants: 0x3a4250, boots: 0x2a3038, armor: 0x7a8494, trim: 0xff8a2e, eyes: 0xff8a2e, eyeGlow: 1.4 },
-    attack: 'slam',
-  }),
-  'Repair Drone': () => ({ kind: 'beast', build: (m) => buildDrone(m, 0xb08a3a), attack: 'bolt', bolt: 0x6ef0ff, hover: true }),
-  'Star Spawn': () => ({ kind: 'beast', build: (m) => buildEldritch(m, { color: 0x818cf8, scale: 0.8, eyes: 3, tentacles: 5 }), attack: 'bolt', bolt: 0xc8b0ff, hover: true }),
   'Void Horror': () => ({ kind: 'beast', build: (m) => buildEldritch(m, { color: 0x4a3fa8, scale: 1.2, eyes: 1, tentacles: 7, mouth: true }), attack: 'melee', hover: true }),
-  'Ember Wraith': () => ({
-    kind: 'humanoid',
-    look: { skin: 0x3a2a24, head: 'skull', shirt: 0x5a2a1a, pants: 0x5a2a1a, boots: 0x5a2a1a, robe: 0x3a1a10, helmet: 'hood', helmetColor: 0x2a140c, eyes: 0xff8a2e, eyeGlow: 1.6, right: 'orbstaff', magic: 0xff8a2e },
-    attack: 'bolt',
-    bolt: 0xff8a2e,
-    hover: true,
-  }),
-  'Fire Titan': () => ({
-    kind: 'humanoid',
-    look: { scale: 1.85, width: 1.35, skin: 0xd86a2e, hair: 0xffb02e, hairStyle: 'mohawk', shirt: 0x5a2a1a, pants: 0x3a1a10, boots: 0x2a140c, armor: 0x3a3030, trim: 0xffb02e, right: 'hammer', steel: 0x3a3030, eyes: 0xffe066, eyeGlow: 1.6 },
-    attack: 'slam',
-  }),
-  'Deathless Knight': () => ({
-    kind: 'humanoid',
-    look: { skin: 0x9ca3af, head: 'skull', shirt: 0x2a2a30, pants: 0x1e1e24, boots: 0x141418, armor: 0x4a4e58, helmet: 'full', helmetColor: 0x4a4e58, cape: 0x2a1e2e, right: 'sword', left: 'kite', steel: 0x6a6e78, eyes: 0x8af06a, eyeGlow: 1.3 },
-  }),
-  'Wraith Chancellor': () => ({
-    kind: 'humanoid',
-    look: { skin: 0xc8b8f0, head: 'skull', shirt: 0x3a2a5a, pants: 0x3a2a5a, boots: 0x3a2a5a, robe: 0x2a1e48, helmet: 'mitre', helmetColor: 0x5a3a8a, right: 'book', magic: 0x8b5cf6, eyes: 0xc8a8ff, eyeGlow: 1.4 },
-    attack: 'bolt',
-    bolt: 0x8b5cf6,
-    hover: true,
-  }),
-  'The Undying King': () => ({
-    kind: 'humanoid',
-    look: { scale: 1.45, bony: true, skin: 0xf5f3ff, head: 'skull', shirt: bone, pants: bone, boots: bone, armor: 0x2a2a34, trim: 0x8af06a, helmet: 'crown', helmetColor: 0xe0b33e, cape: 0x4a1e5a, right: 'greatsword', steel: 0x8af06a, eyes: 0x8af06a, eyeGlow: 1.6 },
-  }),
+  // ---- Titan's Forge: burning wraiths, and a titan with a mane of fire.
+  'Ember Wraith': () => {
+    const look: HumanoidLook = { skin: 0x3a2a24, head: 'skull', shirt: 0x5a2a1a, pants: 0x5a2a1a, boots: 0x5a2a1a, robe: 0x4a1e10, helmet: 'hood', helmetColor: 0x3a1a0c, eyes: 0xff8a2e, eyeGlow: 1.6, right: 'orbstaff', magic: 0xff8a2e }
+    return {
+      kind: 'humanoid',
+      look,
+      attack: 'bolt',
+      bolt: 0xff8a2e,
+      hover: true,
+      extras: (f) => {
+        ghostify(f, 0x8a3a1a, 0.85)
+        chestGlow(f, look, 0xff7a2e, 'cracks', 0.105)
+        if (f.head) flame(f, f.head, 0, headR(look) * 2.3, -headR(look) * 0.3, 0xff7a2e, 0.9)
+      },
+    }
+  },
+  'Fire Titan': () => {
+    const look: HumanoidLook = { scale: 1.85, width: 1.35, skin: 0xd86a2e, hair: null, hairStyle: 'none', shirt: 0x5a2a1a, pants: 0x3a1a10, boots: 0x2a140c, armor: 0x3a3030, right: 'hammer', steel: 0x4a3434, eyes: 0xffe066, eyeGlow: 1.6 }
+    return {
+      kind: 'humanoid',
+      look,
+      attack: 'slam',
+      extras: (f) => {
+        const r = headR(look)
+        if (f.head) for (let i = 0; i < 5; i++) flame(f, f.head, Math.sin(i * 1.3) * r * 0.6, r * 1.8 + (i % 2) * r * 0.2, Math.cos(i * 1.3) * r * 0.5 - r * 0.2, i % 2 ? 0xffb02e : 0xff6a1e, 1.0)
+        chestGlow(f, look, 0xffb02e, 'cracks', 0.115)
+        shoulderSpikes(f, look, 0xff8a2e, 0.9, 2)
+      },
+    }
+  },
+  // ---- The Court of the Undying King.
+  'Deathless Knight': () => {
+    const look: HumanoidLook = { skin: 0x9ca3af, head: 'skull', shirt: 0x2a2a30, pants: 0x1e1e24, boots: 0x141418, armor: 0x4a4e58, trim: 0x8af06a, helmet: 'full', helmetColor: 0x4a4e58, cape: 0x2a1e2e, right: 'sword', left: 'kite', steel: 0x6a6e78, eyes: 0x8af06a, eyeGlow: 1.3 }
+    return {
+      kind: 'humanoid',
+      look,
+      extras: (f) => {
+        if (f.head) flame(f, f.head, 0, headR(look) * 2.1, 0, 0x8af06a, 0.6) // a ghost-fire plume
+      },
+    }
+  },
+  'Wraith Chancellor': () => {
+    const look: HumanoidLook = { skin: 0xc8b8f0, head: 'skull', shirt: 0x3a2a5a, pants: 0x3a2a5a, boots: 0x3a2a5a, robe: 0x2a1e48, helmet: 'mitre', helmetColor: 0x5a3a8a, right: 'book', magic: 0x8b5cf6, eyes: 0xc8a8ff, eyeGlow: 1.4 }
+    return {
+      kind: 'humanoid',
+      look,
+      attack: 'bolt',
+      bolt: 0x8b5cf6,
+      hover: true,
+      extras: (f) => {
+        ghostify(f, 0x6a4ab0, 0.75)
+        chestGlow(f, look, 0xc8a8ff, 'sigil', 0.105)
+      },
+    }
+  },
+  'The Undying King': () => {
+    const look: HumanoidLook = { scale: 1.45, bony: true, skin: 0xf5f3ff, head: 'skull', shirt: bone, pants: bone, boots: bone, armor: 0x2a2a34, trim: 0x8af06a, helmet: 'crown', helmetColor: 0xe0b33e, cape: 0x4a1e5a, right: 'greatsword', steel: 0x8af06a, eyes: 0x8af06a, eyeGlow: 1.6 }
+    return {
+      kind: 'humanoid',
+      look,
+      extras: (f) => {
+        const r = headR(look)
+        if (f.head) for (let i = 0; i < 3; i++) flame(f, f.head, (i - 1) * r * 0.55, r * 2.25, 0, 0x8af06a, 0.45)
+        chestGlow(f, look, 0x8af06a, 'gem', 0.02)
+      },
+    }
+  },
+  // ---- The Shattered Heavens.
   'Renegade Seraph': () => ({
     kind: 'humanoid',
     look: { skin: 0xf5d7bd, hair: 0xfca5a5, hairStyle: 'long', shirt: 0xf2efe6, pants: 0xe8d9c8, boots: 0xb89a6a, armor: 0xd8c8a8, wings: 'feather', wingColor: 0xfca5a5, halo: 0xff8a8a, right: 'spear', steel: 0xffd2d2 },
@@ -431,18 +615,48 @@ const ENEMY_LOOKS: Record<string, () => EnemyBuild> = {
     look: { scale: 1.7, skin: 0xe8d0b0, hair: 0xfbbf24, hairStyle: 'long', shirt: 0x3a3030, pants: 0x2a2424, boots: 0x1e1a1a, armor: 0xfbbf24, trim: 0xfff2a8, wings: 'feather', wingColor: 0x5a5050, halo: 0xfbbf24, right: 'greatsword', steel: 0xfff2a8, eyes: 0xfff2a8, eyeGlow: 1.2 },
     hover: true,
   }),
-  'Voidling Colossus': () => ({ kind: 'beast', build: (m) => buildEldritch(m, { color: 0x4f46e5, scale: 1.8, eyes: 5, tentacles: 8, mouth: true }), attack: 'slam', hover: true }),
-  "Hunger's Attendant": () => ({ kind: 'beast', build: (m) => buildEldritch(m, { color: 0x4338ca, scale: 0.95, eyes: 1, tentacles: 6, mouth: true, eyeColor: 0xff6a6a }), attack: 'melee', hover: true }),
-  'The World-Eater': () => ({ kind: 'beast', build: (m) => buildEldritch(m, { color: 0x312e81, scale: 2.4, eyes: 1, tentacles: 10, mouth: true, eyeColor: 0xff3a3a, crown: 0x9a8af0 }), attack: 'breath', bolt: 0x9a4af0, hover: true }),
-  'Nameless Guardian': () => ({
-    kind: 'humanoid',
-    look: { scale: 1.6, width: 1.4, skin: 0x57534e, head: 'box', shirt: 0x4a4642, pants: 0x3a3632, boots: 0x2a2622, armor: 0x6a655e, trim: 0xd8d0c0, right: 'tower', left: 'tower', eyes: 0xd8d0c0, eyeGlow: 1.2 },
-    attack: 'slam',
+  // ---- The Maw of Creation: a towering many-eyed colossus, a hound that is mostly mouth, and the World-Eater.
+  'Voidling Colossus': () => {
+    const look: HumanoidLook = { scale: 1.9, width: 1.4, skin: 0x4a40b8, shirt: 0x4a40b8, pants: 0x352e90, boots: 0x241e68, eyes: 0xff8ad8, eyeGlow: 1.2 }
+    return {
+      kind: 'humanoid',
+      look,
+      attack: 'slam',
+      extras: (f) => {
+        eyeCluster(f, f.body, new THREE.Vector3(0, 0.62, 0.11), 5, 0.075, 0.03, 0xffe0f8)
+        shoulderSpikes(f, look, 0x8a6aff, 0.6)
+      },
+    }
+  },
+  "Hunger's Attendant": () => ({
+    kind: 'beast',
+    build: (m) => buildHound(m, 0x5a4ac8, 1.35, 0xff3a3a),
+    attack: 'melee',
+    extras: (f) => {
+      if (!f.head) return
+      fangs(f, f.head, new THREE.Vector3(0, -0.05, 0.235), 0.1, 0.035)
+      eyeCluster(f, f.head, new THREE.Vector3(0, 0.07, 0.09), 4, 0.05, 0.016, 0xff6a6a)
+    },
   }),
+  'The World-Eater': () => ({ kind: 'beast', build: (m) => buildEldritch(m, { color: 0x312e81, scale: 2.4, eyes: 1, tentacles: 10, mouth: true, eyeColor: 0xff3a3a, crown: 0x9a8af0 }), attack: 'breath', bolt: 0x9a4af0, hover: true }),
+  // ---- The Last Throne: a mossy stone guardian, the Herald with its hourglass, and whatever sits the throne.
+  'Nameless Guardian': () => {
+    const look: HumanoidLook = { scale: 1.6, width: 1.4, skin: 0x7a756e, head: 'box', shirt: 0x5a5650, pants: 0x4a4642, boots: 0x3a3632, armor: 0x6a655e, right: 'greatsword', left: 'tower', steel: 0x8a857c, eyes: 0xd8d0c0, eyeGlow: 1.2 }
+    return {
+      kind: 'humanoid',
+      look,
+      attack: 'slam',
+      extras: (f) => {
+        moss(f, look)
+        chestGlow(f, look, 0xe4e4e7, 'sigil', 0.115)
+      },
+    }
+  },
   'Herald of Endings': () => ({
     kind: 'humanoid',
-    look: { scale: 1.3, skin: 0xa1a1aa, head: 'skull', shirt: 0x3a3a40, pants: 0x3a3a40, boots: 0x2a2a30, robe: 0x2a2a30, wings: 'feather', wingColor: 0x6a6a72, halo: 0xa1a1aa, right: 'scythe', steel: 0xe4e4e7, eyes: 0xffffff, eyeGlow: 1.4 },
+    look: { scale: 1.3, skin: 0xa1a1aa, head: 'skull', shirt: 0x3a3a40, pants: 0x3a3a40, boots: 0x2a2a30, robe: 0x2a2a30, helmet: 'hood', helmetColor: 0x1e1e24, wings: 'feather', wingColor: 0x6a6a72, right: 'scythe', steel: 0xe4e4e7, eyes: 0xffffff, eyeGlow: 1.4 },
     hover: true,
+    extras: (f) => hourglass(f, 1.2),
   }),
   'Whatever Sits the Throne': () => ({ kind: 'beast', build: (m) => buildEldritch(m, { color: 0xd4d4d8, scale: 2.2, eyes: 7, tentacles: 9, mouth: true, eyeColor: 0x1a1a1a, crown: 0xe4e4e7 }), attack: 'breath', bolt: 0xffffff, hover: true }),
   Tarrasque: () => ({ kind: 'beast', build: (m) => buildDragon(m, { color: 0x166534, belly: 0x8aa06e, scale: 2.7, wings: false, fire: 0xff3a1e }), attack: 'melee' }),
@@ -496,6 +710,8 @@ function restFor(w: Weapon | null | undefined): [number, number] {
     case 'orbstaff':
     case 'leafstaff':
     case 'holystaff':
+    case 'spear':
+    case 'scythe':
       return [-0.15, -1.3]
     case 'book':
       return [-0.2, -1.25]
@@ -542,6 +758,7 @@ function fromHumanoid(look: HumanoidLook, attack: AttackStyle, bolt: number, hov
     hover,
     big: (look.scale ?? 1) > 1.3,
     mats,
+    anims: [],
   }
 }
 
@@ -571,6 +788,7 @@ function fromBeast(build: (m: MaterialBag) => Beast, attack: AttackStyle, bolt: 
     hover,
     big: b.height > 1.3,
     mats,
+    anims: [],
   }
 }
 
@@ -588,6 +806,7 @@ export function buildFigure(u: CombatUnit): Figure {
         : fromBeast(e.build, e.attack, e.bolt ?? 0xffffff, !!e.hover)
     // A ranged enemy should never walk up and hit you with a bow.
     if (u.attackRange > 1 && fig.attack === 'melee') fig.attack = 'bolt'
+    e.extras?.(fig)
   }
   // Figures stand a little taller than a tile is wide, like miniatures on a battle map.
   fig.root.scale.setScalar(FIGURE_SCALE)
