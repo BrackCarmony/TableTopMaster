@@ -14,7 +14,8 @@ import { SIGNATURE_BOSSES } from './timing'
 //   battle  an encounter id (see ?battle=list), tier 1-10, size 1-8 party members,
 //   power   multiplies the party's stats (default 4, enough to see a fight through), seed.
 //   &showcase  just the boss's signature attack, three times (the third misses);
-//   &showcase=party  each party member's attack (or heal) in turn instead.
+//   &showcase=party  each party member's attack (or heal) in turn instead;
+//   &showcase=close  the same, with the boss stepping up next to each first (melee range).
 //   &classes=Ranger,Knight,Druid  pick the party's classes (each at its own tier).
 //   ?battle=lineup&role=tank|dps|healer[&race=Elf] stands every class of a role in rows.
 
@@ -111,7 +112,8 @@ function Preview({ q }: { q: URLSearchParams }) {
     if (!enc) return null
     const classes = (q.get('classes') ?? '').split(',').filter(Boolean)
     const r = runEncounter(partyFor(tier, size, power, seed, classes), enc, createRng(seed))
-    return showcase ? { ...r, log: showcaseLog(r.log, q.get('showcase') === 'party') } : r
+    const mode = q.get('showcase')
+    return showcase ? { ...r, log: showcaseLog(r.log, mode === 'party' || mode === 'close', mode === 'close') } : r
   }, [enc, tier, size, power, seed, showcase, q])
   const moduleName = MODULES.find((m) => m.encounters.some((e) => e.id === id))?.name ?? null
 
@@ -145,7 +147,7 @@ function Preview({ q }: { q: URLSearchParams }) {
 }
 
 /** Just the opening and the boss (the first enemy listed with a signature, else the first enemy) attacking three party members in turn: &showcase */
-function showcaseLog(log: CombatLogEvent[], partyAttacks = false): CombatLogEvent[] {
+function showcaseLog(log: CombatLogEvent[], partyAttacks = false, close = false): CombatLogEvent[] {
   const start = log[0]
   if (start?.type !== 'encounter_start') return log
   const enemies = start.units.filter((u) => u.side === 'enemy')
@@ -154,13 +156,15 @@ function showcaseLog(log: CombatLogEvent[], partyAttacks = false): CombatLogEven
   const events: CombatLogEvent[] = [start]
   if (partyAttacks) {
     // &showcase=party: each party member attacks the boss in turn (healers heal a friend).
-    party.forEach((p, i) =>
+    party.forEach((p, i) => {
+      // &showcase=close: the boss walks up next to each of them first.
+      if (close && p.role !== 'healer') events.push({ type: 'move', unitId: boss.id, path: [{ x: p.position.x + 1, y: p.position.y }] })
       events.push(
         p.role === 'healer'
           ? { type: 'heal', healerId: p.id, targetId: party[(i + 1) % party.length].id, amount: 5, targetHpAfter: party[(i + 1) % party.length].hp }
           : { type: 'attack', attackerId: p.id, targetId: boss.id, hit: true, damage: 10, targetHpAfter: boss.hp - 10 * (i + 1) },
-      ),
-    )
+      )
+    })
     return events
   }
   for (let i = 0; i < 3; i++) {

@@ -492,7 +492,13 @@ export class BattleScene {
         const t = this.units.get(e.targetId)
         if (!a || !t) return
         this.face(a, t.pos)
-        const style = a.fig.attack
+        // Someone with a blade in hand who can also strike from range (blade waves, bolts, a
+        // dragon's breath) closes in and uses it when the target is right next to them. Bows,
+        // crossbows and staves keep shooting: that's their weapon.
+        const adjacent = Math.max(Math.abs(a.cell.x - t.cell.x), Math.abs(a.cell.y - t.cell.y)) <= 1
+        const shooter = ['bow', 'crossbow', 'staff', 'orbstaff', 'leafstaff', 'holystaff', 'book'].includes(a.fig.hands[1] ?? '')
+        const canMelee = a.fig.arms.length ? !!a.fig.hands[1] && !shooter : true
+        const style = adjacent && canMelee && (a.fig.attack === 'bolt' || a.fig.attack === 'breath') ? 'melee' : a.fig.attack
         const dir = t.pos.clone().sub(a.pos).setY(0)
         const dist = dir.length()
         dir.normalize()
@@ -504,12 +510,17 @@ export class BattleScene {
           impactAt = D * sig.impact
         } else {
           const reach = style === 'melee' || style === 'slam' ? Math.max(0, Math.min(dist - (a.fig.big ? 0.9 : 0.55), 0.45)) : 0
-          const kind = style === 'melee' ? 'swing' : style === 'arrow' ? 'shoot' : style === 'bolt' ? 'cast' : style === 'breath' ? 'breath' : 'slam'
+          // A fighter's ranged attack comes from their weapon: daggers are thrown, other blades
+          // swung to send a crescent wave. Only staff and spell casters cast bolts.
+          const bladeRanged = style === 'bolt' && canMelee && a.fig.arms.length > 0
+          const thrown = bladeRanged && a.fig.hands[1] === 'dagger' ? 'knife' : bladeRanged ? 'wave' : null
+          const kind = style === 'melee' || thrown ? 'swing' : style === 'arrow' ? 'shoot' : style === 'bolt' ? 'cast' : style === 'breath' ? 'breath' : 'slam'
           // Aim up at big targets (and down at small ones): from the shoulders to the target's chest.
           const aim = Math.atan2(t.fig.height * 0.55 - a.fig.height * 0.62, Math.max(0.5, dist))
           a.pose = { kind, start: this.time, dur: D * 0.8, dir, reach, aim }
           impactAt = D * (style === 'melee' ? 0.42 : style === 'slam' ? 0.5 : 0.6)
-          if (style === 'arrow' || style === 'bolt') this.at(D * 0.33, () => this.projectile(a, t, style, D * 0.27))
+          if (thrown) this.at(D * 0.36, () => this.projectile(a, t, thrown, D * 0.24))
+          else if (style === 'arrow' || style === 'bolt') this.at(D * 0.33, () => this.projectile(a, t, style, D * 0.27))
           if (style === 'breath') this.at(D * 0.28, () => this.breath(a, t, D * 0.35))
         }
         this.at(impactAt, () => {
@@ -656,26 +667,48 @@ export class BattleScene {
     return v.fig.muzzle.getWorldPosition(new THREE.Vector3())
   }
 
-  private projectile(a: UnitView, t: UnitView, style: 'arrow' | 'bolt' | 'heal', dur: number, color = a.fig.boltColor) {
+  private projectile(a: UnitView, t: UnitView, style: 'arrow' | 'bolt' | 'heal' | 'knife' | 'wave', dur: number, color = a.fig.boltColor) {
     const from = this.muzzleWorld(a)
     const to = t.pos.clone().setY(t.fig.height * 0.55)
     let obj: THREE.Mesh
     if (style === 'arrow') {
       obj = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.4, 4).rotateX(Math.PI / 2), this.fxMats.get(0xe9e3d0))
+    } else if (style === 'knife') {
+      // A thrown knife, tumbling end over end.
+      obj = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.22, 4), this.fxMats.get(0xd8dde4, 0.3))
+      obj.add(new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.08, 0.025).translate(0, -0.14, 0), this.fxMats.get(0x3a2a1e)))
+    } else if (style === 'wave') {
+      // A crescent of light cut from the blade, flying flat at the target.
+      const c = color === 0xffffff ? 0xd8f2ff : color
+      obj = new THREE.Mesh(
+        new THREE.TorusGeometry(0.32, 0.035, 4, 16, Math.PI * 0.85).rotateZ(Math.PI * 0.075),
+        new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
+      )
+      color = c
     } else {
       obj = new THREE.Mesh(new THREE.IcosahedronGeometry(style === 'heal' ? 0.07 : 0.1, 1), this.fxMats.get(color, 1.6))
       const light = new THREE.PointLight(color, 2, 3, 2)
       obj.add(light)
     }
     this.scene.add(obj)
-    const arc = style === 'arrow' ? from.distanceTo(to) * 0.12 : 0.15
+    const arc = style === 'arrow' || style === 'knife' ? from.distanceTo(to) * 0.12 : style === 'wave' ? 0 : 0.15
+    const flat = new THREE.Vector3()
     this.tween(
       dur,
       (k) => {
         obj.position.lerpVectors(from, to, k)
         obj.position.y += Math.sin(k * Math.PI) * arc
         if (style === 'arrow') obj.lookAt(to.x, to.y + Math.cos(k * Math.PI) * arc * 2, to.z)
-        else if (Math.random() < 0.6) this.spark(obj.position, color, 0.25)
+        else if (style === 'knife') {
+          obj.lookAt(to)
+          obj.rotateX(-Math.PI / 2 + k * 18) // tumbling
+        } else if (style === 'wave') {
+          // Lying flat, its curve leading toward the target, growing as it flies.
+          flat.copy(to).sub(from).setY(0).normalize()
+          obj.rotation.set(-Math.PI / 2, 0, Math.atan2(-flat.x, -flat.z)) // the arc's middle points along `flat`
+          obj.scale.setScalar(0.8 + k * 0.6)
+          if (Math.random() < 0.5) this.spark(obj.position, color, 0.2)
+        } else if (Math.random() < 0.6) this.spark(obj.position, color, 0.25)
       },
       () => {
         this.scene.remove(obj)
