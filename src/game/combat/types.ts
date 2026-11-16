@@ -23,6 +23,9 @@ export interface CombatUnit {
   attackRange: number
   speed: number
   alive: boolean
+  /** Party only, for the 3D battle view: the character's class name (e.g. "Paladin") and race, which pick their model and gear. Unset on enemies and on logs saved before these existed. */
+  className?: string
+  race?: string
   /** The seated player's dominant personality trait, for flavor-texting their log lines. Null for enemies. */
   flavor: DominantTrait | null
   /** If set, this unit's attackPower grows by this much at the end of every round — a boss "enrage" so a long fight can't out-sustain it forever. */
@@ -56,7 +59,8 @@ export interface CombatUnit {
 }
 
 export type CombatLogEvent =
-  | { type: 'encounter_start'; units: CombatUnit[]; gridWidth: number; gridHeight: number }
+  /** encounterId (an EncounterTemplate id) picks the 3D battle view's setting; unset on logs saved before it existed. */
+  | { type: 'encounter_start'; units: CombatUnit[]; gridWidth: number; gridHeight: number; encounterId?: string }
   | { type: 'move'; unitId: string; path: GridCoord[] }
   | { type: 'attack'; attackerId: string; targetId: string; hit: boolean; damage: number; targetHpAfter: number }
   | { type: 'heal'; healerId: string; targetId: string; amount: number; targetHpAfter: number }

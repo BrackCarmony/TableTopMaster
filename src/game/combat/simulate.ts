@@ -274,6 +274,7 @@ export function runEncounter(partyUnits: CombatUnit[], template: EncounterTempla
       units: cloneUnits(units),
       gridWidth: template.gridWidth,
       gridHeight: template.gridHeight,
+      encounterId: template.id,
     },
   ]
 

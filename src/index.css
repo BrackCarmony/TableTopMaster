@@ -6,3 +6,120 @@ body {
   background-color: #0f1115;
   color: #e5e7eb;
 }
+
+/* ---------- 3D battle view overlay (src/battle3d) ---------- */
+.b3d-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.b3d-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  pointer-events: auto;
+  font-size: 10px;
+  line-height: 1.1;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  white-space: nowrap;
+  transition: opacity 0.4s;
+}
+.b3d-label.party .b3d-name {
+  color: #a7f3d0;
+}
+.b3d-label.enemy .b3d-name {
+  color: #fecaca;
+}
+.b3d-label.dead {
+  opacity: 0.35;
+}
+.b3d-bar {
+  width: 38px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(15, 23, 42, 0.85);
+  outline: 1px solid rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+.b3d-bar > div {
+  height: 100%;
+  transition: width 0.35s ease-out;
+}
+.b3d-hp {
+  font-size: 9px;
+  font-weight: 500;
+  color: #cbd5e1;
+}
+.b3d-float {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  font-size: 15px;
+  font-weight: 800;
+  text-shadow:
+    0 1px 0 #000,
+    0 0 6px rgba(0, 0, 0, 0.8);
+  animation: b3d-float 1.4s ease-out forwards;
+  pointer-events: none;
+}
+.b3d-float.dmg {
+  color: #fca5a5;
+}
+.b3d-float.heal {
+  color: #86efac;
+}
+.b3d-float.miss {
+  color: #e2e8f0;
+  font-size: 13px;
+  font-style: italic;
+}
+@keyframes b3d-float {
+  0% {
+    opacity: 0;
+    margin-top: 6px;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    margin-top: -38px;
+  }
+}
+.b3d-banner {
+  position: absolute;
+  left: 50%;
+  top: 14%;
+  transform: translateX(-50%) scale(0.9);
+  max-width: 86%;
+  padding: 8px 18px;
+  border-radius: 10px;
+  background: rgba(2, 6, 23, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.35s,
+    transform 0.35s;
+}
+.b3d-banner.show {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+.b3d-banner.good {
+  color: #6ee7b7;
+}
+.b3d-banner.bad {
+  color: #fca5a5;
+}
+.b3d-banner.neutral {
+  color: #fcd34d;
+}

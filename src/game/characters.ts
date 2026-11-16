@@ -261,6 +261,8 @@ export function toCombatUnit(
     side: 'party',
     role: character.role,
     level: character.level,
+    className: character.className,
+    race: character.race,
     position: { x: 0, y: 0 },
     hp: character.maxHp,
     maxHp: character.maxHp,
