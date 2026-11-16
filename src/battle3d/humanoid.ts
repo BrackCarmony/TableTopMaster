@@ -246,9 +246,26 @@ export function buildHumanoid(look: HumanoidLook, mats: MaterialBag): { group: T
       case 'circlet':
         head.add(mesh(cyl(hr * 1.06, hr * 1.06, hr * 0.18, 10), mats.get(look.helmetColor ?? 0xf2c14e, 0.4), 0, hr * 1.45, 0))
         break
-      case 'hood':
-        head.add(mesh(cone(hr * 1.35, hr * 2.6, 7), hm, 0, hr * 1.6, -hr * 0.2))
+      case 'hood': {
+        // A cowl: a shell just bigger than the head, covering the top, sides and back down to
+        // the jaw but open over the face, with a little point drooping at the back and a fold
+        // down onto the shoulders behind.
+        hm.side = THREE.DoubleSide
+        const gap = 1.9 // radians of opening across the face (+z)
+        const cowl = mesh(
+          new THREE.SphereGeometry(hr * 1.2, 12, 7, Math.PI / 2 + gap / 2, Math.PI * 2 - gap, 0, Math.PI * 0.68),
+          hm,
+          0,
+          hr * 1.02,
+          -hr * 0.05,
+        )
+        head.add(cowl)
+        const point = mesh(cone(hr * 0.42, hr * 0.9, 6), hm, 0, hr * 2.0, -hr * 0.75)
+        point.rotation.x = -1.0
+        head.add(point)
+        head.add(mesh(box(hr * 1.9, hr * 0.9, hr * 0.5), hm, 0, hr * 0.15, -hr * 0.85))
         break
+      }
       case 'mitre':
         head.add(mesh(cone(hr * 0.75, hr * 1.9, 4), hm, 0, hr * 2.6, 0))
         break
