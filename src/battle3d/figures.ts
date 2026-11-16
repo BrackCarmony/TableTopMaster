@@ -3,7 +3,7 @@ import type { CombatUnit, Role } from '../game/combat/types'
 import { CLASS_TIERS } from '../game/data/classes'
 import { ENEMY_SPRITES } from '../components/combat/sprites'
 import { buildDragon, buildDrone, buildEldritch, buildHound, buildKraken, type Beast } from './beasts'
-import { buildHumanoid, type HumanoidLook } from './humanoid'
+import { buildHumanoid, type HumanoidLook, type Weapon } from './humanoid'
 import { MaterialBag, hex, pick, seeded, shade } from './kit'
 
 // Every unit in a battle becomes a Figure: party members dressed by race, class and tier, and
@@ -20,6 +20,13 @@ export interface Figure {
   head: THREE.Group | null
   legs: THREE.Group[]
   arms: THREE.Group[]
+  /** Forearm and shin pivots (people only): [left, right]. */
+  elbows: THREE.Group[]
+  knees: THREE.Group[]
+  /** How the arms rest when doing nothing: shoulder pitch and elbow bend, [left, right]. */
+  stance: { shoulder: [number, number]; elbow: [number, number] }
+  /** What each hand holds, [left, right]: picks how it attacks and aims. */
+  hands: [Weapon | null, Weapon | null]
   wings: THREE.Group[]
   tentacles: THREE.Group[]
   tail: THREE.Group | null
@@ -482,18 +489,49 @@ export function hasCustomLook(name: string): boolean {
 
 // ---------- assembling ----------
 
+/** How an arm rests holding this: staves, books and bows held out in front, shields across the body, blades at the ready. */
+function restFor(w: Weapon | null | undefined): [number, number] {
+  switch (w) {
+    case 'staff':
+    case 'orbstaff':
+    case 'leafstaff':
+    case 'holystaff':
+      return [-0.15, -1.3]
+    case 'book':
+      return [-0.2, -1.25]
+    case 'bow':
+    case 'crossbow':
+      return [-0.45, -1.1]
+    case 'shield':
+    case 'kite':
+    case 'tower':
+      return [-0.3, -0.85]
+    case null:
+    case undefined:
+      return [0.02, -0.12]
+    default:
+      return [-0.1, -0.7]
+  }
+}
+
 function fromHumanoid(look: HumanoidLook, attack: AttackStyle, bolt: number, hover: boolean): Figure {
   const mats = new MaterialBag()
   const h = buildHumanoid(look, mats)
   const root = new THREE.Group()
   root.add(h.group)
   const p = h.parts
+  const [sl, el] = restFor(look.left)
+  const [sr, er] = restFor(look.right)
   return {
     root,
     body: p.body,
     head: p.head,
     legs: [p.legL, p.legR],
     arms: [p.armL, p.armR],
+    elbows: p.elbows,
+    knees: p.knees,
+    stance: { shoulder: [sl, sr], elbow: [el, er] },
+    hands: [look.left ?? null, look.right ?? null],
     wings: [p.wingL, p.wingR].filter((w): w is THREE.Group => !!w),
     tentacles: [],
     tail: p.tail ?? null,
@@ -519,6 +557,10 @@ function fromBeast(build: (m: MaterialBag) => Beast, attack: AttackStyle, bolt: 
     head: p.head,
     legs: p.legs,
     arms: [],
+    elbows: [],
+    knees: [],
+    stance: { shoulder: [0, 0], elbow: [0, 0] },
+    hands: [null, null],
     wings: p.wings,
     tentacles: p.tentacles,
     tail: p.tail,

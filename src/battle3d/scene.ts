@@ -53,6 +53,8 @@ interface Pose {
   /** Direction to lunge (world, unit length) and how far. */
   dir: THREE.Vector3
   reach: number
+  /** How far up (+) or down (-) to aim at the target, radians. */
+  aim?: number
 }
 
 interface Tween {
@@ -503,7 +505,9 @@ export class BattleScene {
         } else {
           const reach = style === 'melee' || style === 'slam' ? Math.max(0, Math.min(dist - (a.fig.big ? 0.9 : 0.55), 0.45)) : 0
           const kind = style === 'melee' ? 'swing' : style === 'arrow' ? 'shoot' : style === 'bolt' ? 'cast' : style === 'breath' ? 'breath' : 'slam'
-          a.pose = { kind, start: this.time, dur: D * 0.8, dir, reach }
+          // Aim up at big targets (and down at small ones): from the shoulders to the target's chest.
+          const aim = Math.atan2(t.fig.height * 0.55 - a.fig.height * 0.62, Math.max(0.5, dist))
+          a.pose = { kind, start: this.time, dur: D * 0.8, dir, reach, aim }
           impactAt = D * (style === 'melee' ? 0.42 : style === 'slam' ? 0.5 : 0.6)
           if (style === 'arrow' || style === 'bolt') this.at(D * 0.33, () => this.projectile(a, t, style, D * 0.27))
           if (style === 'breath') this.at(D * 0.28, () => this.breath(a, t, D * 0.35))
@@ -831,12 +835,22 @@ export class BattleScene {
     f.body.rotation.set(0, 0, 0)
     // Limbs.
     const swing = v.walking ? Math.sin(v.bob * 11) * 0.7 : 0
-    f.legs.forEach((l, i) => (l.rotation.x = f.hover ? 0.3 : i % 2 ? -swing : swing))
-    const arms = f.arms
-    if (arms.length) {
-      arms[0].rotation.set(v.walking ? -swing * 0.6 : Math.sin(v.bob * 2) * 0.04, 0, -0.12)
-      arms[1].rotation.set(v.walking ? swing * 0.6 : Math.sin(v.bob * 2 + 1) * 0.04, 0, 0.12)
-    }
+    f.legs.forEach((l, i) => {
+      const s = f.hover ? 0.3 : i % 2 ? -swing : swing
+      l.rotation.x = s
+      // The knee bends as the leg swings back (and hangs bent when floating).
+      const knee = f.knees[i]
+      if (knee) knee.rotation.x = f.hover ? 0.55 : Math.max(0, s) * 1.2 + (v.walking ? 0.12 : 0.04)
+    })
+    // Arms rest in the figure's stance (weapon ready, staff held out, shield across), swinging
+    // a little when walking and breathing when still.
+    f.arms.forEach((a, i) => {
+      const side = i === 0 ? -1 : 1
+      const walk = v.walking ? (i ? swing : -swing) * 0.45 : 0
+      a.rotation.set(f.stance.shoulder[i] + walk + Math.sin(v.bob * 2 + i) * 0.035, 0, side * 0.1)
+      const elbow = f.elbows[i]
+      if (elbow) elbow.rotation.set(f.stance.elbow[i] - (v.walking ? 0.2 : 0) + Math.sin(v.bob * 2.2 + i) * 0.03, 0, 0)
+    })
     for (const w of f.wings) {
       const side = Math.sign(w.position.x) || 1
       w.rotation.z = side * (0.15 + Math.sin(t * (f.hover ? 9 : 2) + side) * (f.hover ? 0.5 : 0.08))
@@ -884,39 +898,114 @@ export class BattleScene {
 
   private applyPose(v: UnitView, p: Pose, k: number) {
     const f = v.fig
-    const arms = f.arms
-    const ease = (x: number) => x * x * (3 - 2 * x)
-    const lunge = (amount: number) => {
-      const local = p.dir.clone().multiplyScalar(amount)
-      f.root.position.add(local)
+    const ease = (x: number) => {
+      const c = Math.min(1, Math.max(0, x))
+      return c * c * (3 - 2 * c)
     }
+    const lerp = THREE.MathUtils.lerp
+    const lunge = (amount: number) => f.root.position.add(p.dir.clone().multiplyScalar(amount))
+    const aim = p.aim ?? 0
+    const st = f.stance
+    /** Set arm i (0 left, 1 right): shoulder pitch (negative raises it forward), elbow bend (negative flexes), and yaw across the body (+ toward the middle). */
+    const arm = (i: number, pitch: number, elbow: number, yaw = 0, spread = 0) => {
+      const a = f.arms[i]
+      if (!a) return
+      const side = i === 0 ? -1 : 1
+      a.rotation.set(pitch, -side * yaw, side * (0.1 + spread))
+      const e = f.elbows[i]
+      if (e) e.rotation.x = elbow
+    }
+    /** Ease arm i from its stance to a pose (k 0..1). */
+    const toward = (i: number, pitch: number, elbow: number, t: number, yaw = 0) =>
+      arm(i, lerp(st.shoulder[i], pitch, t), lerp(st.elbow[i], elbow, t), yaw * t)
+    const crouch = (amount: number) => {
+      f.legs.forEach((l) => (l.rotation.x -= amount * 0.35))
+      f.knees.forEach((kn) => (kn.rotation.x += amount * 0.7))
+      f.body.position.y -= amount * 0.04
+    }
+    const shielded = ['shield', 'kite', 'tower'].includes(f.hands[0] ?? '')
+    const heavy = !f.hands[0] && ['hammer', 'greatsword', 'club', 'scythe', 'spear'].includes(f.hands[1] ?? '')
+    const dagger = f.hands[1] === 'dagger'
+
     switch (p.kind) {
       case 'swing': {
-        // Wind up, strike, recover.
-        const up = k < 0.4 ? ease(k / 0.4) : k < 0.55 ? 1 - ease((k - 0.4) / 0.15) * 1.6 : -0.6 * (1 - ease((k - 0.55) / 0.45))
-        if (arms[1]) arms[1].rotation.x = -up * 2.2 - 0.2
-        if (arms[0]) arms[0].rotation.x = -0.4
-        if (f.head && !arms.length) f.head.rotation.x = -up * 0.5
-        const l = k < 0.4 ? -0.15 * ease(k / 0.4) : k < 0.55 ? -0.15 + 1.15 * ease((k - 0.4) / 0.15) : 1 - ease((k - 0.55) / 0.45)
+        // Wind up (0-.4), strike (.4-.55), recover.
+        const w = ease(k / 0.4)
+        const s = ease((k - 0.4) / 0.15)
+        const r = ease((k - 0.55) / 0.45)
+        if (dagger) {
+          // A drawn-back stab with the right, the left blade crossing in after it.
+          const pitch = k < 0.4 ? lerp(st.shoulder[1], -0.5, w) : k < 0.55 ? lerp(-0.5, -1.5 - aim, s) : lerp(-1.5 - aim, st.shoulder[1], r)
+          const elbow = k < 0.4 ? lerp(st.elbow[1], -1.9, w) : k < 0.55 ? lerp(-1.9, -0.05, s) : lerp(-0.05, st.elbow[1], r)
+          arm(1, pitch, elbow, 0.15)
+          const k2 = Math.max(0, k - 0.12)
+          arm(0, lerp(st.shoulder[0], -1.4 - aim, Math.sin(Math.min(1, k2 * 1.6) * Math.PI)), lerp(st.elbow[0], -0.3, Math.sin(Math.min(1, k2 * 1.6) * Math.PI)), 0.25)
+        } else {
+          // Overhead: raised up and back, elbow bent behind the head, then chopped down.
+          const pitch = k < 0.4 ? lerp(st.shoulder[1], -2.7, w) : k < 0.55 ? lerp(-2.7, -0.55 - aim, s) : lerp(-0.55 - aim, st.shoulder[1], r)
+          const elbow = k < 0.4 ? lerp(st.elbow[1], -1.5, w) : k < 0.55 ? lerp(-1.5, -0.1, s) : lerp(-0.1, st.elbow[1], r)
+          arm(1, pitch, elbow, heavy ? 0.35 : 0.1)
+          if (heavy) arm(0, pitch, elbow, 0.35)
+          else if (shielded) toward(0, -0.75, -1.15, Math.sin(Math.min(1, k * 1.3) * Math.PI), 0.25)
+          else if (f.arms[0]) toward(0, -0.9, -0.6, Math.sin(Math.min(1, k * 1.3) * Math.PI))
+        }
+        crouch(k < 0.4 ? w * 0.6 : k < 0.55 ? 0.6 : 0.6 * (1 - r))
+        if (f.head && !f.arms.length) f.head.rotation.x = -(k < 0.4 ? w : 1 - s) * 0.5
+        const l = k < 0.4 ? -0.15 * w : k < 0.55 ? -0.15 + 1.15 * s : 1 - r
         lunge(l * p.reach)
         f.body.rotation.x = l * 0.2
         break
       }
       case 'shoot': {
-        const draw = k < 0.42 ? ease(k / 0.42) : 1 - ease((k - 0.42) / 0.58)
-        if (arms[0]) arms[0].rotation.x = -1.5 * Math.min(1, draw * 2)
-        if (arms[1]) {
-          arms[1].rotation.x = -1.4 * Math.min(1, draw * 2)
-          arms[1].rotation.z = 0.12 + draw * 0.5
+        // Raise the bow at the target (0-.25), draw to the cheek (.25-.42), loose, follow through.
+        const raise = ease(k / 0.25) * (1 - ease((k - 0.8) / 0.2))
+        const draw = ease((k - 0.22) / 0.2)
+        const loosed = k > 0.42
+        const out = ease((k - 0.8) / 0.2)
+        if (f.hands[0] === 'crossbow') {
+          arm(0, lerp(st.shoulder[0], -Math.PI / 2 - aim, raise), lerp(st.elbow[0], 0, raise), 0.08 * raise)
+          arm(1, lerp(st.shoulder[1], -1.3 - aim, raise), lerp(st.elbow[1], -0.6, raise), 0.55 * raise)
+          if (loosed) f.body.rotation.x = -Math.max(0, 0.12 - (k - 0.42)) // a little kick
+        } else {
+          arm(0, lerp(st.shoulder[0], -Math.PI / 2 - aim, raise), lerp(st.elbow[0], 0, raise), 0.12 * raise)
+          // The drawing hand: up to the string, pulled back past the cheek, then snapping open.
+          const pitch = -Math.PI / 2 - aim - 0.1
+          const elbow = loosed ? lerp(-2.4, -1.3, ease((k - 0.42) / 0.12)) : lerp(-0.4, -2.4, draw)
+          const yaw = loosed ? lerp(0.5, 0.2, ease((k - 0.42) / 0.12)) : 0.5
+          arm(1, lerp(st.shoulder[1], pitch, raise * (1 - out)), lerp(st.elbow[1], elbow, raise * (1 - out)), yaw * raise * (1 - out))
+          f.body.rotation.y = -0.25 * raise // turn side-on, like an archer
         }
         break
       }
-      case 'cast':
+      case 'cast': {
+        // Staff lifted to the chest (0-.35), then thrust out at arm's length with its head
+        // tipped toward the target (.35-.45), held, lowered. The staff stays upright because the
+        // forearm stays level.
+        const up = ease(k / 0.35)
+        const thrust = ease((k - 0.35) / 0.1)
+        const down = ease((k - 0.75) / 0.25)
+        const staffArm = f.hands[1] === 'book' ? 0 : 1
+        const free = 1 - staffArm
+        const pitch = k < 0.35 ? lerp(st.shoulder[staffArm], -0.8, up) : lerp(-0.8, -1.25 - aim, thrust)
+        const elbow = k < 0.35 ? lerp(st.elbow[staffArm], -0.75, up) : lerp(-0.75, -0.05, thrust)
+        arm(staffArm, lerp(pitch, st.shoulder[staffArm], down), lerp(elbow, st.elbow[staffArm], down), 0.1)
+        // The other hand pushes out at the target as the spell goes.
+        const push = thrust * (1 - down)
+        arm(free, lerp(st.shoulder[free], -1.5 - aim, push), lerp(st.elbow[free], -0.1, push), 0.2 * push)
+        if (!f.arms.length) f.body.position.y += Math.sin(Math.min(1, k * 1.3) * Math.PI) * 0.15
+        f.body.position.y += Math.sin(Math.min(1, k * 1.3) * Math.PI) * 0.03
+        break
+      }
       case 'heal': {
+        // The staff (or book) held up and out in front; the free hand lifted high and open.
         const lift = Math.sin(Math.min(1, k * 1.3) * Math.PI)
-        if (arms[1]) arms[1].rotation.x = -lift * (p.kind === 'heal' ? 2.6 : 1.8)
-        if (arms[0]) arms[0].rotation.x = -lift * (p.kind === 'heal' ? 2.6 : 0.6)
-        if (!arms.length) f.body.position.y += lift * 0.15
+        const held = (w: string | null) => !!w && ['staff', 'orbstaff', 'leafstaff', 'holystaff', 'book'].includes(w)
+        for (const i of [0, 1]) {
+          if (!f.arms[i]) continue
+          if (held(f.hands[i])) arm(i, lerp(st.shoulder[i], -1.35, lift), lerp(st.elbow[i], -0.25, lift), 0.1 * lift)
+          else arm(i, lerp(st.shoulder[i], -2.75, lift), lerp(st.elbow[i], -0.3, lift), 0, 0.35 * lift)
+        }
+        if (!f.arms.length) f.body.position.y += lift * 0.15
         f.body.position.y += lift * 0.04
         break
       }
@@ -927,11 +1016,16 @@ export class BattleScene {
         break
       }
       case 'slam': {
+        // Both arms high over the head, then brought down hard.
         const up = k < 0.5 ? ease(k / 0.5) : 1 - ease(Math.min(1, (k - 0.5) / 0.12))
-        if (arms[1]) arms[1].rotation.x = -up * 2.8
-        if (arms[0]) arms[0].rotation.x = -up * 2.8
+        const down = k >= 0.5 ? ease(Math.min(1, (k - 0.5) / 0.12)) * (1 - ease((k - 0.7) / 0.3)) : 0
+        for (const i of [0, 1]) {
+          if (!f.arms[i]) continue
+          arm(i, lerp(st.shoulder[i], -2.9, up) + down * -0.3, lerp(st.elbow[i], -0.7, up), 0.3 * (up + down))
+        }
+        crouch(down)
         f.body.position.y += up * (f.hover ? 0.4 : 0.15)
-        f.body.rotation.x = -up * 0.25 + (k > 0.5 ? 0.2 * (1 - k) : 0)
+        f.body.rotation.x = -up * 0.25 + down * 0.2
         lunge(Math.sin(k * Math.PI) * p.reach)
         break
       }
@@ -939,6 +1033,8 @@ export class BattleScene {
         const s = Math.sin(k * Math.PI)
         lunge(s * p.reach)
         f.body.rotation.x = -s * 0.25
+        // Flinch: arms come up to cover.
+        for (const i of [0, 1]) if (f.arms[i]) toward(i, -0.6, -1.4, s * 0.8, 0.2)
         break
       }
       case 'dodge': {
@@ -946,13 +1042,15 @@ export class BattleScene {
         const side = new THREE.Vector3(-p.dir.z, 0, p.dir.x).multiplyScalar(s * p.reach)
         f.root.position.add(side)
         f.body.rotation.z = s * 0.3
+        crouch(s * 0.5)
         break
       }
       case 'cheer': {
         const s = Math.abs(Math.sin(k * Math.PI * 2))
         f.body.position.y += s * 0.2
-        if (arms[0]) arms[0].rotation.x = -2.6 * Math.min(1, k * 4)
-        if (arms[1]) arms[1].rotation.x = -2.6 * Math.min(1, k * 4)
+        const up = Math.min(1, k * 4)
+        for (const i of [0, 1]) if (f.arms[i]) arm(i, lerp(st.shoulder[i], -2.8, up), lerp(st.elbow[i], -0.3 - Math.sin(k * 20 + i) * 0.25, up), 0, 0.25 * up)
+        crouch((1 - s) * 0.4)
         break
       }
     }

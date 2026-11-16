@@ -13,7 +13,9 @@ import { SIGNATURE_BOSSES } from './timing'
 // playing up to it.  http://localhost:5173/?battle=dragons-peak-2&tier=4&size=5&seed=3
 //   battle  an encounter id (see ?battle=list), tier 1-10, size 1-8 party members,
 //   power   multiplies the party's stats (default 4, enough to see a fight through), seed.
-//   &showcase  just the boss's signature attack, three times (the third misses).
+//   &showcase  just the boss's signature attack, three times (the third misses);
+//   &showcase=party  each party member's attack (or heal) in turn instead.
+//   &classes=Ranger,Knight,Druid  pick the party's classes (each at its own tier).
 //   ?battle=lineup&role=tank|dps|healer[&race=Elf] stands every class of a role in rows.
 
 const ENCOUNTERS = Object.values(ENCOUNTER_EXPORTS).filter(
@@ -22,12 +24,22 @@ const ENCOUNTERS = Object.values(ENCOUNTER_EXPORTS).filter(
 const ROLES: Role[] = ['tank', 'dps', 'healer', 'dps', 'healer', 'tank', 'dps', 'dps']
 const NAMES = ['Bramm', 'Cael', 'Fenna', 'Grix', 'Isolde', 'Maeve', 'Pip', 'Wren']
 
-function partyFor(tier: number, size: number, power: number, seed: number): CombatUnit[] {
+/** Where each class name sits: its role and tier. */
+function findClass(name: string): { role: Role; tier: number } | null {
+  for (const role of Object.keys(CLASS_TIERS) as Role[]) {
+    const t = CLASS_TIERS[role].find((c) => c.names.includes(name))
+    if (t) return { role, tier: t.tier }
+  }
+  return null
+}
+
+function partyFor(tier: number, size: number, power: number, seed: number, classes: string[] = []): CombatUnit[] {
   const rng = createRng(seed)
-  return Array.from({ length: size }, (_, i) => {
-    const role = ROLES[i % ROLES.length]
-    const t = CLASS_TIERS[role][Math.min(tier, 10) - 1]
-    const className = t.names[Math.floor(rng() * t.names.length)]
+  return Array.from({ length: classes.length || size }, (_, i) => {
+    const picked = classes[i] ? findClass(classes[i]) : null
+    const role = picked?.role ?? ROLES[i % ROLES.length]
+    const t = CLASS_TIERS[role][Math.min(picked?.tier ?? tier, 10) - 1]
+    const className = picked ? classes[i] : t.names[Math.floor(rng() * t.names.length)]
     const race = RACES[(i + seed) % RACES.length]
     const scale = power * Math.pow(1.6, tier - 1)
     return {
@@ -97,9 +109,10 @@ function Preview({ q }: { q: URLSearchParams }) {
   const showcase = q.has('showcase')
   const result = useMemo(() => {
     if (!enc) return null
-    const r = runEncounter(partyFor(tier, size, power, seed), enc, createRng(seed))
-    return showcase ? { ...r, log: showcaseLog(r.log) } : r
-  }, [enc, tier, size, power, seed, showcase])
+    const classes = (q.get('classes') ?? '').split(',').filter(Boolean)
+    const r = runEncounter(partyFor(tier, size, power, seed, classes), enc, createRng(seed))
+    return showcase ? { ...r, log: showcaseLog(r.log, q.get('showcase') === 'party') } : r
+  }, [enc, tier, size, power, seed, showcase, q])
   const moduleName = MODULES.find((m) => m.encounters.some((e) => e.id === id))?.name ?? null
 
   if (!enc || !result)
@@ -132,13 +145,24 @@ function Preview({ q }: { q: URLSearchParams }) {
 }
 
 /** Just the opening and the boss (the first enemy listed with a signature, else the first enemy) attacking three party members in turn: &showcase */
-function showcaseLog(log: CombatLogEvent[]): CombatLogEvent[] {
+function showcaseLog(log: CombatLogEvent[], partyAttacks = false): CombatLogEvent[] {
   const start = log[0]
   if (start?.type !== 'encounter_start') return log
   const enemies = start.units.filter((u) => u.side === 'enemy')
   const boss = enemies.find((u) => SIGNATURE_BOSSES.includes(u.name)) ?? enemies[0]
   const party = start.units.filter((u) => u.side === 'party')
   const events: CombatLogEvent[] = [start]
+  if (partyAttacks) {
+    // &showcase=party: each party member attacks the boss in turn (healers heal a friend).
+    party.forEach((p, i) =>
+      events.push(
+        p.role === 'healer'
+          ? { type: 'heal', healerId: p.id, targetId: party[(i + 1) % party.length].id, amount: 5, targetHpAfter: party[(i + 1) % party.length].hp }
+          : { type: 'attack', attackerId: p.id, targetId: boss.id, hit: true, damage: 10, targetHpAfter: boss.hp - 10 * (i + 1) },
+      ),
+    )
+    return events
+  }
   for (let i = 0; i < 3; i++) {
     const t = party[i % party.length]
     events.push({ type: 'attack', attackerId: boss.id, targetId: t.id, hit: i !== 2, damage: 10, targetHpAfter: t.hp - 10 * (i + 1) })

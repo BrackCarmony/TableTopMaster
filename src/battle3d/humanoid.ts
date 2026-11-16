@@ -76,6 +76,9 @@ export interface Parts {
   legR: THREE.Group
   armL: THREE.Group
   armR: THREE.Group
+  /** Forearm pivots [left, right] and shin pivots [left, right]: bend them to flex. */
+  elbows: THREE.Group[]
+  knees: THREE.Group[]
   head: THREE.Group
   /** Where projectiles and spells leave from (a hand or staff tip). */
   muzzle: THREE.Object3D
@@ -103,13 +106,19 @@ export function buildHumanoid(look: HumanoidLook, mats: MaterialBag): { group: T
   // Legs.
   const hipY = 0.42
   const legs: THREE.Group[] = []
+  const knees: THREE.Group[] = []
   for (const side of [-1, 1]) {
+    // Thigh from the hip, shin from the knee.
     const leg = pivot(side * 0.075 * W, hipY, 0)
-    leg.add(mesh(box(limb, 0.3, limb * 1.1), look.bony ? skin : pants, 0, -0.15, 0))
-    leg.add(mesh(box(limb * 1.15, 0.13, limb * 1.6), look.bony ? skin : boots, 0, -0.355, 0.02))
-    if (metal && !look.robe) leg.add(mesh(box(limb * 1.2, 0.16, limb * 1.25), metal, 0, -0.22, 0.01))
+    leg.add(mesh(box(limb, 0.17, limb * 1.1), look.bony ? skin : pants, 0, -0.08, 0))
+    const knee = pivot(0, -0.16, 0)
+    knee.add(mesh(box(limb * 0.95, 0.16, limb * 1.05), look.bony ? skin : pants, 0, -0.075, 0))
+    knee.add(mesh(box(limb * 1.15, 0.13, limb * 1.6), look.bony ? skin : boots, 0, -0.195, 0.02))
+    if (metal && !look.robe) knee.add(mesh(box(limb * 1.2, 0.14, limb * 1.25), metal, 0, -0.06, 0.01))
+    leg.add(knee)
     body.add(leg)
     legs.push(leg)
+    knees.push(knee)
   }
 
   // Torso.
@@ -141,12 +150,22 @@ export function buildHumanoid(look: HumanoidLook, mats: MaterialBag): { group: T
 
   // Arms.
   const arms: THREE.Group[] = []
+  const elbows: THREE.Group[] = []
+  const sleeve = look.bony ? skin : look.robe != null ? mats.get(look.robe) : shirt
   for (const side of [-1, 1]) {
+    // Upper arm from the shoulder, forearm and hand from the elbow. Shoulders turn
+    // yaw-then-pitch so an arm can be raised forward and then swung across.
     const arm = pivot(side * 0.2 * W, 0.75, 0)
-    arm.add(mesh(box(limb * 0.85, 0.32, limb * 0.85), look.bony ? skin : look.robe != null ? mats.get(look.robe) : shirt, 0, -0.15, 0))
-    arm.add(mesh(ball(0.05, 0), skin, 0, -0.33, 0))
-    body.add(arms.length ? arm : arm)
+    arm.rotation.order = 'YXZ'
+    arm.add(mesh(box(limb * 0.85, 0.17, limb * 0.85), sleeve, 0, -0.08, 0))
+    if (metal) arm.add(mesh(box(limb * 1.05, 0.08, limb * 1.05), metal, 0, -0.04, 0))
+    const elbow = pivot(0, -0.16, 0)
+    elbow.add(mesh(box(limb * 0.8, 0.16, limb * 0.8), sleeve, 0, -0.075, 0))
+    elbow.add(mesh(ball(0.05, 0), skin, 0, -0.17, 0))
+    arm.add(elbow)
+    body.add(arm)
     arms.push(arm)
+    elbows.push(elbow)
   }
   const [armL, armR] = arms
 
@@ -290,10 +309,10 @@ export function buildHumanoid(look: HumanoidLook, mats: MaterialBag): { group: T
   const steel = look.steel ?? 0xb8bec8
   const magic = look.magic ?? 0x9ad8ff
   let muzzle: THREE.Object3D = armR
-  const holdR = pivot(0, -0.34, 0.02)
-  armR.add(holdR)
-  const holdL = pivot(0, -0.34, 0.02)
-  armL.add(holdL)
+  const holdR = pivot(0, -0.18, 0.02)
+  elbows[1].add(holdR)
+  const holdL = pivot(0, -0.18, 0.02)
+  elbows[0].add(holdL)
   if (look.right) muzzle = attachWeapon(look.right, holdR, mats, steel, magic, look.trim ?? null) ?? holdR
   else muzzle = holdR
   if (look.left) {
@@ -304,7 +323,7 @@ export function buildHumanoid(look: HumanoidLook, mats: MaterialBag): { group: T
   root.scale.setScalar(S)
   return {
     group: root,
-    parts: { body, legL: legs[0], legR: legs[1], armL, armR, head, muzzle, tail, wingL, wingR },
+    parts: { body, legL: legs[0], legR: legs[1], armL, armR, elbows, knees, head, muzzle, tail, wingL, wingR },
     height: (0.79 + hr * 2 + 0.05) * S,
   }
 }
@@ -323,8 +342,9 @@ function attachWeapon(
   const grip = mats.get(0x3a2a1e)
   const g = new THREE.Group()
   hand.add(g)
-  // Held forward and up, like a blade raised in front.
-  g.rotation.x = Math.PI / 2 - 0.35
+  // Blades, hafts and clubs run on along the forearm, tipped forward: pointing ahead at rest
+  // (forearm angled down-forward), up and back in a wind-up, forward-down in a chop.
+  g.rotation.x = Math.PI - 0.6
   const tip = new THREE.Object3D()
   const glow = trimColor != null ? mats.get(trimColor, 0.9) : null
   switch (w) {
@@ -376,8 +396,8 @@ function attachWeapon(
     case 'orbstaff':
     case 'leafstaff':
     case 'holystaff': {
-      // Staves stand upright beside the hand.
-      g.rotation.x = 0
+      // Staves stand upright when the forearm is held out in front (the usual stance).
+      g.rotation.x = Math.PI / 2
       g.add(mesh(cyl(0.017, 0.02, 0.95, 5), w === 'holystaff' ? mats.get(0xe8d9a8) : wood, 0, 0.12, 0))
       const top = w === 'leafstaff' ? mats.get(0x5fbf4a) : mats.get(magic, 0.9)
       if (w === 'leafstaff') {
@@ -402,36 +422,42 @@ function attachWeapon(
       g.add(tip)
       return tip
     case 'bow': {
+      // Held in the fist with the limbs running up and down (the hand's ±z when the forearm
+      // points forward), bending back toward the archer (+y), the string behind them.
       g.rotation.set(0, 0, 0)
-      const curve = new THREE.TorusGeometry(0.3, 0.014, 4, 10, Math.PI * 0.8)
-      const bow = mesh(curve, wood, 0, 0, 0)
-      bow.rotation.set(0, Math.PI / 2, Math.PI / 2 + Math.PI * 0.1)
-      g.add(bow)
-      g.add(mesh(box(0.004, 0.55, 0.004), mats.get(0xe9e3d0), 0, 0, -0.12))
-      tip.position.set(0, 0, 0.1)
+      g.add(mesh(box(0.03, 0.03, 0.09), grip, 0, 0, 0))
+      for (const s of [-1, 1]) {
+        const limb = mesh(box(0.022, 0.022, 0.3), wood, 0, 0.035, s * 0.18)
+        limb.rotation.x = -s * 0.28 // tips curve back toward the archer
+        g.add(limb)
+      }
+      g.add(mesh(box(0.006, 0.006, 0.62), mats.get(0xe9e3d0), 0, 0.09, 0))
+      tip.position.set(0, -0.06, 0)
       g.add(tip)
       return tip
     }
     case 'crossbow':
+      // The stock runs along the forearm and out past the fist.
       g.rotation.set(0, 0, 0)
-      g.add(mesh(box(0.05, 0.05, 0.32), wood, 0, 0, 0.1))
-      g.add(mesh(box(0.34, 0.025, 0.03), steel, 0, 0, 0.22))
-      tip.position.set(0, 0, 0.3)
+      g.add(mesh(box(0.05, 0.34, 0.05), wood, 0, -0.08, 0))
+      g.add(mesh(box(0.36, 0.03, 0.025), steel, 0, -0.22, 0))
+      tip.position.set(0, -0.26, 0)
       g.add(tip)
       return tip
     case 'shield':
-      g.rotation.set(0, 0, 0)
+      // Shields face out from a forearm bent across the body (see the stance in figures.ts).
+      g.rotation.set(1.1, 0, 0)
       g.add(mesh(cyl(0.17, 0.17, 0.035, 10).rotateX(Math.PI / 2), mats.get(shade(steelColor, -0.25)), 0, 0.02, 0.07))
       g.add(mesh(ball(0.045, 0), glow ?? steel, 0, 0.02, 0.095))
       break
     case 'kite':
-      g.rotation.set(0, 0, 0)
+      g.rotation.set(1.1, 0, 0)
       g.add(mesh(box(0.26, 0.3, 0.035), steel, 0, 0.05, 0.07))
       g.add(mesh(cone(0.13, 0.16, 4).rotateZ(Math.PI), steel, 0, -0.17, 0.07))
       if (glow) g.add(mesh(box(0.05, 0.3, 0.01), glow, 0, 0.05, 0.095))
       break
     case 'tower':
-      g.rotation.set(0, 0, 0)
+      g.rotation.set(1.1, 0, 0)
       g.add(mesh(box(0.32, 0.52, 0.04), steel, 0, 0.08, 0.07))
       g.add(mesh(box(0.36, 0.05, 0.05), glow ?? mats.get(shade(steelColor, 0.3)), 0, 0.32, 0.07))
       break
