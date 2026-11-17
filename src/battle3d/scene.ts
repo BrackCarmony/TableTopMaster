@@ -44,6 +44,26 @@ interface UnitView {
   hopUntil: number
   /** The name plate's size, measured once. */
   labelSize?: { w: number; h: number }
+  /** Who it's watching and until when; otherwise the nearest foe (refreshed at foeAt), with a
+   * glance around now and then (at nextGlance). */
+  watch: UnitView | null
+  watchUntil: number
+  foe: UnitView | null
+  foeAt: number
+  nextGlance: number
+  /** Where its head is turned (relative to its facing), eased toward the watched unit. */
+  lookYaw: number
+  lookPitch: number
+  /** 0..1, how far into its badly-hurt slump. */
+  hurt: number
+  nextBlink: number
+  /** How open its mouth is, eased. */
+  mouth: number
+  /** Movement in its own frame (x sideways, z forward), smoothed, for capes and hair. */
+  vel: THREE.Vector3
+  lastRoot: THREE.Vector3
+  /** Which of the victory celebrations it does. */
+  cheerStyle: number
 }
 
 interface Pose {
@@ -74,6 +94,7 @@ interface Particle {
 }
 
 const UP = new THREE.Vector3(0, 1, 0)
+const STAVES = ['staff', 'orbstaff', 'leafstaff', 'holystaff', 'spear', 'scythe']
 
 export class BattleScene {
   private renderer: THREE.WebGLRenderer
@@ -335,6 +356,19 @@ export class BattleScene {
       flashColor: new THREE.Color(0xffffff),
       bob: Math.random() * 10,
       hopUntil: 0,
+      watch: null,
+      watchUntil: 0,
+      foe: null,
+      foeAt: 0,
+      nextGlance: 2 + Math.random() * 6,
+      lookYaw: 0,
+      lookPitch: 0,
+      hurt: 0,
+      nextBlink: Math.random() * 4,
+      mouth: 0,
+      vel: new THREE.Vector3(),
+      lastRoot: pos.clone(),
+      cheerStyle: [...u.id].reduce((h, c) => h + c.charCodeAt(0), 0),
     }
     this.units.set(u.id, view)
     this.renderHp(view)
@@ -432,6 +466,7 @@ export class BattleScene {
       v.fallen = u.alive ? 0 : 1
       v.walking = false
       v.pose = null
+      v.watch = null
       this.renderHp(v)
     }
     // Face the other side.
@@ -506,6 +541,15 @@ export class BattleScene {
         dir.normalize()
         // Bosses have their own signature attack; everyone else attacks by style.
         const sig = SIGNATURES[a.name]
+        // Heads turn: the two of them lock eyes; everyone looks round at a boss or a giant
+        // winding up, and those close by at whoever's being hit.
+        this.watch(a, t, D)
+        this.watch(t, a, D)
+        for (const o of this.units.values()) {
+          if (o === a || o === t || !o.alive) continue
+          if (sig || a.fig.big) this.watch(o, a, D * 0.9, (Math.random() * 0.3) / this.speed)
+          else if (o.pos.distanceTo(t.pos) < 2.6) this.watch(o, t, D * 0.7, (0.1 + Math.random() * 0.3) / this.speed)
+        }
         let impactAt: number
         if (sig) {
           sig.run(this.fx, a, t, D)
@@ -553,7 +597,11 @@ export class BattleScene {
         const h = this.units.get(e.healerId)
         const t = this.units.get(e.targetId)
         if (!h || !t) return
-        if (h !== t) this.face(h, t.pos)
+        if (h !== t) {
+          this.face(h, t.pos)
+          this.watch(h, t, D)
+          this.watch(t, h, D, D * 0.3)
+        }
         h.pose = { kind: 'heal', start: this.time, dur: D * 0.75, dir: new THREE.Vector3(), reach: 0 }
         const color = h.fig.boltColor === 0xffffff ? 0x8af06a : h.fig.boltColor
         if (h !== t) this.at(D * 0.25, () => this.projectile(h, t, 'heal', D * 0.25, color))
@@ -574,6 +622,8 @@ export class BattleScene {
         this.face(h, t.pos)
         h.pose = { kind: 'heal', start: this.time, dur: D * 0.7, dir: new THREE.Vector3(), reach: 0 }
         this.pillar(t.pos, 0xfff2a8, D * 0.9)
+        for (const o of this.units.values())
+          if (o !== t && o.alive && o.side === t.side) this.watch(o, t, D, (Math.random() * 0.3) / this.speed)
         this.at(D * 0.35, () => {
           t.alive = true
           t.hp = e.targetHpAfter
@@ -589,8 +639,12 @@ export class BattleScene {
         if (!v) return
         v.alive = false
         v.walking = false
+        v.pose = null
         this.renderHp(v)
-        this.tween(D * 0.6, (k) => (v.fallen = k * k))
+        this.tween(D * 0.75, (k) => (v.fallen = k * k))
+        // Those nearby turn to watch them fall.
+        for (const o of this.units.values())
+          if (o !== v && o.alive && o.pos.distanceTo(v.pos) < 3.2) this.watch(o, v, D * 1.1, (Math.random() * 0.25) / this.speed)
         this.at(D * 0.45, () => this.burst(v.pos.clone().setY(0.1), 0x8a8070, 12, 0.6))
         return
       }
@@ -624,9 +678,14 @@ export class BattleScene {
       case 'encounter_end': {
         const text = e.outcome === 'victory' ? 'Victory!' : e.outcome === 'defeat' ? 'Total party kill' : 'Stalemate'
         this.showBanner(text, e.outcome === 'victory' ? 'good' : e.outcome === 'defeat' ? 'bad' : 'neutral', 999)
-        if (e.outcome === 'victory')
+        // The winners celebrate (the enemy too, if the party falls).
+        const winners = e.outcome === 'victory' ? 'party' : e.outcome === 'defeat' ? 'enemy' : null
+        if (winners)
           for (const v of this.units.values())
-            if (v.side === 'party' && v.alive) v.pose = { kind: 'cheer', start: this.time + Math.random() * 0.3, dur: 1.4, dir: new THREE.Vector3(), reach: 0 }
+            if (v.side === winners && v.alive) {
+              v.watch = null
+              v.pose = { kind: 'cheer', start: this.time + Math.random() * 0.3, dur: 2.2, dir: new THREE.Vector3(), reach: 0 }
+            }
         this.resyncHp()
         return
       }
@@ -865,15 +924,29 @@ export class BattleScene {
     dy = Math.atan2(Math.sin(dy), Math.cos(dy))
     f.root.rotation.y += dy * Math.min(1, dt * 9)
     f.root.position.copy(v.pos).add(v.offset)
+    // Badly hurt (under 30%): hunched over, breathing hard, a hand to the wound.
+    const low = v.alive && v.maxHp > 0 && v.hp / v.maxHp < 0.3 ? 1 : 0
+    v.hurt += (low - v.hurt) * Math.min(1, dt * 2)
+    const hurt = v.hurt
+    const person = !!f.spine
+    const ft = f.footing
+    const still = !v.walking && !f.hover
+    const breathRate = 2.2 + hurt * 2.6
+    const breath = Math.sin(v.bob * breathRate)
+    // Fighters stand in their stance: feet apart, knees bent, leaning in; more so when hurt.
+    const bend = person && still ? ft.bend + hurt * 0.35 : 0
+    // Weight drifts slowly from one foot to the other.
+    const shift = Math.sin(v.bob * 0.45)
     // Idle breathing / hovering.
     const hoverY = f.hover ? 0.25 + Math.sin(v.bob * 2) * 0.06 : 0
-    f.body.position.set(0, hoverY + (v.walking ? Math.abs(Math.sin(v.bob * 11)) * 0.05 : Math.sin(v.bob * 2.2) * 0.008), 0)
+    f.body.position.set(0, hoverY + (v.walking ? Math.abs(Math.sin(v.bob * 11)) * 0.05 : breath * 0.008) - bend * 0.03, 0)
     f.body.rotation.set(0, 0, 0)
     // Limbs.
     const swing = v.walking ? Math.sin(v.bob * 11) * 0.7 : 0
     f.legs.forEach((l, i) => {
       const s = f.hover ? 0.3 : i % 2 ? -swing : swing
-      l.rotation.x = s
+      l.rotation.x = s - bend * 0.55
+      if (person) l.rotation.z = (i === 0 ? -1 : 1) * (still ? ft.spread : 0.02)
       // The knee bends as the leg swings back (and hangs bent when floating).
       const knee = f.knees[i]
       if (!knee) return
@@ -881,16 +954,38 @@ export class BattleScene {
         // Four legs: front knees fold back and hind hocks forward as each foot lifts.
         const lift = v.walking ? Math.max(0, Math.sin(v.bob * 11 + (i % 2 ? Math.PI : 0) + 1)) * 0.9 : 0
         knee.rotation.x = f.kneeSign[i] * (0.12 + lift)
-      } else knee.rotation.x = f.hover ? 0.55 : Math.max(0, s) * 1.2 + (v.walking ? 0.12 : 0.04)
+      } else
+        knee.rotation.x = f.hover
+          ? 0.55
+          : Math.max(0, s) * 1.2 + (v.walking ? 0.12 : 0.04 + bend * 1.1 + Math.max(0, shift * (i === 0 ? -1 : 1)) * 0.12)
     })
+    // The upper body: leaning into the stance, twisting against the stride, breathing.
+    if (f.spine)
+      f.spine.rotation.set(
+        (still ? ft.lean : v.walking ? 0.1 : 0) + hurt * 0.32 + breath * (0.012 + hurt * 0.025),
+        v.walking ? swing * 0.2 : 0,
+        still ? shift * 0.035 : 0,
+      )
     // Arms rest in the figure's stance (weapon ready, staff held out, shield across), swinging
-    // a little when walking and breathing when still.
+    // when walking and breathing when still. Hurt, the weapon droops and a free hand goes to
+    // the wound.
     f.arms.forEach((a, i) => {
       const side = i === 0 ? -1 : 1
-      const walk = v.walking ? (i ? swing : -swing) * 0.45 : 0
-      a.rotation.set(f.stance.shoulder[i] + walk + Math.sin(v.bob * 2 + i) * 0.035, 0, side * 0.1)
+      const walk = v.walking ? (i ? swing : -swing) * 0.5 : 0
+      const clutch = i === 0 && !f.hands[0] ? hurt : 0
+      // Staves stay upright (the forearm held level against the slump); other weapons droop.
+      const staff = STAVES.includes(f.hands[i] ?? '')
+      const sh = staff ? f.stance.shoulder[i] - hurt * 0.32 : THREE.MathUtils.lerp(f.stance.shoulder[i], 0.02, hurt * 0.45)
+      a.rotation.set(
+        THREE.MathUtils.lerp(sh + walk + Math.sin(v.bob * 2 + i) * 0.035, -0.4, clutch),
+        -side * 0.55 * clutch,
+        side * 0.1,
+      )
       const elbow = f.elbows[i]
-      if (elbow) elbow.rotation.set(f.stance.elbow[i] - (v.walking ? 0.2 : 0) + Math.sin(v.bob * 2.2 + i) * 0.03, 0, 0)
+      if (elbow) {
+        const e = f.stance.elbow[i] * (1 - (staff ? 0 : hurt * 0.4)) - (v.walking ? 0.25 + Math.max(0, -walk) * 0.5 : 0) + Math.sin(v.bob * 2.2 + i) * 0.03
+        elbow.rotation.set(THREE.MathUtils.lerp(e, -1.75, clutch), 0, 0)
+      }
     })
     f.wings.forEach((w, i) => {
       const side = Math.sign(w.position.x) || 1
@@ -923,7 +1018,12 @@ export class BattleScene {
       tt.rotation.z = Math.cos(t * 1.3 + i * 1.7) * 0.35
     })
     if (f.tail && !f.tailSegs.length) f.tail.rotation.y = Math.sin(t * 1.6 + v.bob) * 0.3
-    if (f.head) f.head.rotation.set(((f.head.userData.rest as number | undefined) ?? 0) + Math.sin(v.bob * 1.1) * 0.04, Math.sin(v.bob * 0.7) * 0.08, 0)
+    if (f.head)
+      f.head.rotation.set(
+        ((f.head.userData.rest as number | undefined) ?? 0) + Math.sin(v.bob * 1.1) * 0.04 + hurt * 0.05 - (person && still ? ft.lean * 0.8 : 0),
+        Math.sin(v.bob * 0.7) * 0.06,
+        0,
+      )
 
     // Action poses.
     const p = v.pose
@@ -932,12 +1032,11 @@ export class BattleScene {
       if (k >= 1) v.pose = null
       else if (k >= 0) this.applyPose(v, p, k)
     }
+    this.applyLook(v, dt)
     // Falling over.
-    if (v.fallen > 0) {
-      f.body.rotation.z = v.fallSide * v.fallen * 1.45
-      f.body.position.y = hoverY * (1 - v.fallen) - v.fallen * 0.04
-      f.body.position.x = v.fallSide * v.fallen * f.height * -0.15
-    }
+    if (v.fallen > 0) this.applyFall(v, hoverY)
+    this.applyFace(v, dt)
+    this.applyCloth(v, dt)
     // Hit flash, and fading the fallen.
     v.flash = Math.max(0, v.flash - dt * 3)
     const fade = v.alive ? 1 : 1 - v.fallen * 0.55
@@ -956,6 +1055,219 @@ export class BattleScene {
         m.needsUpdate = true
       }
       m.opacity = base * fade
+    }
+  }
+
+  /** Watch another unit for a while (heads turn to it; see applyLook). */
+  private watch(v: UnitView, target: UnitView, dur: number, delay = 0) {
+    const go = () => {
+      v.watch = target
+      v.watchUntil = this.time + dur
+    }
+    if (delay > 0) this.at(delay, go)
+    else go()
+  }
+
+  /**
+   * Turn the head (and a little of the chest) toward whoever it's watching: the one it's
+   * fighting, whatever's happening nearby, now and then a glance around; else the nearest foe.
+   */
+  private applyLook(v: UnitView, dt: number) {
+    const f = v.fig
+    const t = this.time
+    let target: UnitView | null = null
+    if (v.alive && !this.turntable) {
+      if (v.watch && t < v.watchUntil) target = v.watch
+      else {
+        if (t > v.foeAt) {
+          v.foe = this.nearestFoe(v)
+          v.foeAt = t + 0.6
+        }
+        target = v.foe
+        if (t > v.nextGlance) {
+          v.nextGlance = t + 3 + Math.random() * 6
+          if (!v.pose && !v.walking) {
+            const others = [...this.units.values()].filter((o) => o !== v && o.alive)
+            if (others.length) this.watch(v, others[Math.floor(Math.random() * others.length)], 0.9 + Math.random() * 1.2)
+          }
+        }
+      }
+    }
+    let yaw = 0
+    let pitch = 0
+    if (target && target !== v) {
+      const dx = target.fig.root.position.x - f.root.position.x
+      const dz = target.fig.root.position.z - f.root.position.z
+      const rel = Math.atan2(dx, dz) - f.root.rotation.y
+      yaw = THREE.MathUtils.clamp(Math.atan2(Math.sin(rel), Math.cos(rel)), -1.3, 1.3)
+      const up = target.fig.height * 0.6 + target.fig.body.position.y - f.height * 0.85
+      pitch = THREE.MathUtils.clamp(-Math.atan2(up, Math.max(0.6, Math.hypot(dx, dz))) * 0.8, -0.55, 0.35)
+    }
+    const k = Math.min(1, dt * 5)
+    v.lookYaw += (yaw - v.lookYaw) * k
+    v.lookPitch += (pitch - v.lookPitch) * k
+    if (!f.head) return
+    if (f.spine) {
+      // The chest takes a share of the turn when it isn't busy; the head turns the rest of
+      // the way, whatever the chest is doing.
+      if (!v.pose) f.spine.rotation.y += v.lookYaw * 0.25
+      f.head.rotation.y += THREE.MathUtils.clamp(v.lookYaw - f.spine.rotation.y, -1.3, 1.3)
+      f.head.rotation.x += v.lookPitch
+    } else if (f.neck.length) {
+      const share = v.lookYaw / (f.neck.length + 1)
+      for (const n of f.neck) n.rotation.y += share
+      f.head.rotation.y += share
+      f.head.rotation.x += v.lookPitch * 0.5
+    } else {
+      f.head.rotation.y += v.lookYaw * 0.7
+      f.head.rotation.x += v.lookPitch * 0.5
+    }
+  }
+
+  /**
+   * Going down: people's knees buckle and they slump (the first third), then topple onto their
+   * side with their arms flung loose. Beasts and floaters just keel over. Revived, it runs in
+   * reverse: up onto a knee, then standing.
+   */
+  private applyFall(v: UnitView, hoverY: number) {
+    const f = v.fig
+    const fallen = v.fallen
+    if (f.spine && !f.hover) {
+      const ease = (x: number) => x * x * (3 - 2 * x)
+      const b = ease(Math.min(1, fallen / 0.35))
+      const c = ease(Math.max(0, (fallen - 0.35) / 0.65))
+      const lerp = THREE.MathUtils.lerp
+      f.legs.forEach((l, i) => {
+        l.rotation.x = lerp(l.rotation.x, -0.95 + c * 0.4, b)
+        l.rotation.z = lerp(l.rotation.z, (i === 0 ? -1 : 1) * 0.12, b)
+      })
+      f.knees.forEach((kn) => (kn.rotation.x = lerp(kn.rotation.x, 1.75 - c * 0.7, b)))
+      f.spine.rotation.x = lerp(f.spine.rotation.x, 0.55 - c * 0.35, b)
+      f.spine.rotation.y *= 1 - b
+      if (f.head) f.head.rotation.x = lerp(f.head.rotation.x, 0.4, b)
+      f.arms.forEach((a, i) => {
+        const side = i === 0 ? -1 : 1
+        a.rotation.set(lerp(a.rotation.x, 0.2 - c * 1.1, b), 0, lerp(a.rotation.z, side * (0.15 + c * 0.5), b))
+        const e = f.elbows[i]
+        if (e) e.rotation.x = lerp(e.rotation.x, -0.25 - c * 0.4, b)
+      })
+      f.body.rotation.z = v.fallSide * c * 1.45
+      f.body.position.y = -b * (1 - c) * 0.13 - c * 0.04
+      f.body.position.x = v.fallSide * c * f.height * -0.12
+      return
+    }
+    f.body.rotation.z = v.fallSide * fallen * 1.45
+    f.body.position.y = hoverY * (1 - fallen) - fallen * 0.04
+    f.body.position.x = v.fallSide * fallen * f.height * -0.15
+  }
+
+  /**
+   * Faces: eyes blink (and squeeze shut when hit or fallen), brows frown into an attack, knit
+   * when hurt or struck and lift in a cheer; the mouth shouts with a blow, gasps when hit and
+   * grins wide in victory. Skulls drop their jaw instead.
+   */
+  private applyFace(v: UnitView, dt: number) {
+    const face = v.fig.face
+    if (!face) return
+    const t = this.time
+    const p = v.pose
+    const k = p ? THREE.MathUtils.clamp((t - p.start) / p.dur, 0, 1) : 0
+    const env = p ? Math.sin(k * Math.PI) : 0
+    let angry = 0
+    let worried = v.hurt
+    let joy = 0
+    let open = 0
+    let squint = 0
+    if (p && v.alive)
+      switch (p.kind) {
+        case 'swing':
+        case 'slam':
+          angry = Math.min(1, env * 2)
+          open = k > 0.36 && k < 0.8 ? Math.sin(((k - 0.36) / 0.44) * Math.PI) : 0
+          break
+        case 'shoot':
+          angry = Math.min(1, env * 2) * 0.7
+          squint = Math.min(1, env * 2) * 0.5 // sighting down the arrow
+          break
+        case 'cast':
+        case 'breath':
+          angry = Math.min(1, env * 2) * 0.8
+          open = k > 0.3 && k < 0.75 ? Math.sin(((k - 0.3) / 0.45) * Math.PI) * 0.8 : 0
+          break
+        case 'heal':
+          joy = env * 0.6
+          open = env * 0.35
+          break
+        case 'hit':
+          worried = Math.max(worried, env)
+          open = env * 0.9
+          squint = env
+          break
+        case 'dodge':
+          worried = Math.max(worried, env * 0.7)
+          open = env * 0.5
+          break
+        case 'cheer':
+          joy = Math.min(1, k * 5)
+          open = 0.6 + Math.abs(Math.sin(k * Math.PI * 4)) * 0.4
+          break
+      }
+    if (!v.alive) {
+      squint = 1
+      open = 0.25
+      worried = 0
+    }
+    // Blinking.
+    if (t > v.nextBlink + 0.13) v.nextBlink = t + 1.8 + Math.random() * 4
+    const blink = face.blinks && t > v.nextBlink ? 1 : 0
+    const shut = face.blinks ? Math.max(blink, squint * 0.85) : 0
+    for (const e of face.eyes) e.scale.y = 1 - shut * 0.85
+    const r = face.brows[0] ? Math.abs(face.brows[0].position.x) / 0.42 : 0
+    face.brows.forEach((b, i) => {
+      const side = i === 0 ? -1 : 1
+      b.rotation.z = side * (angry * 0.5 - worried * 0.42)
+      b.position.y = face.browY + r * (joy * 0.16 + worried * 0.05 - angry * 0.06)
+    })
+    v.mouth += (open - v.mouth) * Math.min(1, dt * 14)
+    if (face.mouth) face.mouth.scale.set(1 + joy * 0.35, 1 + v.mouth * 3.2, 1)
+    if (face.jaw) face.jaw.rotation.x = v.mouth * 0.55 + (v.alive ? Math.max(0, Math.sin(v.bob * 0.8)) * 0.05 : 0.3)
+  }
+
+  /**
+   * Capes and long hair trail behind on the move (from how fast the figure is going in its own
+   * frame), sway when still, and hang down rather than tipping with a lean.
+   */
+  private applyCloth(v: UnitView, dt: number) {
+    const f = v.fig
+    if (!f.cape.length && !f.hair.length) return
+    const now = f.root.position
+    if (dt > 0) {
+      const d = now.clone().sub(v.lastRoot).divideScalar(dt)
+      const yaw = f.root.rotation.y
+      const fwd = d.x * Math.sin(yaw) + d.z * Math.cos(yaw)
+      const sideways = d.x * Math.cos(yaw) - d.z * Math.sin(yaw)
+      const k = Math.min(1, dt * 6)
+      v.vel.x += (THREE.MathUtils.clamp(sideways, -3, 3) - v.vel.x) * k
+      v.vel.z += (THREE.MathUtils.clamp(fwd, -3, 3) - v.vel.z) * k
+    }
+    v.lastRoot.copy(now)
+    const t = this.time
+    const lying = v.fallen > 0.5
+    const lean = (f.spine?.rotation.x ?? 0) + f.body.rotation.x
+    const flow = THREE.MathUtils.clamp(v.vel.z * 0.3 + (v.walking ? 0.25 : 0), -0.3, 0.9)
+    const sway = Math.sin(t * 1.7 + v.bob) * 0.05
+    if (f.cape.length === 2) {
+      const [top, low] = f.cape
+      top.rotation.set(lying ? 0.1 : Math.max(0.06 + flow - lean * 0.85 + sway, 0.04 - lean * 0.3), 0, THREE.MathUtils.clamp(-v.vel.x * 0.25, -0.3, 0.3))
+      low.rotation.set(lying ? 0 : flow * 0.45 + Math.sin(t * 2.3 + v.bob) * 0.06 + (v.walking ? Math.sin(v.bob * 11) * 0.1 : 0), 0, 0)
+    }
+    if (f.hair.length) {
+      const headTilt = lean + (f.head?.rotation.x ?? 0)
+      f.hair.forEach((h, i) => {
+        const rest = (h.userData.rest as number | undefined) ?? 0
+        h.rotation.x = lying ? rest : rest + (i === 0 ? Math.max(-0.2, flow * 0.6 - headTilt * 0.7) : flow * 0.3) + Math.sin(t * 2.1 + v.bob + i) * 0.05
+        h.rotation.z = i === 0 ? THREE.MathUtils.clamp(-v.vel.x * 0.3, -0.4, 0.4) + Math.sin(t * 1.3 + v.bob) * 0.04 : 0
+      })
     }
   }
 
@@ -1115,16 +1427,26 @@ export class BattleScene {
       f.knees.forEach((kn) => (kn.rotation.x += amount * 0.7))
       f.body.position.y -= amount * 0.04
     }
+    /** Twist (+ turns the right shoulder back), lean (+ forward) and tilt the upper body, on top of the stance. */
+    const chest = (twist: number, lean = 0, tilt = 0) => {
+      if (!f.spine) return
+      f.spine.rotation.y += twist
+      f.spine.rotation.x += lean
+      f.spine.rotation.z += tilt
+    }
+    const nod = (x: number) => f.head && (f.head.rotation.x += x)
     const shielded = ['shield', 'kite', 'tower'].includes(f.hands[0] ?? '')
     const heavy = !f.hands[0] && ['hammer', 'greatsword', 'club', 'scythe', 'spear'].includes(f.hands[1] ?? '')
     const dagger = f.hands[1] === 'dagger'
 
     switch (p.kind) {
       case 'swing': {
-        // Wind up (0-.4), strike (.4-.55), recover.
+        // Wind up (0-.4), strike (.4-.55), recover. The chest coils back with the wind-up and
+        // whips round through the blow, so the whole body throws it.
         const w = ease(k / 0.4)
         const s = ease((k - 0.4) / 0.15)
         const r = ease((k - 0.55) / 0.45)
+        const coil = k < 0.4 ? w : k < 0.55 ? 1 - 2 * s : -(1 - r)
         if (dagger) {
           // A drawn-back stab with the right, the left blade crossing in after it.
           const pitch = k < 0.4 ? lerp(st.shoulder[1], -0.5, w) : k < 0.55 ? lerp(-0.5, -1.5 - aim, s) : lerp(-1.5 - aim, st.shoulder[1], r)
@@ -1132,6 +1454,7 @@ export class BattleScene {
           arm(1, pitch, elbow, 0.15)
           const k2 = Math.max(0, k - 0.12)
           arm(0, lerp(st.shoulder[0], -1.4 - aim, Math.sin(Math.min(1, k2 * 1.6) * Math.PI)), lerp(st.elbow[0], -0.3, Math.sin(Math.min(1, k2 * 1.6) * Math.PI)), 0.25)
+          chest(coil * 0.35, k < 0.4 ? w * 0.08 : 0.08 + (1 - r) * 0.12)
         } else {
           // Overhead: raised up and back, elbow bent behind the head, then chopped down.
           const pitch = k < 0.4 ? lerp(st.shoulder[1], -2.7, w) : k < 0.55 ? lerp(-2.7, -0.55 - aim, s) : lerp(-0.55 - aim, st.shoulder[1], r)
@@ -1140,12 +1463,14 @@ export class BattleScene {
           if (heavy) arm(0, pitch, elbow, 0.35)
           else if (shielded) toward(0, -0.75, -1.15, Math.sin(Math.min(1, k * 1.3) * Math.PI), 0.25)
           else if (f.arms[0]) toward(0, -0.9, -0.6, Math.sin(Math.min(1, k * 1.3) * Math.PI))
+          // Arch back on the wind-up, crunch forward into the blow.
+          chest(coil * (heavy ? 0.5 : 0.4), k < 0.4 ? -w * 0.18 : k < 0.55 ? -0.18 + s * 0.48 : 0.3 * (1 - r))
         }
+        nod(k < 0.4 ? -w * 0.1 : k < 0.55 ? -0.1 + s * 0.2 : 0.1 * (1 - r))
         crouch(k < 0.4 ? w * 0.6 : k < 0.55 ? 0.6 : 0.6 * (1 - r))
-        if (f.head && !f.arms.length) f.head.rotation.x = -(k < 0.4 ? w : 1 - s) * 0.5
         const l = k < 0.4 ? -0.15 * w : k < 0.55 ? -0.15 + 1.15 * s : 1 - r
         lunge(l * p.reach)
-        f.body.rotation.x = l * 0.2
+        f.body.rotation.x = l * 0.12
         break
       }
       case 'shoot': {
@@ -1157,7 +1482,9 @@ export class BattleScene {
         if (f.hands[0] === 'crossbow') {
           arm(0, lerp(st.shoulder[0], -Math.PI / 2 - aim, raise), lerp(st.elbow[0], 0, raise), 0.08 * raise)
           arm(1, lerp(st.shoulder[1], -1.3 - aim, raise), lerp(st.elbow[1], -0.6, raise), 0.55 * raise)
-          if (loosed) f.body.rotation.x = -Math.max(0, 0.12 - (k - 0.42)) // a little kick
+          // Shouldered and sighting along it; a kick back when it looses.
+          chest(-0.12 * raise, 0.06 * raise - (loosed ? Math.max(0, 0.18 - (k - 0.42) * 1.2) : 0))
+          nod(0.12 * raise)
         } else {
           arm(0, lerp(st.shoulder[0], -Math.PI / 2 - aim, raise), lerp(st.elbow[0], 0, raise), 0.12 * raise)
           // The drawing hand: up to the string, pulled back past the cheek, then snapping open.
@@ -1165,7 +1492,9 @@ export class BattleScene {
           const elbow = loosed ? lerp(-2.4, -1.3, ease((k - 0.42) / 0.12)) : lerp(-0.4, -2.4, draw)
           const yaw = loosed ? lerp(0.5, 0.2, ease((k - 0.42) / 0.12)) : 0.5
           arm(1, lerp(st.shoulder[1], pitch, raise * (1 - out)), lerp(st.elbow[1], elbow, raise * (1 - out)), yaw * raise * (1 - out))
-          f.body.rotation.y = -0.25 * raise // turn side-on, like an archer
+          // Side-on like an archer, the drawing shoulder pulled back with the string and
+          // springing forward on release.
+          chest(-0.25 * raise + (loosed ? 0 : -0.12 * draw * raise), -0.05 * draw * raise)
         }
         break
       }
@@ -1184,12 +1513,16 @@ export class BattleScene {
         // The other hand pushes out at the target as the spell goes.
         const push = thrust * (1 - down)
         arm(free, lerp(st.shoulder[free], -1.5 - aim, push), lerp(st.elbow[free], -0.1, push), 0.2 * push)
-        if (!f.arms.length) f.body.position.y += Math.sin(Math.min(1, k * 1.3) * Math.PI) * 0.15
+        // Gather (drawn up and back), then lean into the release.
+        const gather = up * (1 - thrust)
+        chest((staffArm === 1 ? 1 : -1) * (gather * 0.25 - push * 0.2), -gather * 0.12 + push * 0.18)
+        nod(-gather * 0.12)
         f.body.position.y += Math.sin(Math.min(1, k * 1.3) * Math.PI) * 0.03
         break
       }
       case 'heal': {
-        // The staff (or book) held up and out in front; the free hand lifted high and open.
+        // The staff (or book) held up and out in front; the free hand lifted high and open,
+        // face turned up.
         const lift = Math.sin(Math.min(1, k * 1.3) * Math.PI)
         const held = (w: string | null) => !!w && ['staff', 'orbstaff', 'leafstaff', 'holystaff', 'book'].includes(w)
         for (const i of [0, 1]) {
@@ -1197,18 +1530,20 @@ export class BattleScene {
           if (held(f.hands[i])) arm(i, lerp(st.shoulder[i], -1.35, lift), lerp(st.elbow[i], -0.25, lift), 0.1 * lift)
           else arm(i, lerp(st.shoulder[i], -2.75, lift), lerp(st.elbow[i], -0.3, lift), 0, 0.35 * lift)
         }
-        if (!f.arms.length) f.body.position.y += lift * 0.15
+        chest(0, -lift * 0.16)
+        nod(-lift * 0.25)
         f.body.position.y += lift * 0.04
         break
       }
       case 'breath': {
         const s = Math.sin(Math.min(1, k * 1.2) * Math.PI)
         if (f.head) f.head.rotation.x = -0.3 + s * 0.5
-        f.body.rotation.x = -s * 0.12
+        chest(0, -s * 0.12)
         break
       }
       case 'slam': {
-        // Both arms high over the head, then brought down hard.
+        // Both arms high over the head, arched right back, then brought down hard, folding
+        // over the blow.
         const up = k < 0.5 ? ease(k / 0.5) : 1 - ease(Math.min(1, (k - 0.5) / 0.12))
         const down = k >= 0.5 ? ease(Math.min(1, (k - 0.5) / 0.12)) * (1 - ease((k - 0.7) / 0.3)) : 0
         for (const i of [0, 1]) {
@@ -1216,33 +1551,62 @@ export class BattleScene {
           arm(i, lerp(st.shoulder[i], -2.9, up) + down * -0.3, lerp(st.elbow[i], -0.7, up), 0.3 * (up + down))
         }
         crouch(down)
+        chest(0, -up * 0.3 + down * 0.4)
+        nod(-up * 0.2 + down * 0.15)
         f.body.position.y += up * (f.hover ? 0.4 : 0.15)
-        f.body.rotation.x = -up * 0.25 + down * 0.2
+        f.body.rotation.x = -up * 0.1 + down * 0.08
         lunge(Math.sin(k * Math.PI) * p.reach)
         break
       }
       case 'hit': {
+        // Rocked back: the chest snaps back and turns from the blow, head thrown back, arms
+        // up to cover.
         const s = Math.sin(k * Math.PI)
         lunge(s * p.reach)
-        f.body.rotation.x = -s * 0.25
-        // Flinch: arms come up to cover.
+        f.body.rotation.x = -s * 0.1
+        chest(s * 0.25 * (v.fallSide || 1), -s * 0.3)
+        nod(-s * 0.3)
         for (const i of [0, 1]) if (f.arms[i]) toward(i, -0.6, -1.4, s * 0.8, 0.2)
         break
       }
       case 'dodge': {
+        // A quick sidestep, ducking and leaning away from it.
         const s = Math.sin(k * Math.PI)
         const side = new THREE.Vector3(-p.dir.z, 0, p.dir.x).multiplyScalar(s * p.reach)
         f.root.position.add(side)
-        f.body.rotation.z = s * 0.3
-        crouch(s * 0.5)
+        f.body.rotation.z = s * 0.15
+        chest(-s * 0.3, s * 0.15, s * 0.2)
+        crouch(s * 0.6)
         break
       }
       case 'cheer': {
-        const s = Math.abs(Math.sin(k * Math.PI * 2))
-        f.body.position.y += s * 0.2
         const up = Math.min(1, k * 4)
-        for (const i of [0, 1]) if (f.arms[i]) arm(i, lerp(st.shoulder[i], -2.8, up), lerp(st.elbow[i], -0.3 - Math.sin(k * 20 + i) * 0.25, up), 0, 0.25 * up)
-        crouch((1 - s) * 0.4)
+        const style = v.cheerStyle % 3
+        if (style === 0) {
+          // Both arms up, jumping for joy.
+          const s = Math.abs(Math.sin(k * Math.PI * 2))
+          f.body.position.y += s * 0.2
+          for (const i of [0, 1]) if (f.arms[i]) arm(i, lerp(st.shoulder[i], -2.8, up), lerp(st.elbow[i], -0.3 - Math.sin(k * 20 + i) * 0.25, up), 0, 0.25 * up)
+          crouch((1 - s) * 0.4)
+          chest(0, -s * 0.12)
+          nod(-0.2 * up)
+        } else if (style === 1) {
+          // The weapon thrust high and pumped, the other hand on the hip.
+          const pump = Math.abs(Math.sin(k * Math.PI * 3))
+          arm(1, lerp(st.shoulder[1], -2.5 - pump * 0.4, up), lerp(st.elbow[1], -0.9 + pump * 0.8, up), 0.1 * up)
+          arm(0, lerp(st.shoulder[0], 0.25, up), lerp(st.elbow[0], -1.7, up), -0.5 * up, 0.45 * up)
+          f.body.position.y += pump * 0.05
+          chest(-0.15 * up, -0.15 * up)
+          nod(-0.3 * up)
+        } else {
+          // Weapon raised in a salute, then a big laugh, head back and shoulders shaking.
+          const laugh = Math.max(0, Math.sin(k * 30)) * up
+          arm(1, lerp(st.shoulder[1], -1.6, up), lerp(st.elbow[1], -1.6, up), 0.35 * up)
+          arm(0, lerp(st.shoulder[0], -0.3, up), lerp(st.elbow[0], -1.3, up), 0.5 * up)
+          chest(0.1 * up, -0.22 * up - laugh * 0.05)
+          nod(-0.35 * up - laugh * 0.08)
+          f.body.position.y += laugh * 0.015
+        }
         break
       }
     }

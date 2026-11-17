@@ -3,7 +3,7 @@ import type { CombatUnit, Role } from '../game/combat/types'
 import { CLASS_TIERS } from '../game/data/classes'
 import { ENEMY_SPRITES } from '../components/combat/sprites'
 import { buildDragon, buildDrone, buildEldritch, buildHound, buildKraken, type Beast } from './beasts'
-import { buildHumanoid, type HumanoidLook, type Weapon } from './humanoid'
+import { buildHumanoid, type Face, type HumanoidLook, type Weapon } from './humanoid'
 import { MaterialBag, box, cyl, hex, mesh, pick, seeded, shade } from './kit'
 import {
   bandana,
@@ -40,7 +40,15 @@ export type AttackStyle = 'melee' | 'arrow' | 'bolt' | 'breath' | 'slam'
 export interface Figure {
   root: THREE.Group
   body: THREE.Group
+  /** People: the waist joint (twist and lean the upper body) and what hangs from it, in body
+   * coordinates (attach chest pieces to `upper`). Beasts have no spine and `upper` is the body. */
+  spine: THREE.Group | null
+  upper: THREE.Group
   head: THREE.Group | null
+  face: Face | null
+  /** Cape halves and hair segments, which trail and swing as the figure moves. */
+  cape: THREE.Group[]
+  hair: THREE.Group[]
   legs: THREE.Group[]
   arms: THREE.Group[]
   /** Forearm and shin pivots (people only): [left, right]. */
@@ -48,6 +56,8 @@ export interface Figure {
   knees: THREE.Group[]
   /** How the arms rest when doing nothing: shoulder pitch and elbow bend, [left, right]. */
   stance: { shoulder: [number, number]; elbow: [number, number] }
+  /** How it stands: feet apart (leg splay), knees bent and leaning in, ready to fight. */
+  footing: { spread: number; bend: number; lean: number }
   /** Beasts: which way each knee bends (+1 front, -1 hind), neck segments, lower jaw, tail
    * segments, outer wing joints and tentacle segments (see beasts.ts). Empty for people. */
   kneeSign: number[]
@@ -111,7 +121,7 @@ function partyLook(u: CombatUnit): { look: HumanoidLook; attack: AttackStyle; bo
   const look: HumanoidLook = {
     skin,
     hair: pick(rnd, HAIR),
-    hairStyle: pick(rnd, ['short', 'long', 'bun', 'short'] as const),
+    hairStyle: pick(rnd, ['short', 'long', 'bun', 'short', 'ponytail'] as const),
     shirt: pick(rnd, CLOTH),
     pants: shade(pick(rnd, CLOTH), -0.35),
     boots: 0x3a2a1e,
@@ -447,7 +457,7 @@ const ENEMY_LOOKS: Record<string, () => EnemyBuild> = {
       kind: 'humanoid',
       look,
       extras: (f) => {
-        for (const s of [-1, 1]) flame(f, f.body, s * 0.2 * 1.2, 0.84, 0, 0xff5a1e, 0.8)
+        for (const s of [-1, 1]) flame(f, f.upper, s * 0.2 * 1.2, 0.84, 0, 0xff5a1e, 0.8)
         chestGlow(f, look, 0xff7a2e, 'cracks', 0.11)
       },
     }
@@ -500,8 +510,8 @@ const ENEMY_LOOKS: Record<string, () => EnemyBuild> = {
         // Great iron fists, and smokestacks on the shoulders with fire at their mouths.
         for (const e of f.elbows) e.add(mesh(box(0.13, 0.12, 0.13), f.mats.get(0x5a6474), 0, -0.2, 0))
         for (const s of [-1, 1]) {
-          f.body.add(mesh(cyl(0.035, 0.04, 0.2, 7), f.mats.get(0x2a3038), s * 0.15 * 1.45, 0.88, -0.06))
-          flame(f, f.body, s * 0.15 * 1.45, 0.98, -0.06, 0xff8a2e, 0.45)
+          f.upper.add(mesh(cyl(0.035, 0.04, 0.2, 7), f.mats.get(0x2a3038), s * 0.15 * 1.45, 0.88, -0.06))
+          flame(f, f.upper, s * 0.15 * 1.45, 0.98, -0.06, 0xff8a2e, 0.45)
         }
       },
     }
@@ -738,6 +748,22 @@ function restFor(w: Weapon | null | undefined): [number, number] {
   }
 }
 
+/** A fighting stance from what's in hand: shield-bearers and knife-fighters low and wide, blades
+ * at the ready, archers easy, robed casters upright. */
+function footingFor(look: HumanoidLook): { spread: number; bend: number; lean: number } {
+  const r = look.right ?? null
+  const l = look.left ?? null
+  if (look.robe != null) return { spread: 0, bend: 0.04, lean: 0 }
+  if (r === 'dagger') return { spread: 0.16, bend: 0.4, lean: 0.14 }
+  if (l === 'shield' || l === 'kite' || l === 'tower') return { spread: 0.13, bend: 0.28, lean: 0.06 }
+  if (l === 'bow' || l === 'crossbow') return { spread: 0.08, bend: 0.08, lean: 0 }
+  if (r === 'greatsword' || r === 'hammer' || r === 'club' || r === 'axe' || r === 'scythe' || r === 'spear')
+    return { spread: 0.13, bend: 0.22, lean: 0.05 }
+  if (r === 'sword' || r === 'mace' || r === 'wrench') return { spread: 0.11, bend: 0.2, lean: 0.05 }
+  if (r) return { spread: 0.05, bend: 0.06, lean: 0 }
+  return { spread: 0.09, bend: 0.12, lean: 0.04 }
+}
+
 function fromHumanoid(look: HumanoidLook, attack: AttackStyle, bolt: number, hover: boolean): Figure {
   const mats = new MaterialBag()
   const h = buildHumanoid(look, mats)
@@ -749,12 +775,18 @@ function fromHumanoid(look: HumanoidLook, attack: AttackStyle, bolt: number, hov
   return {
     root,
     body: p.body,
+    spine: p.spine,
+    upper: p.upper,
     head: p.head,
+    face: p.face,
+    cape: p.cape,
+    hair: p.hair,
     legs: [p.legL, p.legR],
     arms: [p.armL, p.armR],
     elbows: p.elbows,
     knees: p.knees,
     stance: { shoulder: [sl, sr], elbow: [el, er] },
+    footing: footingFor(look),
     hands: [look.left ?? null, look.right ?? null],
     kneeSign: [],
     neck: [],
@@ -785,12 +817,18 @@ function fromBeast(build: (m: MaterialBag) => Beast, attack: AttackStyle, bolt: 
   return {
     root,
     body: p.body,
+    spine: null,
+    upper: p.body,
     head: p.head,
+    face: null,
+    cape: [],
+    hair: [],
     legs: p.legs,
     arms: [],
     elbows: [],
     knees: p.knees ?? [],
     stance: { shoulder: [0, 0], elbow: [0, 0] },
+    footing: { spread: 0, bend: 0, lean: 0 },
     hands: [null, null],
     kneeSign: p.kneeSign ?? [],
     neck: p.neck ?? [],

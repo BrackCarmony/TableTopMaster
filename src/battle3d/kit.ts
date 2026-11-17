@@ -45,6 +45,19 @@ export const cyl = (rTop: number, rBottom: number, h: number, seg = 7) =>
   new THREE.CylinderGeometry(rTop, rBottom, h, seg)
 export const cone = (r: number, h: number, seg = 6) => new THREE.ConeGeometry(r, h, seg)
 
+/** A box narrower at the bottom than the top (a chest tapering to the waist), centred like `box`. */
+export function taper(wTop: number, wBottom: number, h: number, dTop: number, dBottom = dTop): THREE.BufferGeometry {
+  const g = new THREE.BoxGeometry(1, h, 1)
+  const p = g.attributes.position
+  for (let i = 0; i < p.count; i++) {
+    const top = p.getY(i) > 0
+    p.setX(i, p.getX(i) * (top ? wTop : wBottom))
+    p.setZ(i, p.getZ(i) * (top ? dTop : dBottom))
+  }
+  g.computeVertexNormals()
+  return g
+}
+
 /** A pivot group at (x, y, z): limbs hang from these so they can swing. */
 export function pivot(x = 0, y = 0, z = 0): THREE.Group {
   const g = new THREE.Group()

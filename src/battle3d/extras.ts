@@ -6,7 +6,8 @@ import { ball, box, cone, cyl, mesh, pivot } from './kit'
 // Details added on top of a base model to give each enemy its own character: bandit masks, a
 // captain's tricorn, quivers, a golem's furnace, flames, ghostly tails. Positions are in the
 // humanoid's own frame (see humanoid.ts: feet at 0, shoulders at 0.75, head pivot at 0.79,
-// facing +z), so they scale with the figure.
+// facing +z), so they scale with the figure. Anything worn above the waist goes on `fig.upper`
+// so it twists and leans with the chest.
 
 /** Radius of a humanoid's head. */
 export const headR = (look: HumanoidLook) => 0.14 * (look.headSize ?? 1)
@@ -107,7 +108,7 @@ export function quiver(fig: Figure, color: number, fletch: number) {
   q.add(mesh(cyl(0.045, 0.04, 0.3, 7), fig.mats.get(color)))
   for (let i = 0; i < 4; i++)
     q.add(mesh(cone(0.018, 0.06, 3), fig.mats.get(fletch), Math.cos(i * 1.6) * 0.02, 0.18, Math.sin(i * 1.6) * 0.02))
-  fig.body.add(q)
+  fig.upper.add(q)
 }
 
 /** A shoulder bag on the hip, with a painted mark. */
@@ -119,7 +120,7 @@ export function satchel(fig: Figure, color: number, mark: number) {
   fig.body.add(s)
   const strap = mesh(box(0.02, 0.46, 0.2), fig.mats.get(color), 0.02, 0.63, 0.0)
   strap.rotation.z = -0.65
-  fig.body.add(strap)
+  fig.upper.add(strap)
 }
 
 /** A shaggy fur mantle over the shoulders. */
@@ -128,9 +129,9 @@ export function furMantle(fig: Figure, look: HumanoidLook, color: number) {
   const w = W(look)
   for (let i = 0; i < 7; i++) {
     const x = (i / 6 - 0.5) * 0.42 * w
-    fig.body.add(mesh(ball(0.07 + (i % 2) * 0.015, 0), m, x, 0.77 - Math.abs(x) * 0.25, -0.03))
+    fig.upper.add(mesh(ball(0.07 + (i % 2) * 0.015, 0), m, x, 0.77 - Math.abs(x) * 0.25, -0.03))
   }
-  fig.body.add(mesh(box(0.36 * w, 0.12, 0.05), m, 0, 0.72, -0.1))
+  fig.upper.add(mesh(box(0.36 * w, 0.12, 0.05), m, 0, 0.72, -0.1))
 }
 
 /** Spikes or crystals jutting from the shoulders. */
@@ -140,7 +141,7 @@ export function shoulderSpikes(fig: Figure, look: HumanoidLook, color: number, g
     for (let i = 0; i < count; i++) {
       const c = mesh(cone(0.035, 0.18 - i * 0.03, 5), m, s * (0.2 + i * 0.03) * W(look), 0.83, (i - 1) * 0.05)
       c.rotation.z = -s * (0.4 + i * 0.25)
-      fig.body.add(c)
+      fig.upper.add(c)
     }
 }
 
@@ -167,7 +168,7 @@ export function chestGlow(fig: Figure, look: HumanoidLook, color: number, shape:
       c.rotation.z = (i % 2 ? 0.5 : -0.4) + i * 0.2
       g.add(c)
     }
-  fig.body.add(g)
+  fig.upper.add(g)
   const phase = Math.random() * 6
   fig.anims.push((t, alive) => {
     m.userData.baseIntensity = alive ? 1.1 + Math.sin(t * 2.4 + phase) * 0.4 : 0.1
@@ -180,7 +181,7 @@ export function windupKey(fig: Figure, color: number) {
   const m = fig.mats.get(color)
   k.add(mesh(cyl(0.015, 0.015, 0.1, 5).rotateX(Math.PI / 2), m, 0, 0, -0.05))
   for (const s of [-1, 1]) k.add(mesh(new THREE.TorusGeometry(0.045, 0.014, 4, 10), m, s * 0.055, 0, -0.1))
-  fig.body.add(k)
+  fig.upper.add(k)
   fig.anims.push((t, alive) => {
     if (alive) k.rotation.z = t * 1.6
   })
@@ -208,7 +209,7 @@ export function boneNecklace(fig: Figure, look: HumanoidLook, color = 0xf3ecd8) 
     const a = (i / 6 - 0.5) * 2.2
     const c = mesh(cone(0.016, 0.06, 4), m, Math.sin(a) * 0.12 * w, 0.73 - Math.cos(a) * 0.03, Math.cos(a) * 0.1)
     c.rotation.x = Math.PI
-    fig.body.add(c)
+    fig.upper.add(c)
   }
 }
 
@@ -269,7 +270,7 @@ export function moss(fig: Figure, look: HumanoidLook, color = 0x4f7a32) {
   {
     const patch = mesh(ball(s, 0), m, x, y, z)
     patch.scale.set(1.2, 0.55, 1.2)
-    fig.body.add(patch)
+    fig.upper.add(patch)
   }
 }
 
