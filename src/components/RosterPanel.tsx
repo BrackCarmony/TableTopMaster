@@ -1,12 +1,13 @@
 import { useState } from 'react'
-import { ROLE_ICON, TRAIT_ICON, TRAIT_LABEL } from './icons'
+import { ROLE_ICON, ROLE_LABEL, TRAIT_ICON, TRAIT_LABEL } from './icons'
 import { formatNumber } from '../format'
 import { CROSS_TRAIN_ATTACK_BONUS_PER_TIER, CROSS_TRAIN_HP_BONUS_PER_TIER, CROSS_TRAIN_REGEN_PER_TIER } from '../game/characters'
 import { getClassTier, maxTier } from '../game/data/classes'
 import { legacyTierCost } from '../game/data/legacy'
 import { dominantTrait } from '../game/personality'
-import { useGameStore } from '../game/store'
+import { newPlayerCost, useGameStore } from '../game/store'
 import type { Player, Role } from '../game/types'
+import { PageHeader } from './shell/Shell'
 
 const ROLES: Role[] = ['tank', 'dps', 'healer']
 
@@ -27,7 +28,7 @@ function LegacyTierButton({ player }: { player: Player }) {
 
   return (
     <div
-      className="flex items-center justify-between gap-2 rounded bg-rose-950/40 px-2 py-1 text-xs"
+      className="flex items-center justify-between gap-2 rounded-md bg-rose-950/40 px-2 py-1 text-xs"
       title="Permanent stat bonus that survives every death and reroll, regardless of what role they roll next. Never caps."
     >
       <span className="text-rose-300">💀 Veteran Tier {formatNumber(player.legacyTier)}</span>
@@ -52,11 +53,11 @@ function TierButton({ player, role }: { player: Player; role: Role }) {
 
   return (
     <div
-      className="flex items-center justify-between gap-2 rounded bg-slate-800/60 px-2 py-1 text-xs"
+      className="flex flex-col gap-1 rounded-md bg-slate-800/60 px-2 py-1.5 text-xs"
       title={`Every tier here gives ALL of this player's characters ${CROSS_TRAIN_DESCRIPTION[role]} per tier past T1, no matter what role they roll — a reason to tier this up even if it's not their main.`}
     >
       <span className="text-slate-300">
-        {ROLE_ICON[role]} Tier {tier}
+        {ROLE_ICON[role]} {ROLE_LABEL[role]} <span className="text-slate-500">T{tier}</span>
       </span>
       {maxed ? (
         <span className="text-slate-500">Maxed</span>
@@ -66,7 +67,7 @@ function TierButton({ player, role }: { player: Player; role: Role }) {
           onClick={() => unlockPlayerTier(player.id, role)}
           className="rounded bg-amber-700 px-2 py-0.5 font-medium text-amber-50 hover:bg-amber-600 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-500"
         >
-          Unlock T{tier + 1} &middot; {formatNumber(nextCost!)}g
+          T{tier + 1} &middot; {formatNumber(nextCost!)}g
         </button>
       )}
     </div>
@@ -88,55 +89,101 @@ function BuyCheapestLegacyTierButton() {
       disabled={!affordable}
       onClick={() => upgradeCheapestLegacyTier()}
       title={`Upgrades whichever player currently has the lowest Veteran Tier (${cheapest.name}) — always the cheapest next purchase.`}
-      className="rounded-md bg-rose-700 px-3 py-1.5 text-sm font-medium text-rose-50 hover:bg-rose-600 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500"
+      className="rounded-md bg-rose-800 px-3 py-1.5 text-sm font-medium text-rose-50 hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500"
     >
-      💀 Upgrade Cheapest &middot; {formatNumber(cost)} Infamy
+      💀 Upgrade cheapest veteran &middot; {formatNumber(cost)} infamy
     </button>
   )
 }
 
+function RecruitButton() {
+  const players = useGameStore((s) => s.players)
+  const infamy = useGameStore((s) => s.dm.infamy)
+  const recruitNewPlayer = useGameStore((s) => s.recruitNewPlayer)
+  const cost = newPlayerCost(players.length)
+  return (
+    <button
+      disabled={infamy < cost}
+      onClick={() => recruitNewPlayer()}
+      title="Grow your roster. New recruits start on the bench."
+      className="rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-medium text-emerald-50 hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500"
+    >
+      + Recruit &middot; {formatNumber(cost)} infamy
+    </button>
+  )
+}
+
+type Filter = 'all' | 'seated' | 'benched'
+
 export function RosterPanel() {
   const players = useGameStore((s) => s.players)
   const tables = useGameStore((s) => s.tables)
-  const [collapsed, setCollapsed] = useState(false)
+  const [filter, setFilter] = useState<Filter>('all')
 
   const tableNameById = new Map(tables.map((t) => [t.id, t.name]))
+  const seated = players.filter((p) => p.tableId).length
+  const counts: Record<Filter, number> = { all: players.length, seated, benched: players.length - seated }
+  const shown = players.filter((p) => (filter === 'all' ? true : filter === 'seated' ? !!p.tableId : !p.tableId))
 
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <button
-          onClick={() => setCollapsed((c) => !c)}
-          className="flex items-center gap-1.5 text-base font-semibold text-slate-100 hover:text-slate-300"
-        >
-          <span className={`inline-block text-xs text-slate-500 transition-transform ${collapsed ? '-rotate-90' : ''}`}>▼</span>
-          Roster
-          <span className="text-xs font-normal text-slate-500">({formatNumber(players.length)})</span>
-        </button>
-        <BuyCheapestLegacyTierButton />
+    <div>
+      <PageHeader
+        actions={
+          <>
+            <RecruitButton />
+            <BuyCheapestLegacyTierButton />
+          </>
+        }
+      />
+      <div className="mb-4 flex gap-1.5">
+        {(['all', 'seated', 'benched'] as const).map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition ${
+              filter === f ? 'bg-slate-200 text-slate-900' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+            }`}
+          >
+            {f} <span className="tabular-nums opacity-60">{counts[f]}</span>
+          </button>
+        ))}
       </div>
-      {!collapsed && (
-      <div className="flex flex-col gap-3">
-        {players.map((player) => {
+      {shown.length === 0 && <p className="text-sm italic text-slate-500">Nobody here right now.</p>}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        {shown.map((player) => {
           const trait = dominantTrait(player.personality)
-          const location = player.tableId ? tableNameById.get(player.tableId) ?? 'Seated' : 'Benched'
+          const location = player.tableId ? (tableNameById.get(player.tableId) ?? 'Seated') : 'Benched'
           return (
-            <div key={player.id} className="rounded-md border border-slate-800 bg-slate-950/40 p-3">
-              <div className="flex items-center justify-between">
+            <div key={player.id} className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+              <div className="flex items-center justify-between gap-2">
                 <span className="font-medium text-slate-100">
-                  {player.name} <span title={TRAIT_LABEL[trait]}>{TRAIT_ICON[trait]}</span>
+                  {player.name}{' '}
+                  <span title={TRAIT_LABEL[trait]} className="text-sm">
+                    {TRAIT_ICON[trait]}
+                  </span>
                 </span>
-                <span className={`text-xs ${player.tableId ? 'text-emerald-400' : 'text-slate-500'}`}>{location}</span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${
+                    player.tableId ? 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/30' : 'bg-slate-800 text-slate-400 ring-slate-700'
+                  }`}
+                >
+                  {location}
+                </span>
               </div>
-              {player.character && (
-                <p className="mt-0.5 text-xs text-slate-500">
-                  Currently: {player.character.className} (Lv {formatNumber(player.character.level)})
-                </p>
-              )}
+              <p className="mt-0.5 text-xs text-slate-500">
+                {player.character ? (
+                  <>
+                    {ROLE_ICON[player.character.role]} {player.character.race} {player.character.className} · Lv{' '}
+                    {formatNumber(player.character.level)}
+                  </>
+                ) : (
+                  'No character yet: seat them to roll one'
+                )}
+              </p>
               <div className="mt-2">
                 <LegacyTierButton player={player} />
               </div>
-              <div className="mt-1.5 grid grid-cols-1 gap-1.5 sm:grid-cols-3">
+              <div className="mt-1.5 grid grid-cols-3 gap-1.5">
                 {ROLES.map((role) => (
                   <TierButton key={role} player={player} role={role} />
                 ))}
@@ -145,7 +192,6 @@ export function RosterPanel() {
           )
         })}
       </div>
-      )}
     </div>
   )
 }

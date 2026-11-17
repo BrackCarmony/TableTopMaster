@@ -4,6 +4,7 @@ import { growthRateFor, projectStatsAtLevel } from '../game/characters'
 import { CLASS_TIERS } from '../game/data/classes'
 import type { Role } from '../game/types'
 import { ROLE_ICON, ROLE_LABEL } from './icons'
+import { PageHeader } from './shell/Shell'
 
 const ROLES: Role[] = ['tank', 'dps', 'healer']
 const LEVEL_PRESETS = [1, 10, 25, 50, 100]
@@ -12,7 +13,7 @@ function asPercent(rate: number): string {
   return `${Math.round(rate * 100)}%`
 }
 
-export function ClassReferenceModal({ onClose }: { onClose: () => void }) {
+export function ClassReference() {
   const [role, setRole] = useState<Role>('tank')
   const [level, setLevel] = useState(1)
 
@@ -31,14 +32,9 @@ export function ClassReferenceModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-      <div className="max-h-[85vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-slate-700 bg-slate-900 p-5 shadow-xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-100">Class Reference</h2>
-          <button className="text-slate-400 hover:text-slate-200" onClick={onClose}>
-            ✕
-          </button>
-        </div>
+    <div>
+      <PageHeader />
+      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
 
         <div className="mb-4 flex flex-wrap items-center gap-4">
           <div className="flex gap-1.5">

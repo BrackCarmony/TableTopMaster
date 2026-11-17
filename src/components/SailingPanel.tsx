@@ -7,6 +7,7 @@ import { effectiveShipSlots, hasSailingUnlock, voyageDuration } from '../game/en
 import { shipCost, useGameStore } from '../game/store'
 import type { Ship } from '../game/types'
 import { IslandPickerModal } from './IslandPickerModal'
+import { PageHeader } from './shell/Shell'
 
 function ShipRow({ ship }: { ship: Ship }) {
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -22,7 +23,7 @@ function ShipRow({ ship }: { ship: Ship }) {
   const secondsLeft = Math.max(0, Math.ceil(ship.voyageRemaining / 1000))
 
   return (
-    <div className="flex flex-col gap-2 rounded-md border border-slate-800 bg-slate-900 px-3 py-2">
+    <div id={`ship-${ship.id}`} className="flex scroll-mt-28 flex-col gap-2 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2.5">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-slate-100">⛵ {ship.name}</span>
         <button
@@ -56,9 +57,11 @@ export function SailingPanel() {
   if (!hasSailingUnlock(dm)) {
     const sailingUnlock = getUpgradeById('sailing-unlock')!
     return (
-      <div className="rounded-lg border border-cyan-900/60 bg-cyan-950/10 p-4">
-        <h2 className="mb-2 text-base font-semibold text-cyan-200">⚓ Sailing</h2>
-        <p className="mb-3 text-xs text-cyan-300/80">
+      <div>
+        <PageHeader />
+        <div className="rounded-xl border border-cyan-900/60 bg-cyan-950/10 p-5">
+        <h2 className="mb-2 text-base font-semibold text-cyan-200">🔒 The docks are closed</h2>
+        <p className="mb-3 text-sm text-cyan-300/80">
           Buy ships, send them to explore islands, and bring back gold and artifacts that permanently empower your party.
         </p>
         <button
@@ -68,6 +71,7 @@ export function SailingPanel() {
         >
           Unlock Sailing — {formatNumber(sailingUnlock.cost)}g
         </button>
+        </div>
       </div>
     )
   }
@@ -78,30 +82,33 @@ export function SailingPanel() {
   const discovered = dm.discoveredArtifactIds ?? []
 
   return (
-    <div className="rounded-lg border border-cyan-900/60 bg-cyan-950/10 p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-base font-semibold text-cyan-200">⚓ Sailing</h2>
-        <span className="text-xs text-slate-500">
-          {ships.length}/{slots} ships
-        </span>
-      </div>
+    <div>
+      <PageHeader
+        actions={
+          <button
+            disabled={atCapacity || dm.gold < nextCost}
+            onClick={() => buyShip()}
+            className="rounded-md bg-cyan-700 px-3 py-1.5 text-sm font-medium text-cyan-50 hover:bg-cyan-600 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500"
+          >
+            {atCapacity ? `Fleet full (${ships.length}/${slots})` : `+ Buy ship — ${formatNumber(nextCost)}g`}
+          </button>
+        }
+      />
+      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-cyan-400">
+        Fleet · {ships.length}/{slots} ships
+      </h2>
 
+      {ships.length === 0 && <p className="mb-4 text-sm italic text-slate-500">No ships yet: buy your first above.</p>}
       {ships.length > 0 && (
-        <div className="mb-3 flex flex-col gap-2">
+        <div className="mb-6 grid grid-cols-1 gap-2 lg:grid-cols-2">
           {ships.map((ship) => (
             <ShipRow key={ship.id} ship={ship} />
           ))}
         </div>
       )}
 
-      <button
-        disabled={atCapacity || dm.gold < nextCost}
-        onClick={() => buyShip()}
-        className="mb-3 rounded-md bg-cyan-700 px-3 py-1.5 text-sm font-medium text-cyan-50 hover:bg-cyan-600 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
-      >
-        {atCapacity ? 'No More Ship Slots' : `Buy Ship — ${formatNumber(nextCost)}g`}
-      </button>
-
+      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-cyan-400">Artifacts found · {discovered.length}</h2>
+      {discovered.length === 0 && <p className="text-sm italic text-slate-500">Nothing yet. Voyages sometimes bring one back.</p>}
       {discovered.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {discovered.map((id) => {

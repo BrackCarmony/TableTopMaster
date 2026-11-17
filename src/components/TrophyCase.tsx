@@ -1,11 +1,22 @@
 import { formatNumber } from '../format'
 import { trophyStartingLevelBonus } from '../game/data/trophies'
 import { useGameStore } from '../game/store'
+import { PageHeader } from './shell/Shell'
 
 export function TrophyCase() {
   const trophies = useGameStore((s) => s.dm.trophies)
 
-  if (trophies.length === 0) return null
+  if (trophies.length === 0)
+    return (
+      <div>
+        <PageHeader />
+        <div className="rounded-xl border border-dashed border-amber-900/60 p-6 text-center">
+          <div className="text-3xl">🏆</div>
+          <p className="mt-2 text-sm text-amber-200">The case is empty.</p>
+          <p className="mt-1 text-xs text-slate-400">Win an execution (a boss hunt like the Tarrasque or the Kraken) and the boss leaves a part behind for your wall.</p>
+        </div>
+      </div>
+    )
 
   const byPart = new Map<string, Set<string>>()
   for (const t of trophies) {
@@ -16,7 +27,9 @@ export function TrophyCase() {
   const startingLevelBonus = trophyStartingLevelBonus(trophies.length)
 
   return (
-    <div className="rounded-lg border border-amber-900/60 bg-amber-950/10 p-4">
+    <div>
+      <PageHeader />
+      <div className="rounded-xl border border-amber-900/60 bg-amber-950/10 p-4">
       <div className="mb-1 flex items-center justify-between">
         <h2 className="text-base font-semibold text-amber-200">Trophy Case</h2>
         <span className="text-xs text-slate-500">
@@ -42,6 +55,7 @@ export function TrophyCase() {
             </div>
           </div>
         ))}
+      </div>
       </div>
     </div>
   )
