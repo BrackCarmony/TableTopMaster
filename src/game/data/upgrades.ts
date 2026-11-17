@@ -458,7 +458,7 @@ export const UPGRADES: Upgrade[] = [
   {
     id: 'plot-armor-1',
     name: 'Plot Armor I',
-    description: 'The DM fudges the death roll. Each character who falls has a 10% chance to be spared, keeping their seat and levels.',
+    description: 'The DM fudges the death roll. Each character who falls in a campaign fight has a 10% chance to be spared, keeping their seat and levels. Executions still end in a wipe.',
     currency: 'infamy',
     cost: 250,
     effect: { kind: 'cheatDeathChance', value: 0.1 },
@@ -581,7 +581,7 @@ export const UPGRADES: Upgrade[] = [
   {
     id: 'salvage-rights-1',
     name: 'Salvage Rights I',
-    description: 'Someone has to pick up the loot. Lost fights still pay 20% of their gold.',
+    description: 'Someone has to pick up the loot. Lost campaign fights still pay 20% of their gold (not executions).',
     currency: 'gold',
     cost: 800,
     effect: { kind: 'defeatGoldFraction', value: 0.2 },
@@ -589,7 +589,7 @@ export const UPGRADES: Upgrade[] = [
   {
     id: 'salvage-rights-2',
     name: 'Salvage Rights II',
-    description: 'And the boots, and the rings. Lost fights pay another 20% of their gold.',
+    description: 'And the boots, and the rings. Lost campaign fights pay another 20% of their gold.',
     currency: 'gold',
     cost: 12000,
     effect: { kind: 'defeatGoldFraction', value: 0.2 },

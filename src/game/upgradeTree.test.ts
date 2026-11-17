@@ -164,28 +164,41 @@ describe('the newer upgrade effects', () => {
       expect(dread.table.lastBattleRewards.gold).toBe(plain.table.lastBattleRewards.gold)
   })
 
-  it('pays Salvage Rights gold when a party is wiped', () => {
-    // A fresh party against the Tarrasque doesn't come back.
-    const table = makeTable({ assignedModuleId: 'tarrasque-execution' })
-    const wiped = resolveEncounter(table, party(4), makeDm(), createRng(3))
-    expect(wiped.table.lastBattleRewards?.outcome).toBe('defeat')
-    expect(wiped.dm.gold).toBe(0)
-    const salvaged = resolveEncounter(table, party(4), makeDm({ purchasedUpgradeIds: ['salvage-rights-1'] }), createRng(3))
+  /** A campaign fight a fresh party loses: the Void Between Stars, a tier-8 module. */
+  const losingCampaign = makeTable({ assignedModuleId: 'void-between-stars' })
+
+  it('pays Salvage Rights gold when a party loses a campaign fight', () => {
+    const lost = resolveEncounter(losingCampaign, party(4), makeDm(), createRng(3))
+    expect(lost.table.lastBattleRewards?.outcome).toBe('defeat')
+    expect(lost.dm.gold).toBe(0)
+    const salvaged = resolveEncounter(losingCampaign, party(4), makeDm({ purchasedUpgradeIds: ['salvage-rights-1'] }), createRng(3))
     expect(salvaged.table.lastBattleRewards?.gold).toBeGreaterThan(0)
     expect(salvaged.dm.gold).toBe(salvaged.table.lastBattleRewards!.gold)
   })
 
-  it('spares some of the fallen with Plot Armor, who keep their seats', () => {
-    const table = makeTable({ assignedModuleId: 'tarrasque-execution' })
+  it('spares some of the fallen in campaign fights with Plot Armor, who keep their seats', () => {
     const dm = makeDm({ purchasedUpgradeIds: ['plot-armor-1', 'plot-armor-2', 'plot-armor-3'] })
     let spared = 0
     for (let seed = 1; seed <= 30; seed++) {
-      const r = resolveEncounter(table, party(4), dm, createRng(seed))
+      const r = resolveEncounter(losingCampaign, party(4), dm, createRng(seed))
       const n = r.table.lastBattleRewards?.spared ?? 0
       spared += n
-      expect(r.players.filter((p) => p.tableId === 't1').length).toBe(n)
+      expect(r.players.filter((p) => p.tableId === 't1').length).toBeGreaterThanOrEqual(n)
     }
     expect(spared).toBeGreaterThan(0)
+  })
+
+  it('leaves executions alone: still a wipe, no one spared, nothing salvaged', () => {
+    const execution = makeTable({ assignedModuleId: 'tarrasque-execution' })
+    const dm = makeDm({ purchasedUpgradeIds: ['plot-armor-1', 'plot-armor-2', 'plot-armor-3', 'salvage-rights-1', 'salvage-rights-2'] })
+    for (let seed = 1; seed <= 30; seed++) {
+      const r = resolveEncounter(execution, party(4), dm, createRng(seed))
+      expect(r.table.lastBattleRewards?.outcome).toBe('defeat')
+      expect(r.table.lastBattleRewards?.spared).toBeUndefined()
+      expect(r.players.filter((p) => p.tableId === 't1')).toHaveLength(0)
+      expect(r.table.assignedModuleId).toBeNull() // the wipe reset the table
+      expect(r.dm.gold).toBe(0)
+    }
   })
 
   it('discounts tiers, veterans and recruits, and adds starting levels', () => {

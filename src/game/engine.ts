@@ -514,8 +514,10 @@ export function resolveEncounter(
   const multipliers = computeMultipliers(dm)
   const survivorCharIds = new Set(result.survivorIds)
   // Plot Armor: each character who fell may be spared anyway, keeping their seat and levels.
+  // Never against an execution: those are meant to end in a wipe (the table resets and the
+  // wipe pays its infamy), and a spared survivor would keep the table refighting the boss.
   let spared = 0
-  if (upgrades.cheatDeath > 0)
+  if (upgrades.cheatDeath > 0 && !isExecution)
     for (const p of seatedPlayers)
       if (p.character && !survivorCharIds.has(p.character.id) && rng() < upgrades.cheatDeath) {
         survivorCharIds.add(p.character.id)
@@ -555,9 +557,13 @@ export function resolveEncounter(
   const nextWipeRosterEntries = [...prunedWipeRoster, ...justDiedEntries]
   const nextWipeRoster = nextWipeRosterEntries.length > 0 ? nextWipeRosterEntries : null
 
-  // Salvage Rights: a lost fight still pays a share of what it was worth.
+  // Salvage Rights: a lost fight still pays a share of what it was worth. Campaign fights only:
+  // an execution's boss doubles in power with every win, so its loot value balloons, and
+  // losing to it on purpose would be a gold farm.
   const salvageGold =
-    result.outcome === 'defeat' && upgrades.defeatGold > 0 ? Math.round(result.lootValue * upgrades.defeatGold * multipliers.gold) : 0
+    result.outcome === 'defeat' && upgrades.defeatGold > 0 && !isExecution
+      ? Math.round(result.lootValue * upgrades.defeatGold * multipliers.gold)
+      : 0
 
   if (stillSeatedCount === 0) {
     const infamyGain = computeInfamyReward(table.lifetimeGold, seatedPlayers.length, multipliers)
