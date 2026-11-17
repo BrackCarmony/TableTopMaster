@@ -15,3 +15,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Full-size class art originals (123 MB of PNGs); the game uses the compressed copies in public/classes.
+art/classes/
