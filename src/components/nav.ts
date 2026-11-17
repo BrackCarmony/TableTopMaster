@@ -2,14 +2,14 @@ import { useCallback, useSyncExternalStore } from 'react'
 import { getClassTier, maxTier } from '../game/data/classes'
 import { TREE, canBuyUpgrade, nextRankId } from '../game/data/upgradeTree'
 import { getUpgradeById } from '../game/data/upgrades'
-import { effectiveShipSlots, effectiveTableCapacity, hasSailingUnlock, roleTierUnlockCost, veteranTierCost } from '../game/engine'
-import { newPlayerCost, shipCost, useGameStore } from '../game/store'
+import { effectiveCrewSlots, effectiveShipSlots, effectiveTableCapacity, hasDelvingUnlock, hasSailingUnlock, roleTierUnlockCost, veteranTierCost } from '../game/engine'
+import { crewCost, newPlayerCost, shipCost, useGameStore } from '../game/store'
 import type { Role } from '../game/types'
 
 // The game's sections, the URL hash that opens each (so they can be bookmarked and the back
 // button works), and the little badges on the nav that say where there's something to do.
 
-export type SectionId = 'tables' | 'roster' | 'shop' | 'sailing' | 'trophies' | 'classes'
+export type SectionId = 'tables' | 'roster' | 'shop' | 'sailing' | 'delving' | 'trophies' | 'classes'
 
 export interface Section {
   id: SectionId
@@ -24,6 +24,7 @@ export const SECTIONS: Section[] = [
   { id: 'roster', icon: '👥', label: 'Roster', blurb: 'Recruit players and train their roles; veterans keep their tiers through every death.' },
   { id: 'shop', icon: '🌳', label: 'Upgrades', blurb: 'Six branches of upgrades. Each opens more of the tree as you buy into it.' },
   { id: 'sailing', icon: '⚓', label: 'Sailing', blurb: 'Send ships to explore islands for gold and artifacts that empower every party.' },
+  { id: 'delving', icon: '⛏️', label: 'Delving', blurb: 'Send crews into the Underdark. Every level deeper pays more, until the tunnels give way.' },
   { id: 'trophies', icon: '🏆', label: 'Trophies', blurb: 'Parts taken from fallen bosses. Every one raises the starting level of new characters.' },
   { id: 'classes', icon: '📖', label: 'Classes', blurb: 'Every class at every tier, and how its stats grow with level.' },
 ]
@@ -73,6 +74,7 @@ export function useNavBadges(): Partial<Record<SectionId, Badge>> {
   const players = useGameStore((s) => s.players)
   const tables = useGameStore((s) => s.tables)
   const ships = useGameStore((s) => s.ships)
+  const crews = useGameStore((s) => s.crews)
   const badges: Partial<Record<SectionId, Badge>> = {}
 
   // Tables that can't run or are running short-handed while players sit on the bench.
@@ -111,6 +113,15 @@ export function useNavBadges(): Partial<Record<SectionId, Badge>> {
     else if (ships.length < effectiveShipSlots(dm) && dm.gold >= shipCost(ships.length))
       badges.sailing = { tone: 'available', title: 'You can afford another ship' }
   }
+
+  if (!hasDelvingUnlock(dm)) {
+    const ready = canBuyUpgrade(dm, 'delving-unlock') && dm.gold >= (getUpgradeById('delving-unlock')?.cost ?? Infinity)
+    badges.delving = ready
+      ? { tone: 'available', title: 'You can afford to open the Underdark' }
+      : { tone: 'locked', title: 'Opens from the Upgrades tree (The Deep) once you have taken to the seas' }
+  } else if (crews.length === 0) badges.delving = { tone: 'attention', title: 'No crew hired yet' }
+  else if (crews.length < effectiveCrewSlots(dm) && dm.gold >= crewCost(crews.length))
+    badges.delving = { tone: 'available', title: 'You can afford another crew' }
 
   if (dm.trophies.length) badges.trophies = { count: dm.trophies.length, tone: 'neutral', title: `${dm.trophies.length} trophies` }
   return badges

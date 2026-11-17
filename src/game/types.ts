@@ -126,6 +126,15 @@ export type UpgradeEffect =
   | { kind: 'offlineCapHours'; value: number }
   /** Gold from each voyage, multiplied (on top of the general gold multiplier). */
   | { kind: 'voyageGoldMultiplier'; value: number }
+  // Delving (see data/relics.ts): the activity after Sailing.
+  | { kind: 'unlockDelving' }
+  | { kind: 'crewSlotBonus'; value: number }
+  /** Delve trip time, multiplied. */
+  | { kind: 'delveSpeedMultiplier'; value: number }
+  /** Cave-in chance, multiplied. */
+  | { kind: 'caveInMultiplier'; value: number }
+  | { kind: 'relicFindChanceBonus'; value: number }
+  | { kind: 'delveGoldMultiplier'; value: number }
 
 export interface Upgrade {
   id: string
@@ -191,6 +200,52 @@ export interface Artifact {
   effect: ArtifactEffect
 }
 
+/** A delving crew: digs one level deeper every trip it survives, until it reaches the depth it's
+ * told to turn back at; a cave-in sends it back to the surface (see engine.ts tickCrews). */
+export interface DelveCrew {
+  id: string
+  name: string
+  /** The level its current trip is at (1 = just below the surface). */
+  depth: number
+  /** It won't dig past this level: deeper pays more, but caves in more often. */
+  turnBackAt: number
+  delveRemaining: number
+  lifetimeGold: number
+  /** The deepest level it has come back from. */
+  deepest: number
+  /** How its last trip went. */
+  last: { kind: 'haul' | 'relic' | 'collapse'; depth: number; gold: number; relicId?: string } | null
+}
+
+/** Effects a relic can have: the same as the upgrades that boost everyone, folded in by the engine. */
+export type RelicEffect = Extract<
+  UpgradeEffect,
+  {
+    kind:
+      | 'goldMultiplier'
+      | 'xpMultiplier'
+      | 'cooldownMultiplier'
+      | 'partyAttackMultiplier'
+      | 'partyDefenseMultiplier'
+      | 'partyHpMultiplier'
+      | 'partyHealMultiplier'
+      | 'partyRegenPercent'
+      | 'cheatDeathChance'
+      | 'enemyHpMultiplier'
+      | 'voyageGoldMultiplier'
+      | 'delveGoldMultiplier'
+  }
+>
+
+export interface Relic {
+  id: string
+  name: string
+  description: string
+  /** Which band of depths it's found in (see DELVE_BANDS). */
+  band: number
+  effect: RelicEffect
+}
+
 export interface DMState {
   name: string
   level: number
@@ -206,6 +261,8 @@ export interface DMState {
   discoveredArtifactIds: string[]
   /** Island ids unlocked so far — an island with unlockCost 0 doesn't need to appear here to count as available. */
   unlockedIslandIds: string[]
+  /** Delving relic ids found so far — permanent, like artifacts. */
+  discoveredRelicIds: string[]
 }
 
 export interface GameState {
@@ -213,5 +270,6 @@ export interface GameState {
   players: Player[]
   tables: Table[]
   ships: Ship[]
+  crews: DelveCrew[]
   lastTickAt: number
 }

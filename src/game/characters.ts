@@ -300,6 +300,10 @@ export function generateTableId(): string {
   return generateId('table')
 }
 
+export function generateCrewId(): string {
+  return generateId('crew')
+}
+
 export function generateShipId(): string {
   return generateId('ship')
 }

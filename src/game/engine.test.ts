@@ -90,6 +90,7 @@ function makeDm(overrides: Partial<DMState> = {}): DMState {
     trophies: [],
     discoveredArtifactIds: [],
     unlockedIslandIds: ['sunken-reef'],
+    discoveredRelicIds: [],
     ...overrides,
   }
 }

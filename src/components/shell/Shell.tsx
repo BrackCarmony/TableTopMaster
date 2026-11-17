@@ -4,7 +4,9 @@ import { getIslandById } from '../../game/data/islands'
 import { getModuleById } from '../../game/data/modules'
 import {
   OFFLINE_PROGRESS_GOLD_FRACTION,
+  delveDuration,
   effectiveTableCapacity,
+  hasDelvingUnlock,
   hasSailingUnlock,
   offlineProgressDurationMs,
   voyageDuration,
@@ -125,10 +127,36 @@ function ShipGlance({ id }: { id: string }) {
   )
 }
 
-/** Every table and ship at a glance; click one to go to it. */
+function CrewGlance({ id }: { id: string }) {
+  const [, go] = useSection()
+  const crew = useGameStore((s) => s.crews.find((c) => c.id === id))
+  const dm = useGameStore((s) => s.dm)
+  if (!crew) return null
+  const progress = Math.max(0, Math.min(1, 1 - crew.delveRemaining / delveDuration(crew.depth, dm)))
+  const caved = crew.last?.kind === 'collapse'
+  return (
+    <button onClick={() => go('delving', `crew-${id}`)} className="w-full rounded-md px-2 py-1.5 text-left hover:bg-slate-800/60">
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="truncate font-medium text-slate-300">⛏️ {crew.name}</span>
+        <span className="shrink-0 tabular-nums text-slate-500">
+          {crew.depth}/{crew.turnBackAt}
+        </span>
+      </div>
+      <div className={`truncate text-[11px] ${caved && crew.depth === 1 ? 'text-rose-400/80' : 'text-slate-500'}`}>
+        {caved && crew.depth === 1 ? `Caved in at level ${crew.last!.depth}` : `Level ${crew.depth}`}
+      </div>
+      <div className="mt-1 h-1 overflow-hidden rounded-full bg-slate-800">
+        <div className="h-full rounded-full bg-orange-400/80" style={{ width: `${progress * 100}%` }} />
+      </div>
+    </button>
+  )
+}
+
+/** Every table, ship and crew at a glance; click one to go to it. */
 function LiveStatus() {
   const tableIds = useGameStore((s) => s.tables.map((t) => t.id).join(','))
   const shipIds = useGameStore((s) => (hasSailingUnlock(s.dm) ? s.ships.map((x) => x.id).join(',') : ''))
+  const crewIds = useGameStore((s) => (hasDelvingUnlock(s.dm) ? s.crews.map((x) => x.id).join(',') : ''))
   return (
     <div className="flex flex-col gap-0.5">
       <h3 className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">At the tables</h3>
@@ -140,6 +168,14 @@ function LiveStatus() {
           <h3 className="px-2 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">At sea</h3>
           {shipIds.split(',').map((id) => (
             <ShipGlance key={id} id={id} />
+          ))}
+        </>
+      )}
+      {crewIds && (
+        <>
+          <h3 className="px-2 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Underground</h3>
+          {crewIds.split(',').map((id) => (
+            <CrewGlance key={id} id={id} />
           ))}
         </>
       )}

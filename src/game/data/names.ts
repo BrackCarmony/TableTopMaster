@@ -46,6 +46,13 @@ export function shipNameForIndex(index: number): string {
   return SHIP_NAMES[index - 1] ?? `Ship ${index}`
 }
 
+/** Delving crews, in the order they're hired (one base slot and four Hire Crews ranks). */
+export const CREW_NAMES = ['The Lamplighters', 'Old Moles', "Grimbeard's Lot", 'Pick & Pray', 'The Candle Eaters']
+
+export function crewNameForIndex(index: number): string {
+  return CREW_NAMES[index - 1] ?? `Crew ${index}`
+}
+
 /** Fantasy character name — reused freely across lives/players, same as real tables recycle favorite names. */
 export function rollName(rng: () => number): string {
   const first = FIRST_NAMES[Math.floor(rng() * FIRST_NAMES.length)]

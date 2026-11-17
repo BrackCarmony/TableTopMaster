@@ -19,6 +19,7 @@ const UP: Partial<Record<Kind, string>> = {
   executionInfamyMultiplier: 'execution infamy',
   offlineTimeMultiplier: 'time per Skip Time gold',
   voyageGoldMultiplier: 'voyage gold',
+  delveGoldMultiplier: 'delve gold',
 }
 /** Multipliers that are better when smaller. */
 const DOWN: Partial<Record<Kind, string>> = {
@@ -28,12 +29,19 @@ const DOWN: Partial<Record<Kind, string>> = {
   recruitCostMultiplier: 'recruit cost',
   veteranCostMultiplier: 'veteran tier costs',
   enemyHpMultiplier: 'enemy HP',
+  delveSpeedMultiplier: 'delve trip time',
+  caveInMultiplier: 'cave-in chance',
 }
 
 export function describeTotal(owned: Upgrade[]): string {
-  if (owned.length === 0) return 'Nothing yet'
-  const kind = owned[0].effect.kind
-  const values = owned.map((u) => ('value' in u.effect ? u.effect.value : 0))
+  return describeEffects(owned.map((u) => u.effect))
+}
+
+/** What a set of effects of one kind adds up to (one effect works too: a relic's). */
+export function describeEffects(effects: UpgradeEffect[]): string {
+  if (effects.length === 0) return 'Nothing yet'
+  const kind = effects[0].kind
+  const values = effects.map((e) => ('value' in e ? e.value : 0))
   const product = values.reduce((a, b) => a * b, 1)
   const sum = values.reduce((a, b) => a + b, 0)
   if (UP[kind]) return `+${pct(product - 1)} ${UP[kind]}`
@@ -55,6 +63,10 @@ export function describeTotal(owned: Upgrade[]): string {
       return `${pct(Math.min(0.75, sum))} of a lost fight's gold`
     case 'startingLevelBonus':
       return `+${sum} starting levels`
+    case 'crewSlotBonus':
+      return `+${sum} crew${sum === 1 ? '' : 's'}`
+    case 'relicFindChanceBonus':
+      return `+${pct(sum)} relic chance`
     case 'offlineCapHours':
       return `+${sum}h of time away caught up`
     default:

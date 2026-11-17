@@ -1,9 +1,10 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { createCharacterForPlayer, createPlayer, generateShipId, generateTableId, LEGACY_FLAT_GROWTH } from './characters'
+import { createCharacterForPlayer, createPlayer, generateCrewId, generateShipId, generateTableId, LEGACY_FLAT_GROWTH } from './characters'
 import { getClassTier, maxTier } from './data/classes'
 import { getIslandById } from './data/islands'
-import { shipNameForIndex } from './data/names'
+import { crewNameForIndex, shipNameForIndex } from './data/names'
+import { MAX_DELVE_DEPTH } from './data/relics'
 import {
   AUTO_ADVANCE_CHECK_INTERVAL_MS,
   computeUpgradeBonuses,
@@ -20,15 +21,19 @@ import {
   hasSailingUnlock,
   offlineProgressDurationMs,
   resolveEncounter,
+  tickCrews,
   tickShips,
   tickTables,
+  delveDuration,
+  effectiveCrewSlots,
+  hasDelvingUnlock,
   voyageDuration,
 } from './engine'
 import { createRng } from './rng'
 import { getModuleById } from './data/modules'
 import { getUpgradeById } from './data/upgrades'
 import { canBuyUpgrade } from './data/upgradeTree'
-import type { Character, DMState, GameState, Player, Role, Ship, Table } from './types'
+import type { Character, DelveCrew, DMState, GameState, Player, Role, Ship, Table } from './types'
 
 const rng = createRng(Date.now() ^ 0x9e3779b9)
 
@@ -61,6 +66,7 @@ function createInitialDm(): DMState {
     trophies: [],
     discoveredArtifactIds: [],
     unlockedIslandIds: ['sunken-reef'],
+    discoveredRelicIds: [],
   }
 }
 
@@ -75,6 +81,29 @@ const SHIP_COST_GROWTH = 1.8
 
 export function shipCost(shipCount: number): number {
   return Math.round(SHIP_BASE_COST * SHIP_COST_GROWTH ** shipCount)
+}
+
+// Delving crews: first-pass, like ships, starting where Delving opens (~10M).
+const CREW_BASE_COST = 250_000
+const CREW_COST_GROWTH = 2
+/** Where a new crew turns back until told otherwise: the end of the Fungal Deep. */
+export const DEFAULT_TURN_BACK = 10
+
+export function crewCost(crewCount: number): number {
+  return Math.round(CREW_BASE_COST * CREW_COST_GROWTH ** crewCount)
+}
+
+function createCrew(index: number, dm: DMState): DelveCrew {
+  return {
+    id: generateCrewId(),
+    name: crewNameForIndex(index),
+    depth: 1,
+    turnBackAt: DEFAULT_TURN_BACK,
+    delveRemaining: delveDuration(1, dm),
+    lifetimeGold: 0,
+    deepest: 0,
+    last: null,
+  }
 }
 
 function createSeatedStarterPlayer(tableId: string, existingNames: string[]): Player {
@@ -118,6 +147,8 @@ interface GameStore extends GameState {
   buyOfflineProgress: () => void
   buyUpgrade: (upgradeId: string) => void
   buyShip: () => void
+  hireCrew: () => void
+  setTurnBack: (crewId: string, depth: number) => void
   assignIsland: (shipId: string, islandId: string) => void
   tick: (dtMs: number) => void
   catchUpOffline: () => void
@@ -133,6 +164,7 @@ function freshGameState(): GameState {
     players: [first, second],
     tables: [table],
     ships: [],
+    crews: [],
     lastTickAt: Date.now(),
   }
 }
@@ -338,7 +370,9 @@ export const useGameStore = create<GameStore>()(
           const goldAfterCost = state.dm.gold - cost
           const dmForSimulation = { ...state.dm, gold: goldAfterCost }
           const tabled = tickTables(state.tables, state.players, dmForSimulation, durationMs, rng)
-          const { ships, dm: simulatedDm } = tickShips(state.ships, tabled.dm, durationMs, rng)
+          const sailed = tickShips(state.ships, tabled.dm, durationMs, rng)
+          const { crews, dm: simulatedDm } = tickCrews(state.crews, sailed.dm, durationMs, rng)
+          const ships = sailed.ships
 
           // The simulated time shouldn't hand back gold — refunding gold from
           // the very thing gold bought would make this a leaky (or even
@@ -347,7 +381,7 @@ export const useGameStore = create<GameStore>()(
           // execution-tier progress — still applies in full.
           const dm = { ...simulatedDm, gold: goldAfterCost }
 
-          return { tables: tabled.tables, players: tabled.players, ships, dm }
+          return { tables: tabled.tables, players: tabled.players, ships, crews, dm }
         }),
 
       buyUpgrade: (upgradeId) =>
@@ -379,6 +413,32 @@ export const useGameStore = create<GameStore>()(
           return {
             dm: { ...state.dm, gold: state.dm.gold - cost },
             ships: [...state.ships, createShip(state.ships.length + 1)],
+          }
+        }),
+
+      hireCrew: () =>
+        set((state) => {
+          if (!hasDelvingUnlock(state.dm)) return state
+          if (state.crews.length >= effectiveCrewSlots(state.dm)) return state
+          const cost = crewCost(state.crews.length)
+          if (state.dm.gold < cost) return state
+          return {
+            dm: { ...state.dm, gold: state.dm.gold - cost },
+            crews: [...state.crews, createCrew(state.crews.length + 1, state.dm)],
+          }
+        }),
+
+      // How deep a crew digs before it stops going further. Pulling it up above where it is now
+      // brings it back up straight away (its current trip is cut short).
+      setTurnBack: (crewId, depth) =>
+        set((state) => {
+          const turnBackAt = Math.max(1, Math.min(MAX_DELVE_DEPTH, Math.round(depth)))
+          return {
+            crews: state.crews.map((c) => {
+              if (c.id !== crewId) return c
+              if (c.depth <= turnBackAt) return { ...c, turnBackAt }
+              return { ...c, turnBackAt, depth: turnBackAt, delveRemaining: delveDuration(turnBackAt, state.dm) }
+            }),
           }
         }),
 
@@ -416,8 +476,9 @@ export const useGameStore = create<GameStore>()(
       tick: (dtMs) =>
         set((state) => {
           const tabled = tickTables(state.tables, state.players, state.dm, dtMs, rng)
-          const { ships, dm } = tickShips(state.ships, tabled.dm, dtMs, rng)
-          return { tables: tabled.tables, players: tabled.players, ships, dm, lastTickAt: Date.now() }
+          const sailed = tickShips(state.ships, tabled.dm, dtMs, rng)
+          const { crews, dm } = tickCrews(state.crews, sailed.dm, dtMs, rng)
+          return { tables: tabled.tables, players: tabled.players, ships: sailed.ships, crews, dm, lastTickAt: Date.now() }
         }),
 
       catchUpOffline: () =>
@@ -425,8 +486,9 @@ export const useGameStore = create<GameStore>()(
           const elapsed = Math.min(Math.max(0, Date.now() - state.lastTickAt), maxOfflineMs(state.dm))
           if (elapsed <= 0) return { lastTickAt: Date.now() }
           const tabled = tickTables(state.tables, state.players, state.dm, elapsed, rng)
-          const { ships, dm } = tickShips(state.ships, tabled.dm, elapsed, rng)
-          return { tables: tabled.tables, players: tabled.players, ships, dm, lastTickAt: Date.now() }
+          const sailed = tickShips(state.ships, tabled.dm, elapsed, rng)
+          const { crews, dm } = tickCrews(state.crews, sailed.dm, elapsed, rng)
+          return { tables: tabled.tables, players: tabled.players, ships: sailed.ships, crews, dm, lastTickAt: Date.now() }
         }),
 
       // Replaces dm/players/tables/lastTickAt wholesale with a brand new
@@ -438,12 +500,13 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: 'tabletopmaster-save',
-      version: 14,
+      version: 15,
       partialize: (state) => ({
         dm: state.dm,
         players: state.players,
         tables: state.tables,
         ships: state.ships,
+        crews: state.crews,
         lastTickAt: state.lastTickAt,
       }),
       migrate: (persisted, version) => {
@@ -545,6 +608,12 @@ export const useGameStore = create<GameStore>()(
               'whirling-cleave': 'warlords-bellow',
             }
             state.dm.discoveredArtifactIds = state.dm.discoveredArtifactIds.map((id: string) => renamed[id] ?? id)
+          }
+          if (version < 15) {
+            // v15 adds Delving: crews as a new top-level array and relic finds on the DM.
+            const withCrews = state as GameState & { crews?: DelveCrew[] }
+            state.crews = withCrews.crews ?? []
+            state.dm = { ...state.dm, discoveredRelicIds: (state.dm as Partial<DMState>).discoveredRelicIds ?? [] }
           }
           return state
         } catch (err) {

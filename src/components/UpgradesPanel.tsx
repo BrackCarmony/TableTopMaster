@@ -24,6 +24,7 @@ const TONE: Record<BranchId, { pip: string; line: string; text: string; tile: st
   training: { pip: 'bg-violet-300', line: '#a78bfa', text: 'text-violet-300', tile: 'bg-violet-500/15', ready: 'border-violet-400/80 shadow-[0_0_14px_-2px_rgba(167,139,250,0.55)]', owned: 'border-violet-500/50 bg-violet-500/10', buy: 'bg-violet-600 hover:bg-violet-500', band: 'bg-violet-500/[0.04]' },
   notoriety: { pip: 'bg-rose-300', line: '#fb7185', text: 'text-rose-300', tile: 'bg-rose-500/15', ready: 'border-rose-400/80 shadow-[0_0_14px_-2px_rgba(251,113,133,0.55)]', owned: 'border-rose-500/50 bg-rose-500/10', buy: 'bg-rose-600 hover:bg-rose-500', band: 'bg-rose-500/[0.04]' },
   treasury: { pip: 'bg-amber-300', line: '#fbbf24', text: 'text-amber-300', tile: 'bg-amber-500/15', ready: 'border-amber-400/80 shadow-[0_0_14px_-2px_rgba(251,191,36,0.55)]', owned: 'border-amber-500/50 bg-amber-500/10', buy: 'bg-amber-600 hover:bg-amber-500', band: 'bg-amber-500/[0.04]' },
+  deep: { pip: 'bg-orange-300', line: '#fb923c', text: 'text-orange-300', tile: 'bg-orange-500/15', ready: 'border-orange-400/80 shadow-[0_0_14px_-2px_rgba(251,146,60,0.55)]', owned: 'border-orange-500/50 bg-orange-500/10', buy: 'bg-orange-600 hover:bg-orange-500', band: 'bg-orange-500/[0.04]' },
   seas: { pip: 'bg-cyan-300', line: '#22d3ee', text: 'text-cyan-300', tile: 'bg-cyan-500/15', ready: 'border-cyan-400/80 shadow-[0_0_14px_-2px_rgba(34,211,238,0.55)]', owned: 'border-cyan-500/50 bg-cyan-500/10', buy: 'bg-cyan-600 hover:bg-cyan-500', band: 'bg-cyan-500/[0.04]' },
 }
 
@@ -115,7 +116,8 @@ function NodeCard({ node, selected, onSelect }: { node: TreeNode; selected: bool
 /** Lines from each requirement to what it opens (lit once met; a number shows the rank needed). */
 function Edges({ nodes, width, height }: { nodes: TreeNode[]; width: number; height: number }) {
   const dm = useGameStore((s) => s.dm)
-  const roots = nodes.filter((n) => !n.requires?.length)
+  const local = (n: TreeNode) => (n.requires ?? []).filter((r) => getNode(r.node)?.branch === n.branch)
+  const roots = nodes.filter((n) => local(n).length === 0)
   return (
     <svg className="pointer-events-none absolute inset-0" width={width} height={height} aria-hidden>
       {roots.map((n) => {
@@ -123,7 +125,7 @@ function Edges({ nodes, width, height }: { nodes: TreeNode[]; width: number; hei
         return <path key={n.id} d={`M -18 ${y} H ${xOf(n)}`} stroke={TONE[n.branch].line} strokeOpacity={0.5} strokeWidth={2} fill="none" />
       })}
       {nodes.flatMap((n) =>
-        (n.requires ?? []).map((r) => {
+        local(n).map((r) => {
           const from = getNode(r.node)!
           const met = nodeRank(dm, from) >= r.rank
           const x1 = xOf(from) + NODE_W

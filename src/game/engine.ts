@@ -9,7 +9,8 @@ import { DEFAULT_TROPHY_PARTS, getTrophyQuality, trophyStartingLevelBonus } from
 import { legacyTierCost } from './data/legacy'
 import { getUpgradeById } from './data/upgrades'
 import { dominantTrait } from './personality'
-import type { DMState, Island, Player, Ship, Table, Trophy, WipeRosterEntry } from './types'
+import { MAX_DELVE_DEPTH, RELICS, bandForDepth, getRelicById } from './data/relics'
+import type { DelveCrew, DMState, Island, Player, Ship, Table, Trophy, UpgradeEffect, WipeRosterEntry } from './types'
 
 export const BASE_COOLDOWN_MS = 5000
 export const MIN_COOLDOWN_MS = 1000
@@ -65,23 +66,56 @@ export interface Multipliers {
   infamy: number
 }
 
-export function computeMultipliers(dm: DMState): Multipliers {
-  const m: Multipliers = { gold: 1, xp: 1, cooldown: 1, infamy: 1 }
+/** Every effect in play: bought upgrades, plus relics found delving (which use the same kinds). */
+function activeEffects(dm: DMState): UpgradeEffect[] {
+  const out: UpgradeEffect[] = []
   for (const id of dm.purchasedUpgradeIds) {
-    const upgrade = getUpgradeById(id)
-    if (!upgrade) continue
-    switch (upgrade.effect.kind) {
+    const u = getUpgradeById(id)
+    if (u) out.push(u.effect)
+  }
+  for (const id of dm.discoveredRelicIds ?? []) {
+    const r = getRelicById(id)
+    if (r) out.push(r.effect)
+  }
+  return out
+}
+
+/**
+ * Remembers a total per (upgrades, relics) pair. Both lists are only ever replaced, never
+ * changed in place, so the same two arrays always give the same answer: this keeps hot loops
+ * (thousands of delve trips in an offline catch-up, every render) from re-adding everything.
+ */
+function memoByEffects<T>(compute: (dm: DMState) => T): (dm: DMState) => T {
+  let lastUpgrades: string[] | null = null
+  let lastRelics: string[] | undefined | null = null
+  let last: T
+  return (dm) => {
+    if (dm.purchasedUpgradeIds !== lastUpgrades || dm.discoveredRelicIds !== lastRelics) {
+      last = compute(dm)
+      lastUpgrades = dm.purchasedUpgradeIds
+      lastRelics = dm.discoveredRelicIds
+    }
+    return last
+  }
+}
+
+export const computeMultipliers = memoByEffects(computeMultipliersUncached)
+
+function computeMultipliersUncached(dm: DMState): Multipliers {
+  const m: Multipliers = { gold: 1, xp: 1, cooldown: 1, infamy: 1 }
+  for (const effect of activeEffects(dm)) {
+    switch (effect.kind) {
       case 'goldMultiplier':
-        m.gold *= upgrade.effect.value
+        m.gold *= effect.value
         break
       case 'xpMultiplier':
-        m.xp *= upgrade.effect.value
+        m.xp *= effect.value
         break
       case 'cooldownMultiplier':
-        m.cooldown *= upgrade.effect.value
+        m.cooldown *= effect.value
         break
       case 'infamyMultiplier':
-        m.infamy *= upgrade.effect.value
+        m.infamy *= effect.value
         break
     }
   }
@@ -106,9 +140,16 @@ export interface UpgradeBonuses {
   offlineTime: number
   offlineCapHours: number
   voyageGold: number
+  crewSlots: number
+  delveSpeed: number
+  caveIn: number
+  relicFind: number
+  delveGold: number
 }
 
-export function computeUpgradeBonuses(dm: DMState): UpgradeBonuses {
+export const computeUpgradeBonuses = memoByEffects(computeUpgradeBonusesUncached)
+
+function computeUpgradeBonusesUncached(dm: DMState): UpgradeBonuses {
   const b: UpgradeBonuses = {
     partyAttack: 1,
     partyDefense: 1,
@@ -126,10 +167,13 @@ export function computeUpgradeBonuses(dm: DMState): UpgradeBonuses {
     offlineTime: 1,
     offlineCapHours: 0,
     voyageGold: 1,
+    crewSlots: 0,
+    delveSpeed: 1,
+    caveIn: 1,
+    relicFind: 0,
+    delveGold: 1,
   }
-  for (const id of dm.purchasedUpgradeIds) {
-    const e = getUpgradeById(id)?.effect
-    if (!e) continue
+  for (const e of activeEffects(dm)) {
     switch (e.kind) {
       case 'partyAttackMultiplier':
         b.partyAttack *= e.value
@@ -178,6 +222,21 @@ export function computeUpgradeBonuses(dm: DMState): UpgradeBonuses {
         break
       case 'voyageGoldMultiplier':
         b.voyageGold *= e.value
+        break
+      case 'crewSlotBonus':
+        b.crewSlots += e.value
+        break
+      case 'delveSpeedMultiplier':
+        b.delveSpeed *= e.value
+        break
+      case 'caveInMultiplier':
+        b.caveIn *= e.value
+        break
+      case 'relicFindChanceBonus':
+        b.relicFind += e.value
+        break
+      case 'delveGoldMultiplier':
+        b.delveGold *= e.value
         break
     }
   }
@@ -1046,4 +1105,104 @@ export function tickShips(ships: Ship[], dm: DMState, dtMs: number, rng: RngFn):
     }
   })
   return { ships: nextShips, dm: d }
+}
+
+// ---------- Delving ----------
+//
+// Crews dig one level deeper every trip they survive, up to the level they're told to turn back
+// at, and keep delving there. Every trip deeper takes a little longer and pays a lot more, but
+// the chance of a cave-in climbs with depth: one sends the crew back to the surface (level 1),
+// losing that trip's haul. That's the choice: how deep is worth the risk. First-pass numbers.
+
+export const BASE_CREW_SLOTS = 1
+export const BASE_RELIC_FIND_CHANCE = 0.12
+export const MIN_DELVE_MS = 8000
+const DELVE_BASE_MS = 45_000
+const DELVE_TIME_GROWTH = 1.08
+const DELVE_BASE_GOLD = 40_000
+const DELVE_GOLD_GROWTH = 1.3
+const CAVE_IN_PER_LEVEL = 0.025
+const MAX_CAVE_IN = 0.75
+const MAX_OFFLINE_DELVES_PER_CREW = 200_000
+
+export function hasDelvingUnlock(dm: DMState): boolean {
+  return dm.purchasedUpgradeIds.some((id) => getUpgradeById(id)?.effect.kind === 'unlockDelving')
+}
+
+export function effectiveCrewSlots(dm: DMState): number {
+  return BASE_CREW_SLOTS + computeUpgradeBonuses(dm).crewSlots
+}
+
+export function delveDuration(depth: number, dm: DMState): number {
+  return Math.max(MIN_DELVE_MS, Math.round(DELVE_BASE_MS * DELVE_TIME_GROWTH ** (depth - 1) * computeUpgradeBonuses(dm).delveSpeed))
+}
+
+/** Gold a trip at this level brings back if it doesn't cave in. */
+export function delveGold(depth: number, dm: DMState): number {
+  return Math.round(DELVE_BASE_GOLD * DELVE_GOLD_GROWTH ** (depth - 1) * computeMultipliers(dm).gold * computeUpgradeBonuses(dm).delveGold)
+}
+
+/** Chance a trip at this level caves in (none on the first level). */
+export function caveInChance(depth: number, dm: DMState): number {
+  return Math.min(MAX_CAVE_IN, CAVE_IN_PER_LEVEL * (depth - 1)) * computeUpgradeBonuses(dm).caveIn
+}
+
+export function relicFindChance(dm: DMState): number {
+  return BASE_RELIC_FIND_CHANCE + computeUpgradeBonuses(dm).relicFind
+}
+
+function tickCrew(crew: DelveCrew, dm: DMState, dtMs: number, rng: RngFn): { crew: DelveCrew; dm: DMState } {
+  let c = crew
+  let d = dm
+  let remaining = dtMs
+  let iterations = 0
+  while (remaining > 0 && iterations < MAX_OFFLINE_DELVES_PER_CREW) {
+    if (c.delveRemaining > remaining) {
+      c = { ...c, delveRemaining: c.delveRemaining - remaining }
+      break
+    }
+    remaining -= c.delveRemaining
+    iterations++
+    const depth = c.depth
+    if (rng() < caveInChance(depth, d)) {
+      c = { ...c, depth: 1, last: { kind: 'collapse', depth, gold: 0 } }
+    } else {
+      let gold = delveGold(depth, d)
+      let relicId: string | undefined
+      if (rng() < relicFindChance(d)) {
+        const pool = RELICS.filter((r) => r.band === bandForDepth(depth))
+        const found = pool[Math.floor(rng() * pool.length)]
+        if (found && !d.discoveredRelicIds.includes(found.id)) {
+          relicId = found.id
+          d = { ...d, discoveredRelicIds: [...d.discoveredRelicIds, found.id] }
+        } else gold += Math.round(gold * REPEAT_FIND_GOLD_FRACTION) // one they already have: sold on
+      }
+      d = { ...d, gold: d.gold + gold }
+      c = {
+        ...c,
+        depth: Math.min(depth + 1, c.turnBackAt, MAX_DELVE_DEPTH),
+        deepest: Math.max(c.deepest, depth),
+        lifetimeGold: c.lifetimeGold + gold,
+        last: { kind: relicId ? 'relic' : 'haul', depth, gold, relicId },
+      }
+    }
+    c = { ...c, delveRemaining: delveDuration(c.depth, d) }
+  }
+  return { crew: c, dm: d }
+}
+
+export function tickCrews(crews: DelveCrew[], dm: DMState, dtMs: number, rng: RngFn): { crews: DelveCrew[]; dm: DMState } {
+  if (!crews.length) return { crews, dm }
+  let d = dm
+  const next = crews.map((crew) => {
+    try {
+      const r = tickCrew(crew, d, dtMs, rng)
+      d = r.dm
+      return r.crew
+    } catch (err) {
+      console.error(`Crew "${crew.name}" (${crew.id}) failed to tick — leaving it paused this tick:`, err)
+      return crew
+    }
+  })
+  return { crews: next, dm: d }
 }

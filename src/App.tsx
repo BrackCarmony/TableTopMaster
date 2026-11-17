@@ -6,6 +6,7 @@ import { RosterPanel } from './components/RosterPanel'
 import { TrophyCase } from './components/TrophyCase'
 import { SailingPanel } from './components/SailingPanel'
 import { ClassReference } from './components/ClassReference'
+import { DelvingPanel } from './components/DelvingPanel'
 import { PageHeader, Shell } from './components/shell/Shell'
 import { useSection } from './components/nav'
 import { formatNumber } from './format'
@@ -50,6 +51,7 @@ export default function App() {
       {section === 'roster' && <RosterPanel />}
       {section === 'shop' && <UpgradesPanel />}
       {section === 'sailing' && <SailingPanel />}
+      {section === 'delving' && <DelvingPanel />}
       {section === 'trophies' && <TrophyCase />}
       {section === 'classes' && <ClassReference />}
     </Shell>

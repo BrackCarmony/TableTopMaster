@@ -34,6 +34,7 @@ function makeDm(overrides: Partial<DMState> = {}): DMState {
     trophies: [],
     discoveredArtifactIds: [],
     unlockedIslandIds: ['sunken-reef'],
+    discoveredRelicIds: [],
     ...overrides,
   }
 }
@@ -106,7 +107,9 @@ describe('the upgrade tree', () => {
       expect(spots.has(key), key).toBe(false)
       spots.add(key)
     }
-    for (const b of BRANCHES) expect(TREE.some((n) => n.branch === b.id && !n.requires?.length)).toBe(true)
+    // Each lane starts somewhere: a node needing nothing from its own branch.
+    const inBranch = (n: (typeof TREE)[number]) => (n.requires ?? []).filter((r) => getNode(r.node)?.branch === n.branch)
+    for (const b of BRANCHES) expect(TREE.some((n) => n.branch === b.id && inBranch(n).length === 0)).toBe(true)
   })
 
   it('sells ranks in order, and only once a node is open', () => {

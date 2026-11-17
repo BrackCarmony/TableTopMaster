@@ -6,7 +6,7 @@ import { getUpgradeById } from './upgrades'
 // the given rank. Branches are lanes read left to right; `at` is a node's [column, row] in its
 // lane. Every upgrade in UPGRADES belongs to exactly one node (see upgradeTree.test.ts).
 
-export type BranchId = 'table' | 'training' | 'party' | 'notoriety' | 'treasury' | 'seas'
+export type BranchId = 'table' | 'training' | 'party' | 'notoriety' | 'treasury' | 'seas' | 'deep'
 
 export interface Branch {
   id: BranchId
@@ -23,6 +23,7 @@ export const BRANCHES: Branch[] = [
   { id: 'notoriety', name: 'Notoriety', icon: '💀', blurb: 'Infamy, and the fear it spreads' },
   { id: 'treasury', name: 'Treasury', icon: '💰', blurb: 'Gold, and time' },
   { id: 'seas', name: 'The Seas', icon: '⚓', blurb: 'Ships, voyages and artifacts' },
+  { id: 'deep', name: 'The Deep', icon: '⛏️', blurb: 'Delving crews, cave-ins and relics' },
 ]
 
 export interface TreeNode {
@@ -79,6 +80,13 @@ export const TREE: TreeNode[] = [
   { id: 'fleet', name: 'Expand the Fleet', icon: '🚢', branch: 'seas', at: [1, 0], ranks: range('more-ships', 6), requires: [{ node: 'sail', rank: 1 }] },
   { id: 'holds', name: 'Deep Holds', icon: '📦', branch: 'seas', at: [2, 0], ranks: range('deep-holds', 3), requires: [{ node: 'fleet', rank: 1 }] },
   { id: 'sails', name: 'Trim the Sails', icon: '🌬️', branch: 'seas', at: [1, 1], ranks: range('faster-sailing', 6), requires: [{ node: 'sail', rank: 1 }] },
+  // The Deep (opens once you've taken to the seas and bought a second ship)
+  { id: 'delve', name: 'Into the Underdark', icon: '⛏️', branch: 'deep', at: [0, 1], ranks: ['delving-unlock'], requires: [{ node: 'sail', rank: 1 }, { node: 'fleet', rank: 1 }] },
+  { id: 'crews', name: 'Hire Crews', icon: '🪖', branch: 'deep', at: [1, 0], ranks: range('more-crews', 4), requires: [{ node: 'delve', rank: 1 }] },
+  { id: 'timbers', name: 'Shoring Timbers', icon: '🪵', branch: 'deep', at: [1, 1], ranks: range('shoring-timbers', 3), requires: [{ node: 'delve', rank: 1 }] },
+  { id: 'prospectors', name: 'Prospectors', icon: '💎', branch: 'deep', at: [2, 1], ranks: range('prospectors', 3), requires: [{ node: 'timbers', rank: 1 }] },
+  { id: 'carts', name: 'Mine Carts', icon: '🛤️', branch: 'deep', at: [1, 2], ranks: range('mine-carts', 4), requires: [{ node: 'delve', rank: 1 }] },
+  { id: 'veins', name: 'Rich Veins', icon: '⛰️', branch: 'deep', at: [2, 2], ranks: range('rich-veins', 3), requires: [{ node: 'carts', rank: 1 }] },
   { id: 'lookout', name: 'Lookouts', icon: '🔭', branch: 'seas', at: [1, 2], ranks: range('keen-eyed-lookout', 6), requires: [{ node: 'sail', rank: 1 }] },
 ]
 
