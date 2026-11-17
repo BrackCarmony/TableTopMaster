@@ -5,6 +5,7 @@ import { CLASS_TIERS } from '../game/data/classes'
 import type { Role } from '../game/types'
 import { ROLE_ICON, ROLE_LABEL } from './icons'
 import { PageHeader } from './shell/Shell'
+import { Amount } from './currency'
 
 const ROLES: Role[] = ['tank', 'dps', 'healer']
 const LEVEL_PRESETS = [1, 10, 25, 50, 100]
@@ -113,7 +114,7 @@ export function ClassReference() {
                   <tr key={tierDef.tier} className="border-t border-slate-800 text-slate-300">
                     <td className="py-1.5 pr-2 font-medium text-slate-100">T{tierDef.tier}</td>
                     <td className="py-1.5 pr-2 text-slate-400">{tierDef.names.join(' / ')}</td>
-                    <td className="py-1.5 pr-2">{tierDef.unlockCost === 0 ? 'Free' : `${formatNumber(tierDef.unlockCost)}g`}</td>
+                    <td className="py-1.5 pr-2">{tierDef.unlockCost === 0 ? 'Free' : <Amount value={tierDef.unlockCost} currency="gold" size={12} />}</td>
                     <td className="py-1.5 pr-2">{formatNumber(stats.maxHp)}</td>
                     <td className="py-1.5 pr-2">{formatNumber(stats.attackPower)}</td>
                     <td className="py-1.5 pr-2">{formatNumber(Math.round(stats.defense))}</td>

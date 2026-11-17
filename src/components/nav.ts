@@ -1,11 +1,10 @@
 import { useCallback, useSyncExternalStore } from 'react'
-import { legacyTierCost } from '../game/data/legacy'
 import { getClassTier, maxTier } from '../game/data/classes'
+import { TREE, canBuyUpgrade, nextRankId } from '../game/data/upgradeTree'
 import { getUpgradeById } from '../game/data/upgrades'
-import { effectiveShipSlots, effectiveTableCapacity, hasSailingUnlock } from '../game/engine'
+import { effectiveShipSlots, effectiveTableCapacity, hasSailingUnlock, roleTierUnlockCost, veteranTierCost } from '../game/engine'
 import { newPlayerCost, shipCost, useGameStore } from '../game/store'
 import type { Role } from '../game/types'
-import { shopLines } from './shopLines'
 
 // The game's sections, the URL hash that opens each (so they can be bookmarked and the back
 // button works), and the little badges on the nav that say where there's something to do.
@@ -23,7 +22,7 @@ export interface Section {
 export const SECTIONS: Section[] = [
   { id: 'tables', icon: '🎲', label: 'Tables', blurb: 'Seat your players, pick their adventures and watch the battles.' },
   { id: 'roster', icon: '👥', label: 'Roster', blurb: 'Recruit players and train their roles; veterans keep their tiers through every death.' },
-  { id: 'shop', icon: '🛒', label: 'Upgrades', blurb: 'Gold buys faster sessions and more rooms; infamy buys permanent perks.' },
+  { id: 'shop', icon: '🌳', label: 'Upgrades', blurb: 'Six branches of upgrades. Each opens more of the tree as you buy into it.' },
   { id: 'sailing', icon: '⚓', label: 'Sailing', blurb: 'Send ships to explore islands for gold and artifacts that empower every party.' },
   { id: 'trophies', icon: '🏆', label: 'Trophies', blurb: 'Parts taken from fallen bosses. Every one raises the starting level of new characters.' },
   { id: 'classes', icon: '📖', label: 'Classes', blurb: 'Every class at every tier, and how its stats grow with level.' },
@@ -88,14 +87,15 @@ export function useNavBadges(): Partial<Record<SectionId, Badge>> {
   // Players with a role tier or veteran tier they could buy now, or a recruit you can afford.
   const trainable = players.filter(
     (p) =>
-      dm.infamy >= legacyTierCost(p.legacyTier) ||
-      ROLES.some((r) => p.roleTiers[r] < maxTier(r) && dm.gold >= getClassTier(r, p.roleTiers[r] + 1).unlockCost),
+      dm.infamy >= veteranTierCost(dm, p.legacyTier) ||
+      ROLES.some((r) => p.roleTiers[r] < maxTier(r) && dm.gold >= roleTierUnlockCost(dm, getClassTier(r, p.roleTiers[r] + 1).unlockCost)),
   ).length
   if (trainable) badges.roster = { count: trainable, tone: 'available', title: `${trainable} player${trainable === 1 ? '' : 's'} can be trained` }
-  else if (dm.infamy >= newPlayerCost(players.length)) badges.roster = { tone: 'available', title: 'You can afford a new recruit' }
+  else if (dm.infamy >= newPlayerCost(players.length, dm)) badges.roster = { tone: 'available', title: 'You can afford a new recruit' }
 
-  const affordable = shopLines(dm)
-    .flatMap((l) => (l.next ? [l.next] : []))
+  const affordable = TREE.map((n) => nextRankId(dm, n))
+    .filter((id): id is string => !!id && canBuyUpgrade(dm, id))
+    .map((id) => getUpgradeById(id)!)
     .filter((u) => (u.currency === 'gold' ? dm.gold : dm.infamy) >= u.cost).length
   if (affordable) badges.shop = { count: affordable, tone: 'available', title: `${affordable} upgrade${affordable === 1 ? '' : 's'} you can afford` }
 

@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { formatNumber } from '../../format'
 import type { CombatLogEvent } from '../../game/combat/types'
 import { computeBoardStateAtStep, getEncounterGridSize } from '../../game/combat/replay'
@@ -7,6 +7,7 @@ import { GridView } from './GridView'
 import { CombatLogPanel } from './CombatLogPanel'
 import { MODULES } from '../../game/data/modules'
 import { STEP_MS_2D, eventDuration3D } from '../../battle3d/timing'
+import { Amount } from '../currency'
 
 // The 3D view (three.js) is only downloaded the first time a battle is watched in 3D.
 const Battle3DView = lazy(() => import('../../battle3d/Battle3DView'))
@@ -59,15 +60,32 @@ const OUTCOME_LABEL: Record<BattleRewards['outcome'], string> = {
 }
 
 function BattleSummaryBanner({ rewards }: { rewards: BattleRewards }) {
-  const parts: string[] = []
-  if (rewards.xp > 0) parts.push(`+${formatNumber(rewards.xp)} XP`)
-  if (rewards.gold > 0) parts.push(`+${formatNumber(rewards.gold)} Gold`)
-  if (rewards.infamy > 0) parts.push(`+${formatNumber(rewards.infamy)} Infamy`)
+  const parts: ReactNode[] = []
+  if (rewards.xp > 0) parts.push(<span key="xp">+{formatNumber(rewards.xp)} XP</span>)
+  if (rewards.gold > 0)
+    parts.push(
+      <span key="gold" className="inline-flex items-center gap-1">
+        +<Amount value={rewards.gold} currency="gold" />
+        {rewards.outcome !== 'victory' && <span className="font-normal opacity-80">salvaged</span>}
+      </span>,
+    )
+  if (rewards.infamy > 0)
+    parts.push(
+      <span key="infamy" className="inline-flex items-center gap-1">
+        +<Amount value={rewards.infamy} currency="infamy" />
+      </span>,
+    )
+  if (rewards.spared)
+    parts.push(
+      <span key="spared">
+        🌟 {rewards.spared} spared by Plot Armor
+      </span>,
+    )
 
   return (
-    <div className={`mt-3 rounded-md border px-3 py-2 text-sm font-medium ${OUTCOME_STYLE[rewards.outcome]}`}>
-      {OUTCOME_LABEL[rewards.outcome]}
-      {parts.length > 0 ? ` — ${parts.join(', ')}` : ' — no rewards earned'}
+    <div className={`mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border px-3 py-2 text-sm font-medium ${OUTCOME_STYLE[rewards.outcome]}`}>
+      <span>{OUTCOME_LABEL[rewards.outcome]}</span>
+      {parts.length > 0 ? parts : <span className="font-normal opacity-80">no rewards earned</span>}
     </div>
   )
 }

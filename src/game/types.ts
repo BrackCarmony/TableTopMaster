@@ -58,6 +58,8 @@ export interface BattleRewards {
   xp: number
   gold: number
   infamy: number
+  /** Characters who fell but were spared by Plot Armor. */
+  spared?: number
 }
 
 /** One seat of a table's roster right before its most recent full wipe — see Table.lastWipeRoster. */
@@ -98,6 +100,32 @@ export type UpgradeEffect =
   | { kind: 'shipSlotBonus'; value: number }
   | { kind: 'sailSpeedMultiplier'; value: number }
   | { kind: 'artifactFindChanceBonus'; value: number }
+  // Party: every character at every table fights with these (multipliers stack by product).
+  | { kind: 'partyAttackMultiplier'; value: number }
+  | { kind: 'partyDefenseMultiplier'; value: number }
+  | { kind: 'partyHpMultiplier'; value: number }
+  | { kind: 'partyHealMultiplier'; value: number }
+  /** Extra share of max HP every character regains each round (0.02 = 2%). */
+  | { kind: 'partyRegenPercent'; value: number }
+  /** Chance each character who falls in a fight is spared anyway (stays seated, keeps their levels). */
+  | { kind: 'cheatDeathChance'; value: number }
+  /** Enemies fight with this much of their HP (rewards still come from their full stats). */
+  | { kind: 'enemyHpMultiplier'; value: number }
+  /** Levels every newly rolled character starts with on top of level 1. */
+  | { kind: 'startingLevelBonus'; value: number }
+  | { kind: 'roleTierCostMultiplier'; value: number }
+  | { kind: 'recruitCostMultiplier'; value: number }
+  | { kind: 'veteranCostMultiplier'; value: number }
+  /** Infamy from winning an execution, multiplied. */
+  | { kind: 'executionInfamyMultiplier'; value: number }
+  /** Share of an encounter's gold still paid out when the party loses it. */
+  | { kind: 'defeatGoldFraction'; value: number }
+  /** Skip Time buys this much more time per gold (multiplier). */
+  | { kind: 'offlineTimeMultiplier'; value: number }
+  /** Hours added to how much time away the game catches up on. */
+  | { kind: 'offlineCapHours'; value: number }
+  /** Gold from each voyage, multiplied (on top of the general gold multiplier). */
+  | { kind: 'voyageGoldMultiplier'; value: number }
 
 export interface Upgrade {
   id: string

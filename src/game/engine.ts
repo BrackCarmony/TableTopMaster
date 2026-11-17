@@ -1,11 +1,12 @@
 import type { RngFn } from './rng'
 import { applyXp, type ArtifactBonuses, DEFAULT_ARTIFACT_BONUSES, toCombatUnit } from './characters'
 import { runEncounter } from './combat/simulate'
-import type { EncounterTemplate, EnemySpawn } from './combat/types'
+import type { CombatUnit, EncounterTemplate, EnemySpawn } from './combat/types'
 import { getArtifactById } from './data/artifacts'
 import { getIslandById } from './data/islands'
 import { getModuleById, getNextUnlockedCampaignModule, getPreviousUnlockedCampaignModule } from './data/modules'
-import { DEFAULT_TROPHY_PARTS, getTrophyQuality } from './data/trophies'
+import { DEFAULT_TROPHY_PARTS, getTrophyQuality, trophyStartingLevelBonus } from './data/trophies'
+import { legacyTierCost } from './data/legacy'
 import { getUpgradeById } from './data/upgrades'
 import { dominantTrait } from './personality'
 import type { DMState, Island, Player, Ship, Table, Trophy, WipeRosterEntry } from './types'
@@ -47,8 +48,14 @@ export const OFFLINE_PROGRESS_GOLD_FRACTION = 0.1
 // couple of days — ~518,400,000,000 gold per simulated day.
 export const GOLD_PER_MS = 6000
 
-export function offlineProgressDurationMs(costGold: number): number {
-  return Math.floor(costGold / GOLD_PER_MS)
+/** How much time Skip Time buys for this much gold (Session Recaps stretch it: pass the DM). */
+export function offlineProgressDurationMs(costGold: number, dm?: DMState): number {
+  return Math.floor((costGold / GOLD_PER_MS) * (dm ? computeUpgradeBonuses(dm).offlineTime : 1))
+}
+
+/** How much time away the game catches up on when you come back (Long Weekends add to it). */
+export function maxOfflineMs(dm: DMState): number {
+  return MAX_OFFLINE_MS + computeUpgradeBonuses(dm).offlineCapHours * 60 * 60 * 1000
 }
 
 export interface Multipliers {
@@ -79,6 +86,136 @@ export function computeMultipliers(dm: DMState): Multipliers {
     }
   }
   return m
+}
+
+/** Everything the newer upgrade kinds add up to (multipliers multiply, everything else sums). */
+export interface UpgradeBonuses {
+  partyAttack: number
+  partyDefense: number
+  partyHp: number
+  partyHeal: number
+  partyRegen: number
+  cheatDeath: number
+  enemyHp: number
+  startingLevels: number
+  roleTierCost: number
+  recruitCost: number
+  veteranCost: number
+  executionInfamy: number
+  defeatGold: number
+  offlineTime: number
+  offlineCapHours: number
+  voyageGold: number
+}
+
+export function computeUpgradeBonuses(dm: DMState): UpgradeBonuses {
+  const b: UpgradeBonuses = {
+    partyAttack: 1,
+    partyDefense: 1,
+    partyHp: 1,
+    partyHeal: 1,
+    partyRegen: 0,
+    cheatDeath: 0,
+    enemyHp: 1,
+    startingLevels: 0,
+    roleTierCost: 1,
+    recruitCost: 1,
+    veteranCost: 1,
+    executionInfamy: 1,
+    defeatGold: 0,
+    offlineTime: 1,
+    offlineCapHours: 0,
+    voyageGold: 1,
+  }
+  for (const id of dm.purchasedUpgradeIds) {
+    const e = getUpgradeById(id)?.effect
+    if (!e) continue
+    switch (e.kind) {
+      case 'partyAttackMultiplier':
+        b.partyAttack *= e.value
+        break
+      case 'partyDefenseMultiplier':
+        b.partyDefense *= e.value
+        break
+      case 'partyHpMultiplier':
+        b.partyHp *= e.value
+        break
+      case 'partyHealMultiplier':
+        b.partyHeal *= e.value
+        break
+      case 'partyRegenPercent':
+        b.partyRegen += e.value
+        break
+      case 'cheatDeathChance':
+        b.cheatDeath += e.value
+        break
+      case 'enemyHpMultiplier':
+        b.enemyHp *= e.value
+        break
+      case 'startingLevelBonus':
+        b.startingLevels += e.value
+        break
+      case 'roleTierCostMultiplier':
+        b.roleTierCost *= e.value
+        break
+      case 'recruitCostMultiplier':
+        b.recruitCost *= e.value
+        break
+      case 'veteranCostMultiplier':
+        b.veteranCost *= e.value
+        break
+      case 'executionInfamyMultiplier':
+        b.executionInfamy *= e.value
+        break
+      case 'defeatGoldFraction':
+        b.defeatGold += e.value
+        break
+      case 'offlineTimeMultiplier':
+        b.offlineTime *= e.value
+        break
+      case 'offlineCapHours':
+        b.offlineCapHours += e.value
+        break
+      case 'voyageGoldMultiplier':
+        b.voyageGold *= e.value
+        break
+    }
+  }
+  // Death must stay a real risk, a lost fight must never pay like a won one, and enemies keep
+  // at least half their health however feared you are.
+  b.cheatDeath = Math.min(0.6, b.cheatDeath)
+  b.defeatGold = Math.min(0.75, b.defeatGold)
+  b.enemyHp = Math.max(0.5, b.enemyHp)
+  return b
+}
+
+/** Gold to unlock a role's tier for a player (Class Mentors discount it). */
+export function roleTierUnlockCost(dm: DMState, baseCost: number): number {
+  return baseCost <= 0 ? 0 : Math.max(1, Math.round(baseCost * computeUpgradeBonuses(dm).roleTierCost))
+}
+
+/** Infamy to raise a player's veteran tier (Hall of Heroes discounts it). */
+export function veteranTierCost(dm: DMState, currentTier: number): number {
+  return Math.max(1, Math.round(legacyTierCost(currentTier) * computeUpgradeBonuses(dm).veteranCost))
+}
+
+/** Levels every newly rolled character starts with above level 1: trophies plus Session Zero. */
+export function startingLevelBonus(dm: DMState): number {
+  return trophyStartingLevelBonus(dm.trophies.length) + computeUpgradeBonuses(dm).startingLevels
+}
+
+/** The party's upgrades applied to one of its combat units. */
+function applyPartyBonuses(unit: CombatUnit, b: UpgradeBonuses): CombatUnit {
+  const hp = Math.max(1, Math.round(unit.maxHp * b.partyHp))
+  return {
+    ...unit,
+    hp,
+    maxHp: hp,
+    attackPower: Math.round(unit.attackPower * b.partyAttack),
+    defense: Math.round(unit.defense * b.partyDefense),
+    healPower: Math.round(unit.healPower * b.partyHeal),
+    selfRegenPercent: (unit.selfRegenPercent ?? 0) + b.partyRegen || undefined,
+  }
 }
 
 export function tableCapacityBonus(dm: DMState): number {
@@ -362,15 +499,28 @@ export function resolveEncounter(
   // already earned tier-3 rewards for a win you haven't gotten yet.
   const winCount = isExecution ? (dm.executionTier[moduleDef.id] ?? 0) : 0
   const difficultyTier = isExecution ? winCount + EXECUTION_STARTING_TIER : 0
-  const encounterTemplate = isExecution
+  const upgrades = computeUpgradeBonuses(dm)
+  const baseTemplate = isExecution
     ? scaleEncounterForTier(moduleDef.encounters[table.encounterIndex % moduleDef.encounters.length], difficultyTier)
     : hardenCampaignEncounter(moduleDef.encounters[table.encounterIndex % moduleDef.encounters.length], moduleDef.tier)
+  // Dread Reputation: enemies come in weakened (the fight's rewards don't change).
+  const encounterTemplate = upgrades.enemyHp < 1 ? { ...baseTemplate, enemyHpMultiplier: upgrades.enemyHp } : baseTemplate
 
   const artifactBonuses = computeArtifactBonuses(dm)
-  const partyUnits = seatedPlayers.map((p) => toCombatUnit(p.character!, dominantTrait(p.personality), artifactBonuses))
+  const partyUnits = seatedPlayers.map((p) =>
+    applyPartyBonuses(toCombatUnit(p.character!, dominantTrait(p.personality), artifactBonuses), upgrades),
+  )
   const result = runEncounter(partyUnits, encounterTemplate, rng)
   const multipliers = computeMultipliers(dm)
   const survivorCharIds = new Set(result.survivorIds)
+  // Plot Armor: each character who fell may be spared anyway, keeping their seat and levels.
+  let spared = 0
+  if (upgrades.cheatDeath > 0)
+    for (const p of seatedPlayers)
+      if (p.character && !survivorCharIds.has(p.character.id) && rng() < upgrades.cheatDeath) {
+        survivorCharIds.add(p.character.id)
+        spared++
+      }
   // A stalemate still teaches the party something even without a kill, so it
   // grants XP same as a win — but never gold, or grinding an unwinnable fight
   // forever would be a free loot pump. runEncounter already zeroes xpReward
@@ -405,9 +555,13 @@ export function resolveEncounter(
   const nextWipeRosterEntries = [...prunedWipeRoster, ...justDiedEntries]
   const nextWipeRoster = nextWipeRosterEntries.length > 0 ? nextWipeRosterEntries : null
 
+  // Salvage Rights: a lost fight still pays a share of what it was worth.
+  const salvageGold =
+    result.outcome === 'defeat' && upgrades.defeatGold > 0 ? Math.round(result.lootValue * upgrades.defeatGold * multipliers.gold) : 0
+
   if (stillSeatedCount === 0) {
     const infamyGain = computeInfamyReward(table.lifetimeGold, seatedPlayers.length, multipliers)
-    const nextDm: DMState = { ...dm, infamy: dm.infamy + infamyGain }
+    const nextDm: DMState = { ...dm, infamy: dm.infamy + infamyGain, gold: dm.gold + salvageGold }
     const nextTable: Table = {
       ...table,
       assignedModuleId: null,
@@ -416,7 +570,7 @@ export function resolveEncounter(
       lifetimeGold: 0,
       lastBattleLog: result.log,
       lastBattleModuleName: moduleDef.name,
-      lastBattleRewards: { outcome: result.outcome, xp: 0, gold: 0, infamy: infamyGain },
+      lastBattleRewards: { outcome: result.outcome, xp: 0, gold: salvageGold, infamy: infamyGain, ...(spared ? { spared } : {}) },
       lastWipeRoster: nextWipeRoster,
     }
     return { table: nextTable, players: updatedPlayers, dm: nextDm }
@@ -439,6 +593,12 @@ export function resolveEncounter(
     nextDm = { ...nextDm, infamy: nextDm.infamy + infamyBonus }
   }
 
+  if (salvageGold > 0) {
+    goldGain = salvageGold
+    nextDm = { ...nextDm, gold: nextDm.gold + goldGain }
+    nextLifetimeGold += goldGain
+  }
+
   if (result.outcome === 'victory') {
     goldGain = Math.round(result.goldReward * multipliers.gold)
     nextDm = { ...nextDm, gold: nextDm.gold + goldGain }
@@ -455,7 +615,7 @@ export function resolveEncounter(
         tierDefeated: winCount,
         earnedAt: Date.now(),
       }
-      const trophyInfamy = TROPHY_BASE_INFAMY + winCount * TROPHY_INFAMY_PER_TIER
+      const trophyInfamy = Math.round((TROPHY_BASE_INFAMY + winCount * TROPHY_INFAMY_PER_TIER) * upgrades.executionInfamy)
       infamyBonus += trophyInfamy
       nextDm = {
         ...nextDm,
@@ -473,7 +633,7 @@ export function resolveEncounter(
     cooldownRemaining: freshCooldown(multipliers, result.roundsElapsed),
     lastBattleLog: result.log,
     lastBattleModuleName: moduleDef.name,
-    lastBattleRewards: { outcome: result.outcome, xp: xpGain, gold: goldGain, infamy: infamyBonus },
+    lastBattleRewards: { outcome: result.outcome, xp: xpGain, gold: goldGain, infamy: infamyBonus, ...(spared ? { spared } : {}) },
     lastWipeRoster: nextWipeRoster,
   }
   return { table: nextTable, players: updatedPlayers, dm: nextDm }
@@ -763,7 +923,7 @@ function fastForwardShip(
   rng: RngFn,
 ): { ship: Ship; dm: DMState; remaining: number; iterations: number } {
   const multipliers = computeMultipliers(dm)
-  const goldPerVoyage = Math.round(island.baseGoldReward * multipliers.gold)
+  const goldPerVoyage = Math.round(island.baseGoldReward * multipliers.gold * computeUpgradeBonuses(dm).voyageGold)
   const findChance = BASE_ARTIFACT_FIND_CHANCE + artifactFindChanceBonus(dm)
   const voyageMs = voyageDuration(island, dm)
 
@@ -843,7 +1003,7 @@ function tickShip(ship: Ship, dm: DMState, dtMs: number, rng: RngFn): { ship: Sh
     remaining -= s.voyageRemaining
 
     const multipliers = computeMultipliers(d)
-    const goldGain = Math.round(island.baseGoldReward * multipliers.gold)
+    const goldGain = Math.round(island.baseGoldReward * multipliers.gold * computeUpgradeBonuses(d).voyageGold)
     d = { ...d, gold: d.gold + goldGain }
 
     const findChance = BASE_ARTIFACT_FIND_CHANCE + artifactFindChanceBonus(d)

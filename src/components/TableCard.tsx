@@ -10,6 +10,7 @@ import { ModulePickerModal } from './ModulePickerModal'
 import { SeatPlayerModal } from './SeatPlayerModal'
 import { BattleModal } from './combat/BattleModal'
 import { useCooldownProgress } from './shell/progress'
+import { Amount } from './currency'
 
 interface BattleSnapshot {
   log: CombatLogEvent[]
@@ -157,7 +158,7 @@ export function TableCard({ table }: { table: Table }) {
         {last && (
           <span className="ml-auto text-xs text-slate-500">
             Last: <span className={OUTCOME[last.outcome].tone}>{OUTCOME[last.outcome].label}</span>
-            {last.gold > 0 && <span className="text-amber-400/90"> +{formatNumber(last.gold)}g</span>}
+            {last.gold > 0 && <Amount value={last.gold} currency="gold" size={12} className="ml-1 text-amber-300/90" />}
           </span>
         )}
       </div>

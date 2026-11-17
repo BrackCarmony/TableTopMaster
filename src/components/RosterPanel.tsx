@@ -3,11 +3,12 @@ import { ROLE_ICON, ROLE_LABEL, TRAIT_ICON, TRAIT_LABEL } from './icons'
 import { formatNumber } from '../format'
 import { CROSS_TRAIN_ATTACK_BONUS_PER_TIER, CROSS_TRAIN_HP_BONUS_PER_TIER, CROSS_TRAIN_REGEN_PER_TIER } from '../game/characters'
 import { getClassTier, maxTier } from '../game/data/classes'
-import { legacyTierCost } from '../game/data/legacy'
 import { dominantTrait } from '../game/personality'
 import { newPlayerCost, useGameStore } from '../game/store'
 import type { Player, Role } from '../game/types'
 import { PageHeader } from './shell/Shell'
+import { Amount } from './currency'
+import { roleTierUnlockCost, veteranTierCost } from '../game/engine'
 
 const ROLES: Role[] = ['tank', 'dps', 'healer']
 
@@ -21,9 +22,10 @@ const CROSS_TRAIN_DESCRIPTION: Record<Role, string> = {
 }
 
 function LegacyTierButton({ player }: { player: Player }) {
-  const infamy = useGameStore((s) => s.dm.infamy)
+  const dm = useGameStore((s) => s.dm)
+  const infamy = dm.infamy
   const upgradePlayerLegacyTier = useGameStore((s) => s.upgradePlayerLegacyTier)
-  const nextCost = legacyTierCost(player.legacyTier)
+  const nextCost = veteranTierCost(dm, player.legacyTier)
   const affordable = infamy >= nextCost
 
   return (
@@ -37,18 +39,19 @@ function LegacyTierButton({ player }: { player: Player }) {
         onClick={() => upgradePlayerLegacyTier(player.id)}
         className="rounded bg-rose-700 px-2 py-0.5 font-medium text-rose-50 hover:bg-rose-600 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-500"
       >
-        Upgrade &middot; {formatNumber(nextCost)} Infamy
+        Upgrade &middot; <Amount value={nextCost} currency="infamy" size={12} />
       </button>
     </div>
   )
 }
 
 function TierButton({ player, role }: { player: Player; role: Role }) {
-  const gold = useGameStore((s) => s.dm.gold)
+  const dm = useGameStore((s) => s.dm)
+  const gold = dm.gold
   const unlockPlayerTier = useGameStore((s) => s.unlockPlayerTier)
   const tier = player.roleTiers[role]
   const maxed = tier >= maxTier(role)
-  const nextCost = maxed ? null : getClassTier(role, tier + 1).unlockCost
+  const nextCost = maxed ? null : roleTierUnlockCost(dm, getClassTier(role, tier + 1).unlockCost)
   const affordable = nextCost !== null && gold >= nextCost
 
   return (
@@ -67,7 +70,7 @@ function TierButton({ player, role }: { player: Player; role: Role }) {
           onClick={() => unlockPlayerTier(player.id, role)}
           className="rounded bg-amber-700 px-2 py-0.5 font-medium text-amber-50 hover:bg-amber-600 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-500"
         >
-          T{tier + 1} &middot; {formatNumber(nextCost!)}g
+          T{tier + 1} &middot; <Amount value={nextCost!} currency="gold" size={12} />
         </button>
       )}
     </div>
@@ -76,12 +79,13 @@ function TierButton({ player, role }: { player: Player; role: Role }) {
 
 function BuyCheapestLegacyTierButton() {
   const players = useGameStore((s) => s.players)
-  const infamy = useGameStore((s) => s.dm.infamy)
+  const dm = useGameStore((s) => s.dm)
+  const infamy = dm.infamy
   const upgradeCheapestLegacyTier = useGameStore((s) => s.upgradeCheapestLegacyTier)
 
   if (players.length === 0) return null
   const cheapest = players.reduce((min, p) => (p.legacyTier < min.legacyTier ? p : min))
-  const cost = legacyTierCost(cheapest.legacyTier)
+  const cost = veteranTierCost(dm, cheapest.legacyTier)
   const affordable = infamy >= cost
 
   return (
@@ -91,16 +95,17 @@ function BuyCheapestLegacyTierButton() {
       title={`Upgrades whichever player currently has the lowest Veteran Tier (${cheapest.name}) — always the cheapest next purchase.`}
       className="rounded-md bg-rose-800 px-3 py-1.5 text-sm font-medium text-rose-50 hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500"
     >
-      💀 Upgrade cheapest veteran &middot; {formatNumber(cost)} infamy
+      💀 Upgrade cheapest veteran &middot; <Amount value={cost} currency="infamy" />
     </button>
   )
 }
 
 function RecruitButton() {
   const players = useGameStore((s) => s.players)
-  const infamy = useGameStore((s) => s.dm.infamy)
+  const dm = useGameStore((s) => s.dm)
+  const infamy = dm.infamy
   const recruitNewPlayer = useGameStore((s) => s.recruitNewPlayer)
-  const cost = newPlayerCost(players.length)
+  const cost = newPlayerCost(players.length, dm)
   return (
     <button
       disabled={infamy < cost}
@@ -108,7 +113,7 @@ function RecruitButton() {
       title="Grow your roster. New recruits start on the bench."
       className="rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-medium text-emerald-50 hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500"
     >
-      + Recruit &middot; {formatNumber(cost)} infamy
+      + Recruit &middot; <Amount value={cost} currency="infamy" />
     </button>
   )
 }

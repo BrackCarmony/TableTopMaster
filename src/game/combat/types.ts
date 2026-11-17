@@ -114,6 +114,8 @@ export interface EncounterTemplate {
    * harder without paying out more for it. Unset means 1x.
    */
   difficultyMultiplier?: number
+  /** Enemies start with this share of their HP (Dread Reputation), again without touching rewards. Unset means 1x. */
+  enemyHpMultiplier?: number
 }
 
 export interface EncounterResult {
@@ -122,6 +124,8 @@ export interface EncounterResult {
   survivorIds: string[]
   goldReward: number
   xpReward: number
+  /** What the fight would have paid had it been won (Salvage Rights pays a share of it on a loss). */
+  lootValue: number
   /** How many rounds the fight actually took (1-based) — a stalemate always maxes this out at MAX_ROUNDS. */
   roundsElapsed: number
 }

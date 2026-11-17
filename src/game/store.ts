@@ -3,12 +3,14 @@ import { persist } from 'zustand/middleware'
 import { createCharacterForPlayer, createPlayer, generateShipId, generateTableId, LEGACY_FLAT_GROWTH } from './characters'
 import { getClassTier, maxTier } from './data/classes'
 import { getIslandById } from './data/islands'
-import { legacyTierCost } from './data/legacy'
 import { shipNameForIndex } from './data/names'
-import { trophyStartingLevelBonus } from './data/trophies'
 import {
   AUTO_ADVANCE_CHECK_INTERVAL_MS,
-  MAX_OFFLINE_MS,
+  computeUpgradeBonuses,
+  maxOfflineMs,
+  roleTierUnlockCost,
+  startingLevelBonus,
+  veteranTierCost,
   OFFLINE_PROGRESS_GOLD_FRACTION,
   effectiveShipSlots,
   effectiveTableCapacity,
@@ -25,6 +27,7 @@ import {
 import { createRng } from './rng'
 import { getModuleById } from './data/modules'
 import { getUpgradeById } from './data/upgrades'
+import { canBuyUpgrade } from './data/upgradeTree'
 import type { Character, DMState, GameState, Player, Role, Ship, Table } from './types'
 
 const rng = createRng(Date.now() ^ 0x9e3779b9)
@@ -96,8 +99,10 @@ function ensureTableSlots(tables: Table[], dm: DMState): Table[] {
 // normally once a full first party is within reach.
 const EARLY_RECRUIT_COSTS: Record<number, number> = { 2: 1, 3: 4 }
 
-export function newPlayerCost(rosterSize: number): number {
-  return EARLY_RECRUIT_COSTS[rosterSize] ?? 8 + rosterSize * 6
+/** Infamy to recruit the next player (the Notice Board discounts it: pass the DM). */
+export function newPlayerCost(rosterSize: number, dm?: DMState): number {
+  const base = EARLY_RECRUIT_COSTS[rosterSize] ?? 8 + rosterSize * 6
+  return dm ? Math.max(1, Math.round(base * computeUpgradeBonuses(dm).recruitCost)) : base
 }
 
 interface GameStore extends GameState {
@@ -149,7 +154,7 @@ export const useGameStore = create<GameStore>()(
           // Trust the caller's forcedRole only if the unlock is actually
           // purchased — never take a role choice at face value from the UI.
           const allowedForcedRole = forcedRole && hasRoleSelectionUnlock(state.dm) ? forcedRole : undefined
-          const bonusLevels = trophyStartingLevelBonus(state.dm.trophies.length)
+          const bonusLevels = startingLevelBonus(state.dm)
           const character = createCharacterForPlayer(player, rng, allowedForcedRole, bonusLevels)
           return {
             players: state.players.map((p) => (p.id === playerId ? { ...p, tableId, character } : p)),
@@ -172,7 +177,7 @@ export const useGameStore = create<GameStore>()(
           let openSeats = effectiveTableCapacity(state.dm) - seatedCount
           if (openSeats <= 0) return state
 
-          const bonusLevels = trophyStartingLevelBonus(state.dm.trophies.length)
+          const bonusLevels = startingLevelBonus(state.dm)
           const playersById = new Map(state.players.map((p) => [p.id, p]))
           const updatedById = new Map<string, Player>()
           for (const entry of table.lastWipeRoster) {
@@ -192,7 +197,7 @@ export const useGameStore = create<GameStore>()(
 
       recruitNewPlayer: () =>
         set((state) => {
-          const cost = newPlayerCost(state.players.length)
+          const cost = newPlayerCost(state.players.length, state.dm)
           if (state.dm.infamy < cost) return state
           const existingNames = state.players.map((p) => p.name)
           return {
@@ -207,11 +212,11 @@ export const useGameStore = create<GameStore>()(
           if (!player) return state
           const currentTier = player.roleTiers[role]
           if (currentTier >= maxTier(role)) return state
-          const nextTierDef = getClassTier(role, currentTier + 1)
-          if (state.dm.gold < nextTierDef.unlockCost) return state
+          const cost = roleTierUnlockCost(state.dm, getClassTier(role, currentTier + 1).unlockCost)
+          if (state.dm.gold < cost) return state
 
           return {
-            dm: { ...state.dm, gold: state.dm.gold - nextTierDef.unlockCost },
+            dm: { ...state.dm, gold: state.dm.gold - cost },
             players: state.players.map((p) =>
               p.id === playerId ? { ...p, roleTiers: { ...p.roleTiers, [role]: currentTier + 1 } } : p,
             ),
@@ -222,7 +227,7 @@ export const useGameStore = create<GameStore>()(
         set((state) => {
           const player = state.players.find((p) => p.id === playerId)
           if (!player) return state
-          const cost = legacyTierCost(player.legacyTier)
+          const cost = veteranTierCost(state.dm, player.legacyTier)
           if (state.dm.infamy < cost) return state
 
           return {
@@ -239,7 +244,7 @@ export const useGameStore = create<GameStore>()(
         set((state) => {
           if (state.players.length === 0) return state
           const cheapest = state.players.reduce((min, p) => (p.legacyTier < min.legacyTier ? p : min))
-          const cost = legacyTierCost(cheapest.legacyTier)
+          const cost = veteranTierCost(state.dm, cheapest.legacyTier)
           if (state.dm.infamy < cost) return state
 
           return {
@@ -327,7 +332,7 @@ export const useGameStore = create<GameStore>()(
         set((state) => {
           const cost = Math.round(state.dm.gold * OFFLINE_PROGRESS_GOLD_FRACTION)
           if (cost <= 0) return state
-          const durationMs = offlineProgressDurationMs(cost)
+          const durationMs = offlineProgressDurationMs(cost, state.dm)
           if (durationMs <= 0) return state
 
           const goldAfterCost = state.dm.gold - cost
@@ -350,6 +355,8 @@ export const useGameStore = create<GameStore>()(
           const upgrade = getUpgradeById(upgradeId)
           if (!upgrade) return state
           if (state.dm.purchasedUpgradeIds.includes(upgradeId)) return state
+          // In tree order only: earlier ranks first, and the node's requirements met.
+          if (!canBuyUpgrade(state.dm, upgradeId)) return state
           const balance = upgrade.currency === 'gold' ? state.dm.gold : state.dm.infamy
           if (balance < upgrade.cost) return state
 
@@ -415,7 +422,7 @@ export const useGameStore = create<GameStore>()(
 
       catchUpOffline: () =>
         set((state) => {
-          const elapsed = Math.min(Math.max(0, Date.now() - state.lastTickAt), MAX_OFFLINE_MS)
+          const elapsed = Math.min(Math.max(0, Date.now() - state.lastTickAt), maxOfflineMs(state.dm))
           if (elapsed <= 0) return { lastTickAt: Date.now() }
           const tabled = tickTables(state.tables, state.players, state.dm, elapsed, rng)
           const { ships, dm } = tickShips(state.ships, tabled.dm, elapsed, rng)

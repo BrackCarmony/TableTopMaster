@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { formatNumber } from '../format'
 import { getArtifactById } from '../game/data/artifacts'
 import { getIslandById } from '../game/data/islands'
 import { getUpgradeById } from '../game/data/upgrades'
@@ -8,6 +7,7 @@ import { shipCost, useGameStore } from '../game/store'
 import type { Ship } from '../game/types'
 import { IslandPickerModal } from './IslandPickerModal'
 import { PageHeader } from './shell/Shell'
+import { Amount } from './currency'
 
 function ShipRow({ ship }: { ship: Ship }) {
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -69,7 +69,7 @@ export function SailingPanel() {
           onClick={() => buyUpgrade('sailing-unlock')}
           className="rounded-md bg-cyan-700 px-3 py-1.5 text-sm font-medium text-cyan-50 hover:bg-cyan-600 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
         >
-          Unlock Sailing — {formatNumber(sailingUnlock.cost)}g
+          Unlock Sailing · <Amount value={sailingUnlock.cost} currency="gold" />
         </button>
         </div>
       </div>
@@ -90,7 +90,13 @@ export function SailingPanel() {
             onClick={() => buyShip()}
             className="rounded-md bg-cyan-700 px-3 py-1.5 text-sm font-medium text-cyan-50 hover:bg-cyan-600 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500"
           >
-            {atCapacity ? `Fleet full (${ships.length}/${slots})` : `+ Buy ship — ${formatNumber(nextCost)}g`}
+            {atCapacity ? (
+              `Fleet full (${ships.length}/${slots})`
+            ) : (
+              <>
+                + Buy ship · <Amount value={nextCost} currency="gold" />
+              </>
+            )}
           </button>
         }
       />

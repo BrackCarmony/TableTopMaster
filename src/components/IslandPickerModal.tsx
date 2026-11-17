@@ -1,4 +1,4 @@
-import { formatNumber } from '../format'
+import { Amount } from './currency'
 import { ISLANDS } from '../game/data/islands'
 import { useGameStore } from '../game/store'
 import type { Ship } from '../game/types'
@@ -43,9 +43,15 @@ export function IslandPickerModal({ ship, onClose }: { ship: Ship; onClose: () =
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-slate-100">{island.name}</span>
                   <span className="text-xs text-slate-400">
-                    {unlocked
-                      ? `${formatNumber(island.baseGoldReward)}g · ${Math.round(island.baseVoyageDurationMs / 1000)}s`
-                      : `Unlock: ${formatNumber(island.unlockCost)}g`}
+                    {unlocked ? (
+                      <>
+                        <Amount value={island.baseGoldReward} currency="gold" size={12} /> · {Math.round(island.baseVoyageDurationMs / 1000)}s
+                      </>
+                    ) : (
+                      <>
+                        Unlock: <Amount value={island.unlockCost} currency="gold" size={12} />
+                      </>
+                    )}
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-slate-400">{island.description}</p>

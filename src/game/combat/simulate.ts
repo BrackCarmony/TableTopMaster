@@ -26,6 +26,7 @@ function buildEnemyUnits(template: EncounterTemplate): CombatUnit[] {
   // rewards below are still derived from the template's raw enemy stats.
   const m = template.difficultyMultiplier ?? 1
   const scale = (value: number) => (m === 1 ? value : Math.round(value * m))
+  const hpScale = (value: number) => Math.max(1, Math.round(scale(value) * (template.enemyHpMultiplier ?? 1)))
   return template.enemies.map((spawn, index) => ({
     id: `enemy-${template.id}-${index}`,
     name: spawn.name,
@@ -33,8 +34,8 @@ function buildEnemyUnits(template: EncounterTemplate): CombatUnit[] {
     role: spawn.role,
     level: 1,
     position: { ...spawn.position },
-    hp: scale(spawn.hp),
-    maxHp: scale(spawn.hp),
+    hp: hpScale(spawn.hp),
+    maxHp: hpScale(spawn.hp),
     attackPower: scale(spawn.attackPower),
     defense: scale(spawn.defense),
     healPower: scale(spawn.healPower),
@@ -380,8 +381,9 @@ export function runEncounter(partyUnits: CombatUnit[], template: EncounterTempla
   // A stalemate still teaches the party something even without a kill, but
   // only a real victory pays out loot — otherwise grinding out an unwinnable
   // fight forever would be a free gold pump.
-  const goldReward = outcome === 'victory' ? Math.round(totalPower * GOLD_PER_POWER) : 0
+  const lootValue = Math.round(totalPower * GOLD_PER_POWER)
+  const goldReward = outcome === 'victory' ? lootValue : 0
   const xpReward = outcome === 'victory' || outcome === 'stalemate' ? Math.round(totalPower * XP_PER_POWER) : 0
 
-  return { log, outcome, survivorIds, goldReward, xpReward, roundsElapsed }
+  return { log, outcome, survivorIds, goldReward, xpReward, roundsElapsed, lootValue }
 }

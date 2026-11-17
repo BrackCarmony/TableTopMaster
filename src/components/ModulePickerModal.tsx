@@ -1,4 +1,5 @@
 import { formatNumber } from '../format'
+import { Amount } from './currency'
 import { MODULES } from '../game/data/modules'
 import { useGameStore } from '../game/store'
 import type { CombatLogEvent } from '../game/combat/types'
@@ -96,7 +97,13 @@ export function ModulePickerModal({
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-slate-100">{moduleDef.name}</span>
                   <span className="text-xs text-slate-400">
-                    {unlocked ? `Tier ${moduleDef.tier}` : `Unlock: ${formatNumber(moduleDef.unlockCost)}g`}
+                    {unlocked ? (
+                      `Tier ${moduleDef.tier}`
+                    ) : (
+                      <>
+                        Unlock: <Amount value={moduleDef.unlockCost} currency="gold" size={12} />
+                      </>
+                    )}
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-slate-400">{moduleDef.description}</p>

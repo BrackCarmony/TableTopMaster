@@ -12,6 +12,7 @@ import {
 import { useGameStore } from '../../game/store'
 import { SECTIONS, useNavBadges, useSection, type Badge, type SectionId } from '../nav'
 import { useCooldownProgress } from './progress'
+import { Amount, CurrencyIcon } from '../currency'
 
 // The frame around every section: a sidebar (desktop) or tab strip (phones) to move between
 // the parts of the game, a bar keeping gold and infamy in view, and a live glance at every
@@ -201,20 +202,23 @@ function Sidebar() {
   )
 }
 
-function Currency({ label, value, tone }: { label: string; value: number; tone: string }) {
+function Currency({ currency, value, tone }: { currency: 'gold' | 'infamy'; value: number; tone: string }) {
   return (
-    <div className="text-right leading-tight">
-      <div className="text-[10px] font-medium uppercase tracking-wider text-slate-500">{label}</div>
-      <div className={`tabular-nums text-base font-semibold sm:text-lg ${tone}`}>{formatNumber(value)}</div>
+    <div
+      className="flex items-center gap-1.5 rounded-lg bg-slate-900/80 px-2.5 py-1 ring-1 ring-slate-800"
+      title={currency === 'gold' ? 'Gold: earned from victories, spent on upgrades and role tiers' : 'Infamy: earned when characters die, spent on permanent upgrades'}
+    >
+      <CurrencyIcon currency={currency} size={20} />
+      <span className={`tabular-nums text-base font-semibold sm:text-lg ${tone}`}>{formatNumber(value)}</span>
     </div>
   )
 }
 
 function OfflineButton() {
-  const gold = useGameStore((s) => s.dm.gold)
+  const dm = useGameStore((s) => s.dm)
   const buyOfflineProgress = useGameStore((s) => s.buyOfflineProgress)
-  const cost = Math.round(gold * OFFLINE_PROGRESS_GOLD_FRACTION)
-  const ms = offlineProgressDurationMs(cost)
+  const cost = Math.round(dm.gold * OFFLINE_PROGRESS_GOLD_FRACTION)
+  const ms = offlineProgressDurationMs(cost, dm)
   // Only worth offering once it buys a real amount of time.
   if (ms < 60_000) return null
   return (
@@ -224,7 +228,7 @@ function OfflineButton() {
       className="tabular-nums rounded-md border border-amber-800/80 px-2.5 py-1 text-xs font-medium text-amber-300 transition hover:border-amber-600 hover:bg-amber-950/40 sm:text-sm"
     >
       ⏩ <span className="hidden sm:inline">Skip </span>
-      {formatDuration(ms)} <span className="text-amber-500/80">({formatNumber(cost)}g)</span>
+      {formatDuration(ms)} <Amount value={cost} currency="gold" size={12} className="ml-1 text-amber-500/90" />
     </button>
   )
 }
@@ -246,8 +250,8 @@ function TopBar() {
           </div>
         </div>
         <OfflineButton />
-        <Currency label="Gold" value={dm.gold} tone="text-amber-400" />
-        <Currency label="Infamy" value={dm.infamy} tone="text-rose-400" />
+        <Currency currency="gold" value={dm.gold} tone="text-amber-300" />
+        <Currency currency="infamy" value={dm.infamy} tone="text-rose-300" />
       </div>
       {/* Phones: the sections as a strip of tabs under the bar. */}
       <nav className="flex gap-1.5 overflow-x-auto px-4 pb-2.5 md:hidden" aria-label="Sections">

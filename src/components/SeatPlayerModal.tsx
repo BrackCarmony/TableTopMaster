@@ -1,5 +1,5 @@
 import { ROLE_ICON, ROLE_LABEL, TRAIT_ICON, TRAIT_LABEL } from './icons'
-import { formatNumber } from '../format'
+import { Amount } from './currency'
 import { newPlayerCost, useGameStore } from '../game/store'
 import { hasRoleSelectionUnlock } from '../game/engine'
 import { dominantTrait } from '../game/personality'
@@ -15,7 +15,8 @@ export function SeatPlayerModal({ table, onClose }: { table: Table; onClose: () 
   const recruitNewPlayer = useGameStore((s) => s.recruitNewPlayer)
 
   const benched = players.filter((p) => p.tableId === null)
-  const cost = newPlayerCost(players.length)
+  const dm = useGameStore((s) => s.dm)
+  const cost = newPlayerCost(players.length, dm)
   const canRecruit = infamy >= cost
 
   function seatAndClose(playerId: string, role?: Role) {
@@ -40,7 +41,7 @@ export function SeatPlayerModal({ table, onClose }: { table: Table; onClose: () 
         >
           <div className="flex items-center justify-between">
             <span className="font-medium text-rose-200">Recruit New Player</span>
-            <span className="text-xs text-rose-400">{formatNumber(cost)} infamy</span>
+            <Amount value={cost} currency="infamy" className="text-xs text-rose-300" />
           </div>
           <p className="mt-1 text-xs text-rose-300/80">Grow your roster. New recruits start on the bench.</p>
         </button>
