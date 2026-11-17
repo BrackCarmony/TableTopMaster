@@ -118,7 +118,8 @@ function RecruitButton() {
   )
 }
 
-type Filter = 'all' | 'seated' | 'benched'
+/** All, everyone seated, the bench, or one table (by id). */
+type Filter = 'all' | 'seated' | 'benched' | { table: string }
 
 export function RosterPanel() {
   const players = useGameStore((s) => s.players)
@@ -126,9 +127,18 @@ export function RosterPanel() {
   const [filter, setFilter] = useState<Filter>('all')
 
   const tableNameById = new Map(tables.map((t) => [t.id, t.name]))
-  const seated = players.filter((p) => p.tableId).length
-  const counts: Record<Filter, number> = { all: players.length, seated, benched: players.length - seated }
-  const shown = players.filter((p) => (filter === 'all' ? true : filter === 'seated' ? !!p.tableId : !p.tableId))
+  // A table that's gone (it can't be, today, but saves change) falls back to everyone.
+  const active: Filter = typeof filter === 'object' && !tableNameById.has(filter.table) ? 'all' : filter
+  const matches = (p: (typeof players)[number], f: Filter) =>
+    f === 'all' ? true : f === 'seated' ? !!p.tableId : f === 'benched' ? !p.tableId : p.tableId === f.table
+  const shown = players.filter((p) => matches(p, active))
+  const isActive = (f: Filter) => (typeof f === 'object' && typeof active === 'object' ? f.table === active.table : f === active)
+  const chips: { key: string; label: string; f: Filter }[] = [
+    { key: 'all', label: 'All', f: 'all' },
+    { key: 'seated', label: 'Seated', f: 'seated' },
+    ...(tables.length > 1 ? tables.map((t) => ({ key: t.id, label: t.name, f: { table: t.id } as Filter })) : []),
+    { key: 'benched', label: 'Benched', f: 'benched' },
+  ]
 
   return (
     <div>
@@ -140,16 +150,17 @@ export function RosterPanel() {
           </>
         }
       />
-      <div className="mb-4 flex gap-1.5">
-        {(['all', 'seated', 'benched'] as const).map((f) => (
+      <div className="mb-4 flex flex-wrap gap-1.5">
+        {chips.map(({ key, label, f }) => (
           <button
-            key={f}
+            key={key}
             onClick={() => setFilter(f)}
-            className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition ${
-              filter === f ? 'bg-slate-200 text-slate-900' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+              isActive(f) ? 'bg-slate-200 text-slate-900' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+            } ${typeof f === 'object' ? 'ring-1 ring-inset ring-emerald-700/40' : ''}`}
           >
-            {f} <span className="tabular-nums opacity-60">{counts[f]}</span>
+            {typeof f === 'object' && <span aria-hidden>🎲 </span>}
+            {label} <span className="tabular-nums opacity-60">{players.filter((p) => matches(p, f)).length}</span>
           </button>
         ))}
       </div>
