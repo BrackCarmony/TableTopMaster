@@ -56,6 +56,8 @@ interface UnitView {
   lookPitch: number
   /** 0..1, how far into its badly-hurt slump. */
   hurt: number
+  /** 1 normally; fades down while it stands between the follow camera and the action. */
+  clear: number
   nextBlink: number
   /** How open its mouth is, eased. */
   mouth: number
@@ -76,6 +78,27 @@ interface Pose {
   /** How far up (+) or down (-) to aim at the target, radians. */
   aim?: number
 }
+
+/** Who the follow camera keeps in frame (live unit positions plus fixed spots), and how much
+ * extra room to leave around them for big effects. */
+interface Shot {
+  units: UnitView[]
+  points: THREE.Vector3[]
+  wide: number
+  /** Which way the action runs, for a lone subject (a walker): the camera watches side-on to it. */
+  heading?: THREE.Vector3
+}
+
+/** A prop around the board, for hiding it when it stands between the follow camera and the action. */
+interface PropBounds {
+  obj: THREE.Object3D
+  x: number
+  z: number
+  r: number
+  top: number
+}
+
+export type CameraMode = 'overview' | 'follow'
 
 interface Tween {
   start: number
@@ -120,6 +143,16 @@ export class BattleScene {
   private time = 0
   private camBase = new THREE.Vector3()
   private camTarget = new THREE.Vector3()
+  /** Where the camera is and looks (eased toward where it wants to be). */
+  private camPos = new THREE.Vector3()
+  private camLook = new THREE.Vector3()
+  private wantPos = new THREE.Vector3()
+  private wantLook = new THREE.Vector3()
+  private camReady = false
+  /** The follow camera's current subject (null: the whole board). */
+  private shot: Shot | null = null
+  private propBounds: PropBounds[] = []
+  private propsHidden = false
   private intro = 0
   private shake = 0
   private fxMats = new MaterialBag()
@@ -147,6 +180,8 @@ export class BattleScene {
   timeScale = 1
   /** Turn every figure slowly in place, to see them from all sides (the dev lineup pages). */
   turntable = false
+  /** The whole board from the front, or a camera that moves in on whoever is acting. */
+  cameraMode: CameraMode = 'overview'
 
   constructor(
     private container: HTMLElement,
@@ -274,6 +309,15 @@ export class BattleScene {
       }
     })
     this.world.add(props)
+    // Measure each prop once, so the follow camera can see past trees and pillars.
+    props.updateMatrixWorld(true)
+    for (const child of props.children) {
+      const box = new THREE.Box3().setFromObject(child)
+      if (box.isEmpty()) continue
+      const r = Math.max(box.max.x - box.min.x, box.max.z - box.min.z) / 2
+      if (r > 2.5) continue // backdrops (waves, a ship's hull) never get in the way
+      this.propBounds.push({ obj: child, x: (box.min.x + box.max.x) / 2, z: (box.min.z + box.max.z) / 2, r, top: box.max.y })
+    }
     this.buildAmbient()
   }
 
@@ -364,6 +408,7 @@ export class BattleScene {
       lookYaw: 0,
       lookPitch: 0,
       hurt: 0,
+      clear: 1,
       nextBlink: Math.random() * 4,
       mouth: 0,
       vel: new THREE.Vector3(),
@@ -412,18 +457,163 @@ export class BattleScene {
   private updateCamera(dt: number) {
     this.intro = Math.max(0, this.intro - dt * 0.45)
     const k = this.intro * this.intro * (3 - 2 * this.intro)
+    // The overview: the whole board from the front, swaying slowly (sweeping in at the start).
     const sway = Math.sin(this.time * 0.13) * 0.14
-    const p = this.camBase.clone()
-    p.applyAxisAngle(UP, sway + k * 0.9)
-    p.multiplyScalar(1 + k * 0.6)
-    p.y += k * 4
+    const over = this.camBase.clone()
+    over.applyAxisAngle(UP, sway + k * 0.9)
+    over.multiplyScalar(1 + k * 0.6)
+    over.y += k * 4
+    // The follow camera takes over once the opening sweep is done.
+    const follow = this.cameraMode === 'follow' && this.intro < 0.05 && this.followPose(this.wantPos, this.wantLook)
+    if (!follow) {
+      this.wantPos.copy(over)
+      this.wantLook.copy(this.camTarget)
+    }
+    if (!this.camReady) {
+      this.camPos.copy(this.wantPos)
+      this.camLook.copy(this.wantLook)
+      this.camReady = true
+    }
+    // Glide between shots (quicker at higher speeds); the overview's own drift is slow enough
+    // that gliding after it doesn't lag.
+    const rate = follow ? 2 * Math.sqrt(this.speed) : 3
+    this.camPos.lerp(this.wantPos, 1 - Math.exp(-dt * rate))
+    this.camLook.lerp(this.wantLook, 1 - Math.exp(-dt * rate * 1.4))
+    const p = this.camPos.clone()
     if (this.shake > 0) {
       this.shake = Math.max(0, this.shake - dt * 2.5)
       p.x += (Math.random() - 0.5) * this.shake * 0.4
       p.y += (Math.random() - 0.5) * this.shake * 0.4
     }
     this.camera.position.copy(p)
-    this.camera.lookAt(this.camTarget)
+    this.camera.lookAt(this.camLook)
+    this.hideOccluders(this.cameraMode === 'follow')
+    // Anyone not in the shot who stands between the follow camera and the action fades out of
+    // the way.
+    const shot = this.cameraMode === 'follow' ? this.shot : null
+    const P = this.camPos
+    const L = this.camLook
+    const len = P.distanceTo(L) || 1
+    for (const v of this.units.values()) {
+      let want = 1
+      if (shot && !shot.units.includes(v)) {
+        const c = v.fig.root.position.clone().setY(v.fig.height * 0.5)
+        const t = c.clone().sub(P).dot(L.clone().sub(P)) / (len * len)
+        const off = c.distanceTo(P.clone().lerp(L, THREE.MathUtils.clamp(t, 0, 1)))
+        if (t > 0 && t < 0.62 && off < 0.35 + v.fig.height * 0.4) want = 0.22
+      }
+      v.clear += (want - v.clear) * Math.min(1, dt * 6)
+    }
+  }
+
+  /**
+   * Where the follow camera wants to be for the current shot: side-on to the two in it (a
+   * little over the shoulder of whoever's acting), from the front of the board, close enough
+   * to fill the frame with them and whatever they're doing. False when there's no shot.
+   */
+  private followPose(pos: THREE.Vector3, look: THREE.Vector3): boolean {
+    const s = this.shot
+    if (!s) return false
+    const pts: THREE.Vector3[] = []
+    let tall = 0.8
+    for (const v of s.units) {
+      pts.push(v.fig.root.position)
+      tall = Math.max(tall, v.fig.height + (v.fig.hover ? 0.3 : 0))
+    }
+    pts.push(...s.points)
+    if (!pts.length) return false
+    const center = new THREE.Vector3()
+    for (const q of pts) center.add(q)
+    center.divideScalar(pts.length).setY(0)
+    let spread = 0
+    for (const q of pts) spread = Math.max(spread, Math.hypot(q.x - center.x, q.z - center.z))
+    const dir = new THREE.Vector3(center.x * 0.06, 0, 1).normalize()
+    const d = pts.length === 2 ? pts[1].clone().sub(pts[0]).setY(0) : (s.heading?.clone().setY(0) ?? new THREE.Vector3())
+    if (d.lengthSq() > 0.04) {
+      d.normalize()
+      // Side-on to the action, from whichever side is nearer where the camera already is (so it
+      // doesn't swing round the table every cut), leaning toward the front of the board.
+      const side = new THREE.Vector3(-d.z, 0, d.x)
+      const now = this.camPos.clone().sub(center).setY(0).normalize()
+      if (side.dot(now) * 0.6 + side.z * 0.4 < 0) side.negate()
+      dir.copy(side).multiplyScalar(0.85).add(new THREE.Vector3(0, 0, 0.3)).normalize()
+      // A little round behind whoever's acting (or trailing a walker).
+      dir.addScaledVector(d, -0.25).normalize()
+    }
+    dir.applyAxisAngle(UP, Math.sin(this.time * 0.17) * 0.12)
+    const dist = THREE.MathUtils.clamp(1.9 + spread * 1.35 + tall * 1.5 + s.wide * 2, 3.2, this.camBase.length() * 0.95)
+    pos.copy(center).addScaledVector(dir, dist * 0.68)
+    pos.y = dist * 0.74 + tall * 0.15
+    look.copy(center)
+    look.y = tall * 0.42
+    return true
+  }
+
+  /** Hide props standing between the camera and what it's looking at (follow camera only). */
+  private hideOccluders(active: boolean) {
+    if (!active) {
+      if (this.propsHidden) for (const b of this.propBounds) b.obj.visible = true
+      this.propsHidden = false
+      return
+    }
+    this.propsHidden = true
+    const P = this.camPos
+    const L = this.camLook
+    const dx = L.x - P.x
+    const dz = L.z - P.z
+    const len2 = dx * dx + dz * dz || 1
+    for (const b of this.propBounds) {
+      const t = THREE.MathUtils.clamp(((b.x - P.x) * dx + (b.z - P.z) * dz) / len2, 0, 1)
+      const off = Math.hypot(P.x + dx * t - b.x, P.z + dz * t - b.z)
+      const lineY = P.y + (L.y - P.y) * t
+      b.obj.visible = !(t > 0.02 && t < 0.95 && off < b.r * 0.85 + 0.3 && b.top > lineY - 0.15)
+    }
+  }
+
+  /** Follow camera: who to frame for this event. */
+  private frameFor(e: CombatLogEvent | undefined) {
+    if (!e) return
+    const u = (id: string) => this.units.get(id)
+    const side = (s: 'party' | 'enemy') => [...this.units.values()].filter((v) => v.side === s && v.alive)
+    const group = (list: UnitView[], wide: number) => (this.shot = list.length ? { units: list, points: [], wide } : null)
+    switch (e.type) {
+      case 'encounter_start':
+      case 'finisher':
+        this.shot = null
+        return
+      case 'move': {
+        // Tracking alongside as it walks to where it's going.
+        const v = u(e.unitId)
+        if (v && e.path.length) this.shot = { units: [v], points: [], wide: 0.25, heading: this.cellToWorld(e.path[e.path.length - 1]).sub(v.pos) }
+        return
+      }
+      case 'attack': {
+        const a = u(e.attackerId)
+        const t = u(e.targetId)
+        if (a && t) this.shot = { units: [a, t], points: [], wide: SIGNATURES[a.name] ? 1.4 : a.fig.big || t.fig.big ? 0.5 : 0 }
+        return
+      }
+      case 'heal':
+      case 'revive': {
+        const h = u(e.healerId)
+        const t = u(e.targetId)
+        if (h && t) this.shot = { units: h === t ? [h] : [h, t], points: [], wide: e.type === 'revive' ? 0.4 : 0 }
+        return
+      }
+      case 'death': {
+        // Usually it's the one just struck: stay on that exchange.
+        const v = u(e.unitId)
+        if (v && !this.shot?.units.includes(v)) this.shot = { units: [v], points: [], wide: 0.2 }
+        return
+      }
+      case 'enrage':
+      case 'regen':
+        group(side(e.side), 0.3)
+        return
+      case 'encounter_end':
+        group(e.outcome === 'victory' ? side('party') : e.outcome === 'defeat' ? side('enemy') : [], 0.3)
+        return
+    }
   }
 
   // ---------- driving ----------
@@ -473,6 +663,7 @@ export class BattleScene {
     for (const v of this.units.values()) v.yaw = v.side === 'party' ? Math.PI / 2 : -Math.PI / 2
     if (step === 0) this.intro = 1
     else this.intro = 0
+    this.frameFor(this.log[step])
   }
 
   private dur(e: CombatLogEvent) {
@@ -494,6 +685,7 @@ export class BattleScene {
 
   private play(e: CombatLogEvent) {
     const D = this.dur(e)
+    this.frameFor(e)
     switch (e.type) {
       case 'encounter_start':
         this.intro = 1
@@ -1039,7 +1231,7 @@ export class BattleScene {
     this.applyCloth(v, dt)
     // Hit flash, and fading the fallen.
     v.flash = Math.max(0, v.flash - dt * 3)
-    const fade = v.alive ? 1 : 1 - v.fallen * 0.55
+    const fade = (v.alive ? 1 : 1 - v.fallen * 0.55) * v.clear
     for (const m of f.mats.list) {
       if (v.flash > 0) {
         m.emissive.copy(v.flashColor)

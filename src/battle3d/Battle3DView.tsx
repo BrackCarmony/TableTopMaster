@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { CombatLogEvent } from '../game/combat/types'
-import { BattleScene } from './scene'
+import { BattleScene, type CameraMode } from './scene'
 
 /**
  * The 3D battle view: a tabletop diorama replaying the log. Loaded lazily by the battle modal
@@ -11,11 +11,13 @@ export default function Battle3DView({
   step,
   speed,
   moduleId,
+  camera = 'overview',
 }: {
   log: CombatLogEvent[]
   step: number
   speed: number
   moduleId: string | null
+  camera?: CameraMode
 }) {
   const box = useRef<HTMLDivElement>(null)
   const scene = useRef<BattleScene | null>(null)
@@ -35,6 +37,10 @@ export default function Battle3DView({
       scene.current = null
     }
   }, [log, moduleId])
+
+  useEffect(() => {
+    if (scene.current) scene.current.cameraMode = camera
+  }, [camera, log, moduleId])
 
   useEffect(() => {
     scene.current?.show(step, speed)

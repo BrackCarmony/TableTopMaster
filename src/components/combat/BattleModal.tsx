@@ -14,6 +14,10 @@ const Battle3DView = lazy(() => import('../../battle3d/Battle3DView'))
 type ViewMode = '3d' | '2d'
 const VIEW_KEY = 'ttm-battle-view'
 
+/** The 3D camera: the whole board, or one that moves in on whoever is acting. */
+type CameraChoice = 'overview' | 'follow'
+const CAMERA_KEY = 'ttm-battle-camera'
+
 /** WebGL is needed for the 3D view; without it the grid is the only choice. */
 function hasWebGL(): boolean {
   try {
@@ -29,6 +33,14 @@ function savedView(): ViewMode {
     return localStorage.getItem(VIEW_KEY) === '2d' ? '2d' : '3d'
   } catch {
     return '3d'
+  }
+}
+
+function savedCamera(): CameraChoice {
+  try {
+    return localStorage.getItem(CAMERA_KEY) === 'follow' ? 'follow' : 'overview'
+  } catch {
+    return 'overview'
   }
 }
 
@@ -76,6 +88,7 @@ export function BattleModal({
   const [speed, setSpeed] = useState<(typeof SPEED_OPTIONS)[number]>(1)
   const webgl = useMemo(hasWebGL, [])
   const [view, setView] = useState<ViewMode>(() => (webgl ? savedView() : '2d'))
+  const [camera, setCamera] = useState<CameraChoice>(savedCamera)
   const moduleId = useMemo(() => MODULES.find((m) => m.name === moduleName)?.id ?? null, [moduleName])
 
   const lastStep = log.length - 1
@@ -100,6 +113,15 @@ export function BattleModal({
     }
   }
 
+  const chooseCamera = (c: CameraChoice) => {
+    setCamera(c)
+    try {
+      localStorage.setItem(CAMERA_KEY, c)
+    } catch {
+      /* storage blocked: the choice just won't be remembered */
+    }
+  }
+
   const { width, height } = getEncounterGridSize(log)
   const boardUnits = computeBoardStateAtStep(log, step)
 
@@ -108,9 +130,26 @@ export function BattleModal({
       <div
         className={`max-h-[94vh] w-full ${view === '3d' ? 'max-w-5xl' : 'max-w-3xl'} overflow-y-auto rounded-lg border border-slate-700 bg-slate-900 p-4 shadow-xl`}
       >
-        <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <h2 className="text-lg font-semibold text-slate-100">{moduleName ?? 'Battle'}</h2>
-          <div className="ml-auto flex gap-1">
+          {view === '3d' && (
+            <div className="ml-auto flex items-center gap-1">
+              <span className="mr-1 text-xs text-slate-500">Camera</span>
+              {(['overview', 'follow'] as const).map((c) => (
+                <button
+                  key={c}
+                  onClick={() => chooseCamera(c)}
+                  title={c === 'overview' ? 'The whole board' : 'Moves in on whoever is acting'}
+                  className={`rounded-md px-2 py-1 text-xs ${
+                    camera === c ? 'bg-sky-700 text-sky-50' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  {c === 'overview' ? 'Overview' : 'Follow'}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className={`${view === '3d' ? '' : 'ml-auto '}flex gap-1`}>
             {webgl &&
               (['3d', '2d'] as const).map((v) => (
                 <button
@@ -137,7 +176,7 @@ export function BattleModal({
               </div>
             }
           >
-            <Battle3DView log={log} step={step} speed={speed} moduleId={moduleId} />
+            <Battle3DView log={log} step={step} speed={speed} moduleId={moduleId} camera={camera} />
           </Suspense>
         ) : (
           <GridView units={boardUnits} width={width} height={height} />
