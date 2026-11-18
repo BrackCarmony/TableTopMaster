@@ -82,9 +82,9 @@ export interface Table {
   lastWipeRoster: WipeRosterEntry[] | null
   /** Ms until Auto-Advance's next periodic check (see engine.ts AUTO_ADVANCE_CHECK_INTERVAL_MS) — irrelevant unless that perk is unlocked. */
   autoAdvanceCheckRemaining: number
-  /** Flawless wins in a row (no deaths, no one saved by Plot Armor) in this module: Delegate the
-   * Table only climbs on a proven streak. Tied to the module, so changing it starts over. */
-  flawless?: { moduleId: string; count: number }
+  /** Delegate the Table's last dry run of the next module up: how many fights in a row the party
+   * won there with nobody falling, of how many it needs before climbing. */
+  scout?: { moduleId: string; wins: number; needed: number }
 }
 
 export type UpgradeCurrency = 'gold' | 'infamy'

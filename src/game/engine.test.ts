@@ -7,6 +7,7 @@ import { getTrophyQuality } from './data/trophies'
 import { UPGRADES } from './data/upgrades'
 import {
   AUTO_ADVANCE_CHECK_INTERVAL_MS,
+  AUTO_ADVANCE_MIN_TRIALS,
   BASE_ARTIFACT_FIND_CHANCE,
   BASE_COOLDOWN_MS,
   EXECUTION_GROWTH_RATE,
@@ -24,6 +25,7 @@ import {
   CAMPAIGN_HARDENING_START_RATE,
   campaignDifficultyMultiplier,
   campaignHardeningRate,
+  autoAdvanceTrialsNeeded,
   computeMultipliers,
   hasAutoAdvanceUnlock,
   hasQuickRefillUnlock,
@@ -31,6 +33,7 @@ import {
   hasSailingUnlock,
   offlineProgressDurationMs,
   resolveEncounter,
+  scoutModule,
   tickShips,
   tickTable,
   tickTables,
@@ -590,6 +593,24 @@ describe('tickTable Auto-Advance periodic check', () => {
     })
   }
 
+  /** Four characters this many levels up: 20 sweeps the Bandit Hideout but not the Sunken Crypt, 40 sweeps both. */
+  function partyAt(levels: number, seed = 1): Player[] {
+    const rng = createRng(seed)
+    return Array.from({ length: 4 }, () => {
+      const p = createPlayer(rng)
+      return { ...p, tableId: 't1', character: createCharacterForPlayer(p, rng, undefined, levels) }
+    })
+  }
+  const lowTiers = () => makeDm({ purchasedUpgradeIds: ['auto-advance-1'], unlockedModuleIds: ['goblin-ambush', 'bandit-hideout', 'sunken-crypt'] })
+  const cleanWinAt = (assignedModuleId: string, name: string) =>
+    makeTable({
+      assignedModuleId,
+      cooldownRemaining: NO_ENCOUNTER_COOLDOWN,
+      lastBattleModuleName: name,
+      lastBattleRewards: { outcome: 'victory', xp: 100, gold: 100, infamy: 0 },
+      autoAdvanceCheckRemaining: AUTO_ADVANCE_CHECK_INTERVAL_MS,
+    })
+
   it('does nothing before the interval elapses, just counts the interval down', () => {
     const table = makeTable({
       assignedModuleId: 'undying-court',
@@ -604,20 +625,36 @@ describe('tickTable Auto-Advance periodic check', () => {
     expect(result.table.autoAdvanceCheckRemaining).toBe(AUTO_ADVANCE_CHECK_INTERVAL_MS - 1000)
   })
 
-  it('climbs to the next unlocked tier once the interval elapses on a long flawless streak', () => {
-    const table = makeTable({
-      assignedModuleId: 'undying-court',
-      cooldownRemaining: NO_ENCOUNTER_COOLDOWN,
-      lastBattleModuleName: 'The Court of the Undying King',
-      lastBattleRewards: { outcome: 'victory', xp: 100, gold: 100, infamy: 0 },
-      autoAdvanceCheckRemaining: AUTO_ADVANCE_CHECK_INTERVAL_MS,
-      flawless: { moduleId: 'undying-court', count: 50 },
-    })
-    const result = tickTable(table, [], makeAutoAdvanceDm(), AUTO_ADVANCE_CHECK_INTERVAL_MS, createRng(1))
+  it('climbs once the party sweeps a dry run of the next tier', () => {
+    const players = partyAt(40)
+    const result = tickTable(cleanWinAt('bandit-hideout', "The Bandit's Hideout"), players, lowTiers(), AUTO_ADVANCE_CHECK_INTERVAL_MS, createRng(1))
 
-    expect(result.table.assignedModuleId).toBe('shattered-heavens')
+    expect(result.table.assignedModuleId).toBe('sunken-crypt')
     expect(result.table.encounterIndex).toBe(0)
+    expect(result.table.scout).toBeUndefined()
     expect(result.table.autoAdvanceCheckRemaining).toBe(AUTO_ADVANCE_CHECK_INTERVAL_MS)
+  })
+
+  it('stays put when the party cannot sweep the next tier, however well it does here; the dry run costs nothing', () => {
+    // Level 20 wins the Bandit Hideout cleanly every time, and falls in the Sunken Crypt.
+    const players = partyAt(20)
+    const dm = lowTiers()
+    const result = tickTable(cleanWinAt('bandit-hideout', "The Bandit's Hideout"), players, dm, AUTO_ADVANCE_CHECK_INTERVAL_MS, createRng(1))
+
+    expect(result.table.assignedModuleId).toBe('bandit-hideout')
+    expect(result.table.scout).toMatchObject({ moduleId: 'sunken-crypt', needed: autoAdvanceTrialsNeeded(getModuleById('sunken-crypt')!.encounters.length) })
+    expect(result.table.scout!.wins).toBeLessThan(result.table.scout!.needed)
+    expect(result.players).toEqual(players)
+    expect(result.dm).toEqual(dm)
+  })
+
+  it('needs at least ten trial fights and three laps of the next module, every one with nobody falling', () => {
+    expect(autoAdvanceTrialsNeeded(2)).toBe(AUTO_ADVANCE_MIN_TRIALS)
+    expect(autoAdvanceTrialsNeeded(5)).toBe(15)
+    const swept = scoutModule('bandit-hideout', partyAt(20), makeDm(), createRng(3))
+    expect(swept.wins).toBe(swept.needed)
+    expect(scoutModule('sunken-crypt', partyAt(20), makeDm(), createRng(3)).wins).toBeLessThan(swept.needed)
+    expect(scoutModule('sunken-crypt', [], makeDm(), createRng(3)).wins).toBe(0)
   })
 
   it('retreats to the previous tier once the interval elapses after any casualty', () => {
@@ -647,21 +684,6 @@ describe('tickTable Auto-Advance periodic check', () => {
     expect(result.table.assignedModuleId).toBe('titans-forge')
   })
 
-  it('does not climb on one flawless win, or a streak earned in another module', () => {
-    for (const flawless of [undefined, { moduleId: 'undying-court', count: 3 }, { moduleId: 'titans-forge', count: 99 }]) {
-      const table = makeTable({
-        assignedModuleId: 'undying-court',
-        cooldownRemaining: NO_ENCOUNTER_COOLDOWN,
-        lastBattleModuleName: 'The Court of the Undying King',
-        lastBattleRewards: { outcome: 'victory', xp: 100, gold: 100, infamy: 0 },
-        autoAdvanceCheckRemaining: AUTO_ADVANCE_CHECK_INTERVAL_MS,
-        flawless,
-      })
-      const result = tickTable(table, [], makeAutoAdvanceDm(), AUTO_ADVANCE_CHECK_INTERVAL_MS, createRng(1))
-      expect(result.table.assignedModuleId).toBe('undying-court')
-    }
-  })
-
   it('treats someone saved by Plot Armor as a casualty, not a flawless win', () => {
     const table = makeTable({
       assignedModuleId: 'undying-court',
@@ -669,7 +691,6 @@ describe('tickTable Auto-Advance periodic check', () => {
       lastBattleModuleName: 'The Court of the Undying King',
       lastBattleRewards: { outcome: 'victory', xp: 100, gold: 100, infamy: 0, spared: 1 },
       autoAdvanceCheckRemaining: AUTO_ADVANCE_CHECK_INTERVAL_MS,
-      flawless: { moduleId: 'undying-court', count: 50 },
     })
     const result = tickTable(table, [], makeAutoAdvanceDm(), AUTO_ADVANCE_CHECK_INTERVAL_MS, createRng(1))
     expect(result.table.assignedModuleId).toBe('titans-forge')
@@ -688,18 +709,6 @@ describe('tickTable Auto-Advance periodic check', () => {
     expect(result.players.filter((p) => p.tableId === 't1')).toHaveLength(3)
     expect(result.table.assignedModuleId).toBe('bandit-hideout')
     expect(result.table.autoAdvanceCheckRemaining).toBe(AUTO_ADVANCE_CHECK_INTERVAL_MS - 1) // no check was due
-  })
-
-  it('counts a flawless streak per module', () => {
-    const rng = createRng(2)
-    const players = Array.from({ length: 4 }, () => {
-      const p = createPlayer(rng)
-      return { ...p, tableId: 't1', character: createCharacterForPlayer(p, rng, undefined, 40) }
-    })
-    const table = makeTable({ assignedModuleId: 'goblin-ambush', cooldownRemaining: 0 })
-    const result = tickTable(table, players, makeDm(), 60_000, rng)
-    expect(result.table.flawless?.moduleId).toBe('goblin-ambush')
-    expect(result.table.flawless!.count).toBeGreaterThanOrEqual(10)
   })
 
   it('ignores a recorded result left over from a since-reassigned module', () => {
@@ -721,19 +730,10 @@ describe('tickTable Auto-Advance periodic check', () => {
   })
 
   it('makes at most one adjustment per call, even when dtMs spans many intervals at once', () => {
-    const table = makeTable({
-      assignedModuleId: 'undying-court',
-      cooldownRemaining: NO_ENCOUNTER_COOLDOWN,
-      lastBattleModuleName: 'The Court of the Undying King',
-      lastBattleRewards: { outcome: 'victory', xp: 100, gold: 100, infamy: 0 },
-      autoAdvanceCheckRemaining: AUTO_ADVANCE_CHECK_INTERVAL_MS,
-      flawless: { moduleId: 'undying-court', count: 50 },
-    })
-    const result = tickTable(table, [], makeAutoAdvanceDm(), AUTO_ADVANCE_CHECK_INTERVAL_MS * 10, createRng(1))
+    const result = tickTable(cleanWinAt('goblin-ambush', 'Goblin Ambush'), partyAt(40), lowTiers(), AUTO_ADVANCE_CHECK_INTERVAL_MS * 10, createRng(1))
 
-    // Not 'the-last-throne' or any tier beyond the immediate next one — a
-    // single stale sample only ever earns one nudge, however large the gap.
-    expect(result.table.assignedModuleId).toBe('shattered-heavens')
+    // Not the Sunken Crypt, though this party could sweep it too: one check, one nudge.
+    expect(result.table.assignedModuleId).toBe('bandit-hideout')
   })
 
   it('does nothing once already at the highest unlocked tier on a flawless victory', () => {

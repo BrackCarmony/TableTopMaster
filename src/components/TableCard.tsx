@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { formatNumber } from '../format'
 import { getModuleById } from '../game/data/modules'
-import { autoAdvanceStreakNeeded, effectiveTableCapacity, flawlessStreak, hasAutoAdvanceUnlock, hasQuickRefillUnlock } from '../game/engine'
+import { autoAdvanceTrialsNeeded, effectiveTableCapacity, hasAutoAdvanceUnlock, hasQuickRefillUnlock } from '../game/engine'
 import { getNextUnlockedCampaignModule } from '../game/data/modules'
 import { useGameStore } from '../game/store'
 import type { CombatLogEvent } from '../game/combat/types'
@@ -58,8 +58,8 @@ export function TableCard({ table }: { table: Table }) {
   // Delegate the Table: how close this table is to moving up a tier.
   const climbTo =
     moduleDef?.kind === 'campaign' && hasAutoAdvanceUnlock(dm) ? getNextUnlockedCampaignModule(moduleDef.id, dm.unlockedModuleIds) : undefined
-  const streak = flawlessStreak(table)
-  const needed = moduleDef ? autoAdvanceStreakNeeded(moduleDef.encounters.length) : 0
+  const scout = climbTo && table.scout?.moduleId === climbTo.id ? table.scout : undefined
+  const needed = climbTo ? autoAdvanceTrialsNeeded(climbTo.encounters.length) : 0
 
   return (
     <div id={`table-${table.id}`} className="flex scroll-mt-28 flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
@@ -101,9 +101,12 @@ export function TableCard({ table }: { table: Table }) {
             {climbTo && (
               <div
                 className="mt-1.5 text-[11px] text-slate-500"
-                title="Delegate the Table moves up a tier after this many flawless wins in a row here; any death, loss or stalemate drops it back at once."
+                title={`Every few minutes Delegate the Table has this party test-fight ${climbTo.name}: it only moves up if they win all ${needed} trial fights there with nobody falling. Any death, loss or stalemate here drops it back a tier at once.`}
               >
-                🤖 {Math.min(streak, needed)}/{needed} flawless wins to move up to {climbTo.name}
+                🤖{' '}
+                {scout
+                  ? `Scouted ${climbTo.name}: ${scout.wins}/${scout.needed} flawless trial wins, not ready yet`
+                  : `Will scout ${climbTo.name} (needs ${needed}/${needed} flawless trial wins)`}
               </div>
             )}
           </>

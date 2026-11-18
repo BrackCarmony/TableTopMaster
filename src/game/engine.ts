@@ -35,20 +35,15 @@ const MAX_OFFLINE_VOYAGES_PER_SHIP = 200_000
 // second, so checking after every single one would be both pointless
 // (nothing meaningfully changes fight to fight) and expensive at scale.
 export const AUTO_ADVANCE_CHECK_INTERVAL_MS = 3 * 60 * 1000
-// Climbing takes a proven streak, not one lucky sample: a party that only just scrapes through
-// will lose someone sooner or later, and one death snowballs (short-handed, the next fight is
-// harder) into a wipe. At least this many flawless wins in a row, and three full laps of the
-// module, before it moves up.
-export const AUTO_ADVANCE_MIN_STREAK = 10
-export const AUTO_ADVANCE_STREAK_LAPS = 3
+// Climbing takes proof against the NEXT module, not the current one: winning here says little
+// about a tier up, where the scaling is steeper. So before moving up, the party fights the next
+// module as a dry run (nothing is spent, earned or lost), at least this many fights and three
+// full laps of it, and only climbs if every one of them is won with nobody falling.
+export const AUTO_ADVANCE_MIN_TRIALS = 10
+export const AUTO_ADVANCE_TRIAL_LAPS = 3
 
-export function autoAdvanceStreakNeeded(lapLength: number): number {
-  return Math.max(AUTO_ADVANCE_MIN_STREAK, AUTO_ADVANCE_STREAK_LAPS * lapLength)
-}
-
-/** The table's flawless streak in the module it's on now. */
-export function flawlessStreak(table: Table): number {
-  return table.flawless && table.flawless.moduleId === table.assignedModuleId ? table.flawless.count : 0
+export function autoAdvanceTrialsNeeded(lapLength: number): number {
+  return Math.max(AUTO_ADVANCE_MIN_TRIALS, AUTO_ADVANCE_TRIAL_LAPS * lapLength)
 }
 
 /** Did the last fight go badly: a death (even one Plot Armor undid), a loss or a stalemate? */
@@ -559,6 +554,58 @@ function hardenCampaignEncounter(template: EncounterTemplate, tier: number): Enc
   return { ...template, difficultyMultiplier: multiplier }
 }
 
+/** Dread Reputation: enemies come in weakened (the fight's rewards don't change). */
+function withDread(template: EncounterTemplate, dm: DMState): EncounterTemplate {
+  const enemyHp = computeUpgradeBonuses(dm).enemyHp
+  return enemyHp < 1 ? { ...template, enemyHpMultiplier: enemyHp } : template
+}
+
+/** A campaign module's fight at this encounter index, as the table would face it. */
+function campaignEncounter(moduleId: string, encounterIndex: number, dm: DMState): EncounterTemplate | null {
+  const moduleDef = getModuleById(moduleId)
+  if (!moduleDef || moduleDef.kind !== 'campaign' || moduleDef.encounters.length === 0) return null
+  return withDread(hardenCampaignEncounter(moduleDef.encounters[encounterIndex % moduleDef.encounters.length], moduleDef.tier), dm)
+}
+
+/** The seated characters as they fight, with artifacts and party upgrades applied. */
+function partyCombatUnits(seatedPlayers: Player[], dm: DMState): CombatUnit[] {
+  const upgrades = computeUpgradeBonuses(dm)
+  const artifactBonuses = computeArtifactBonuses(dm)
+  return seatedPlayers
+    .filter((p) => p.character)
+    .map((p) => applyPartyBonuses(toCombatUnit(p.character!, dominantTrait(p.personality), artifactBonuses), upgrades))
+}
+
+export interface ScoutReport {
+  /** The module that was scouted (the one Delegate the Table would climb to). */
+  moduleId: string
+  /** Dry-run fights won with nobody falling, before the first that went wrong (or all of them). */
+  wins: number
+  needed: number
+}
+
+/**
+ * Delegate the Table's dry run: the seated party fights the given campaign module, lap after
+ * lap, and it counts how many fights in a row they win with everyone standing. Nothing is
+ * spent, earned or lost, and Plot Armor doesn't count (a fall is a fall). Stops at the first
+ * fight that goes wrong.
+ */
+export function scoutModule(moduleId: string, seatedPlayers: Player[], dm: DMState, rng: RngFn): ScoutReport {
+  const moduleDef = getModuleById(moduleId)
+  const needed = autoAdvanceTrialsNeeded(moduleDef?.encounters.length ?? 0)
+  const party = partyCombatUnits(seatedPlayers, dm)
+  let wins = 0
+  if (party.length === 0) return { moduleId, wins, needed }
+  while (wins < needed) {
+    const template = campaignEncounter(moduleId, wins, dm)
+    if (!template) break
+    const result = runEncounter(party, template, rng)
+    if (result.outcome !== 'victory' || result.survivorIds.length < party.length) break
+    wins++
+  }
+  return { moduleId, wins, needed }
+}
+
 /**
  * Resolves the table's currently-assigned encounter exactly once against its
  * seated players. Any player whose character isn't among the survivors is
@@ -588,16 +635,10 @@ export function resolveEncounter(
   const winCount = isExecution ? (dm.executionTier[moduleDef.id] ?? 0) : 0
   const difficultyTier = isExecution ? winCount + EXECUTION_STARTING_TIER : 0
   const upgrades = computeUpgradeBonuses(dm)
-  const baseTemplate = isExecution
-    ? scaleEncounterForTier(moduleDef.encounters[table.encounterIndex % moduleDef.encounters.length], difficultyTier)
-    : hardenCampaignEncounter(moduleDef.encounters[table.encounterIndex % moduleDef.encounters.length], moduleDef.tier)
-  // Dread Reputation: enemies come in weakened (the fight's rewards don't change).
-  const encounterTemplate = upgrades.enemyHp < 1 ? { ...baseTemplate, enemyHpMultiplier: upgrades.enemyHp } : baseTemplate
-
-  const artifactBonuses = computeArtifactBonuses(dm)
-  const partyUnits = seatedPlayers.map((p) =>
-    applyPartyBonuses(toCombatUnit(p.character!, dominantTrait(p.personality), artifactBonuses), upgrades),
-  )
+  const encounterTemplate = isExecution
+    ? withDread(scaleEncounterForTier(moduleDef.encounters[table.encounterIndex % moduleDef.encounters.length], difficultyTier), dm)
+    : campaignEncounter(moduleDef.id, table.encounterIndex, dm)!
+  const partyUnits = partyCombatUnits(seatedPlayers, dm)
   const result = runEncounter(partyUnits, encounterTemplate, rng)
   const multipliers = computeMultipliers(dm)
   const survivorCharIds = new Set(result.survivorIds)
@@ -734,25 +775,28 @@ export function resolveEncounter(
 }
 
 /**
- * Auto-Advance: judges the table's most recently recorded battle result — a
- * flawless victory (zero casualties) climbs to the next-higher unlocked
- * campaign module, any casualty drops back to the next-lower one. Sampled
- * periodically by tickTable (AUTO_ADVANCE_CHECK_INTERVAL_MS), not reacted to
- * per encounter. Only trusts the recorded result if it actually came from
- * the currently-assigned module — otherwise it's stale evidence left over
- * from before the last reassignment.
+ * Delegate the Table's periodic check: a bad last fight here drops back a tier; otherwise the
+ * party scouts the next unlocked campaign module (see scoutModule) and climbs only if every
+ * dry-run fight there was flawless. Only trusts the recorded result if it actually came from the
+ * currently-assigned module, since otherwise it's stale evidence from before a reassignment.
  */
-function evaluateAutoAdvance(table: Table, dm: DMState): Pick<Table, 'assignedModuleId' | 'encounterIndex' | 'cooldownRemaining'> | null {
+function evaluateAutoAdvance(
+  table: Table,
+  seatedPlayers: Player[],
+  dm: DMState,
+  rng: RngFn,
+): Partial<Pick<Table, 'assignedModuleId' | 'encounterIndex' | 'cooldownRemaining' | 'scout'>> | null {
   if (!table.assignedModuleId || !table.lastBattleRewards) return null
   const moduleDef = getModuleById(table.assignedModuleId)
   if (!moduleDef || moduleDef.kind !== 'campaign') return null
   if (table.lastBattleModuleName !== moduleDef.name) return null
 
   if (struggled(table.lastBattleRewards)) return retreat(table, dm)
-  // Up a tier only on a proven streak here (see AUTO_ADVANCE_MIN_STREAK).
-  if (flawlessStreak(table) < autoAdvanceStreakNeeded(moduleDef.encounters.length)) return null
   const next = getNextUnlockedCampaignModule(moduleDef.id, dm.unlockedModuleIds)
-  return next ? { assignedModuleId: next.id, encounterIndex: 0, cooldownRemaining: 500 } : null
+  if (!next) return null
+  const scout = scoutModule(next.id, seatedPlayers, dm, rng)
+  if (scout.wins < scout.needed) return { scout }
+  return { assignedModuleId: next.id, encounterIndex: 0, cooldownRemaining: 500, scout: undefined }
 }
 
 /** One encounterIndex's worth of empirically-observed reward/pacing, gathered from a real simulation, reused by fastForwardCampaignGrind instead of re-simulating combat for every repeat. */
@@ -906,8 +950,6 @@ export function tickTable(
       t = fast.table
       remaining = fast.remaining
       iterations += fast.iterations
-      // Every skipped fight was a flawless win (that's what made skipping safe).
-      t = { ...t, flawless: { moduleId: t.assignedModuleId!, count: flawlessStreak(t) + fast.iterations } }
       if (fast.totalGoldGain > 0) d = { ...d, gold: d.gold + fast.totalGoldGain }
       if (fast.totalXpGain > 0) {
         const seated = allPlayers.filter((p) => p.tableId === t.id)
@@ -935,7 +977,6 @@ export function tickTable(
 
     const flawless = !!t.lastBattleRewards && !struggled(t.lastBattleRewards)
     const foughtIn = moduleDef?.id ?? null
-    if (foughtIn) t = { ...t, flawless: { moduleId: foughtIn, count: flawless ? (t.flawless?.moduleId === foughtIn ? t.flawless.count : 0) + 1 : 0 } }
     // Delegate the Table steps back straight away after a bad fight, before a short-handed party
     // has to face the same thing again.
     if (!flawless && isCampaign && t.assignedModuleId === foughtIn && hasAutoAdvanceUnlock(d)) {
@@ -965,7 +1006,8 @@ export function tickTable(
     // nudge per call is enough, and avoids leapfrogging several tiers off
     // one sampled battle's stale evidence.
     if (autoAdvanceRemaining <= 0) {
-      const adjustment = evaluateAutoAdvance(t, d)
+      const seated = allPlayers.filter((p) => p.tableId === t.id)
+      const adjustment = evaluateAutoAdvance(t, seated, d, rng)
       t = { ...t, ...adjustment, autoAdvanceCheckRemaining: AUTO_ADVANCE_CHECK_INTERVAL_MS }
     } else {
       t = { ...t, autoAdvanceCheckRemaining: autoAdvanceRemaining }

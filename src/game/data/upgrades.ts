@@ -100,7 +100,7 @@ export const UPGRADES: Upgrade[] = [
   {
     id: 'auto-advance-1',
     name: 'Delegate the Table',
-    description: 'Stop babysitting the module picker. Any death, loss or stalemate drops a table back a tier at once; a long run of flawless wins (at least 10, and three full laps) climbs it to the next tier it has unlocked. Always hunting for the hardest module it can survive without a scratch.',
+    description: 'Stop babysitting the module picker. Any death, loss or stalemate drops a table back a tier at once. Every few minutes the party test-fights the next tier up (at least 10 trial fights, and three full laps), and only moves up if it wins every one with nobody falling. Always hunting for the hardest module it can survive without a scratch.',
     currency: 'infamy',
     cost: 5000,
     effect: { kind: 'unlockAutoAdvance' },
