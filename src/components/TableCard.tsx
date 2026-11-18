@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { formatNumber } from '../format'
 import { getModuleById } from '../game/data/modules'
-import { effectiveTableCapacity, hasQuickRefillUnlock } from '../game/engine'
+import { autoAdvanceStreakNeeded, effectiveTableCapacity, flawlessStreak, hasAutoAdvanceUnlock, hasQuickRefillUnlock } from '../game/engine'
+import { getNextUnlockedCampaignModule } from '../game/data/modules'
 import { useGameStore } from '../game/store'
 import type { CombatLogEvent } from '../game/combat/types'
 import type { BattleRewards, Table } from '../game/types'
@@ -54,6 +55,11 @@ export function TableCard({ table }: { table: Table }) {
         ? { label: 'Seats free', tone: 'bg-sky-500/15 text-sky-300 ring-sky-500/30' }
         : { label: 'Playing', tone: 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/30' }
   const last = table.lastBattleRewards
+  // Delegate the Table: how close this table is to moving up a tier.
+  const climbTo =
+    moduleDef?.kind === 'campaign' && hasAutoAdvanceUnlock(dm) ? getNextUnlockedCampaignModule(moduleDef.id, dm.unlockedModuleIds) : undefined
+  const streak = flawlessStreak(table)
+  const needed = moduleDef ? autoAdvanceStreakNeeded(moduleDef.encounters.length) : 0
 
   return (
     <div id={`table-${table.id}`} className="flex scroll-mt-28 flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
@@ -92,6 +98,14 @@ export function TableCard({ table }: { table: Table }) {
             <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-slate-800">
               {seatedPlayers.length > 0 && <div className="h-full rounded-full bg-emerald-500/80" style={{ width: `${progress * 100}%` }} />}
             </div>
+            {climbTo && (
+              <div
+                className="mt-1.5 text-[11px] text-slate-500"
+                title="Delegate the Table moves up a tier after this many flawless wins in a row here; any death, loss or stalemate drops it back at once."
+              >
+                🤖 {Math.min(streak, needed)}/{needed} flawless wins to move up to {climbTo.name}
+              </div>
+            )}
           </>
         ) : (
           <div className="flex items-center justify-between">

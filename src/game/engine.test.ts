@@ -604,13 +604,14 @@ describe('tickTable Auto-Advance periodic check', () => {
     expect(result.table.autoAdvanceCheckRemaining).toBe(AUTO_ADVANCE_CHECK_INTERVAL_MS - 1000)
   })
 
-  it('climbs to the next unlocked tier once the interval elapses on a flawless victory', () => {
+  it('climbs to the next unlocked tier once the interval elapses on a long flawless streak', () => {
     const table = makeTable({
       assignedModuleId: 'undying-court',
       cooldownRemaining: NO_ENCOUNTER_COOLDOWN,
       lastBattleModuleName: 'The Court of the Undying King',
       lastBattleRewards: { outcome: 'victory', xp: 100, gold: 100, infamy: 0 },
       autoAdvanceCheckRemaining: AUTO_ADVANCE_CHECK_INTERVAL_MS,
+      flawless: { moduleId: 'undying-court', count: 50 },
     })
     const result = tickTable(table, [], makeAutoAdvanceDm(), AUTO_ADVANCE_CHECK_INTERVAL_MS, createRng(1))
 
@@ -646,6 +647,61 @@ describe('tickTable Auto-Advance periodic check', () => {
     expect(result.table.assignedModuleId).toBe('titans-forge')
   })
 
+  it('does not climb on one flawless win, or a streak earned in another module', () => {
+    for (const flawless of [undefined, { moduleId: 'undying-court', count: 3 }, { moduleId: 'titans-forge', count: 99 }]) {
+      const table = makeTable({
+        assignedModuleId: 'undying-court',
+        cooldownRemaining: NO_ENCOUNTER_COOLDOWN,
+        lastBattleModuleName: 'The Court of the Undying King',
+        lastBattleRewards: { outcome: 'victory', xp: 100, gold: 100, infamy: 0 },
+        autoAdvanceCheckRemaining: AUTO_ADVANCE_CHECK_INTERVAL_MS,
+        flawless,
+      })
+      const result = tickTable(table, [], makeAutoAdvanceDm(), AUTO_ADVANCE_CHECK_INTERVAL_MS, createRng(1))
+      expect(result.table.assignedModuleId).toBe('undying-court')
+    }
+  })
+
+  it('treats someone saved by Plot Armor as a casualty, not a flawless win', () => {
+    const table = makeTable({
+      assignedModuleId: 'undying-court',
+      cooldownRemaining: NO_ENCOUNTER_COOLDOWN,
+      lastBattleModuleName: 'The Court of the Undying King',
+      lastBattleRewards: { outcome: 'victory', xp: 100, gold: 100, infamy: 0, spared: 1 },
+      autoAdvanceCheckRemaining: AUTO_ADVANCE_CHECK_INTERVAL_MS,
+      flawless: { moduleId: 'undying-court', count: 50 },
+    })
+    const result = tickTable(table, [], makeAutoAdvanceDm(), AUTO_ADVANCE_CHECK_INTERVAL_MS, createRng(1))
+    expect(result.table.assignedModuleId).toBe('titans-forge')
+  })
+
+  it('drops back straight after a fight with a death, without waiting for the check', () => {
+    // Level-21 characters in the Sunken Crypt: on this seed one of the four falls and the rest win.
+    const rng = createRng(1)
+    const players = Array.from({ length: 4 }, () => {
+      const p = createPlayer(rng)
+      return { ...p, tableId: 't1', character: createCharacterForPlayer(p, rng, undefined, 20) }
+    })
+    const dm = makeDm({ purchasedUpgradeIds: ['auto-advance-1'], unlockedModuleIds: ['goblin-ambush', 'bandit-hideout', 'sunken-crypt'] })
+    const table = makeTable({ assignedModuleId: 'sunken-crypt', cooldownRemaining: 0, autoAdvanceCheckRemaining: AUTO_ADVANCE_CHECK_INTERVAL_MS })
+    const result = tickTable(table, players, dm, 1, rng)
+    expect(result.players.filter((p) => p.tableId === 't1')).toHaveLength(3)
+    expect(result.table.assignedModuleId).toBe('bandit-hideout')
+    expect(result.table.autoAdvanceCheckRemaining).toBe(AUTO_ADVANCE_CHECK_INTERVAL_MS - 1) // no check was due
+  })
+
+  it('counts a flawless streak per module', () => {
+    const rng = createRng(2)
+    const players = Array.from({ length: 4 }, () => {
+      const p = createPlayer(rng)
+      return { ...p, tableId: 't1', character: createCharacterForPlayer(p, rng, undefined, 40) }
+    })
+    const table = makeTable({ assignedModuleId: 'goblin-ambush', cooldownRemaining: 0 })
+    const result = tickTable(table, players, makeDm(), 60_000, rng)
+    expect(result.table.flawless?.moduleId).toBe('goblin-ambush')
+    expect(result.table.flawless!.count).toBeGreaterThanOrEqual(10)
+  })
+
   it('ignores a recorded result left over from a since-reassigned module', () => {
     const table = makeTable({
       assignedModuleId: 'undying-court',
@@ -671,6 +727,7 @@ describe('tickTable Auto-Advance periodic check', () => {
       lastBattleModuleName: 'The Court of the Undying King',
       lastBattleRewards: { outcome: 'victory', xp: 100, gold: 100, infamy: 0 },
       autoAdvanceCheckRemaining: AUTO_ADVANCE_CHECK_INTERVAL_MS,
+      flawless: { moduleId: 'undying-court', count: 50 },
     })
     const result = tickTable(table, [], makeAutoAdvanceDm(), AUTO_ADVANCE_CHECK_INTERVAL_MS * 10, createRng(1))
 

@@ -35,6 +35,35 @@ const MAX_OFFLINE_VOYAGES_PER_SHIP = 200_000
 // second, so checking after every single one would be both pointless
 // (nothing meaningfully changes fight to fight) and expensive at scale.
 export const AUTO_ADVANCE_CHECK_INTERVAL_MS = 3 * 60 * 1000
+// Climbing takes a proven streak, not one lucky sample: a party that only just scrapes through
+// will lose someone sooner or later, and one death snowballs (short-handed, the next fight is
+// harder) into a wipe. At least this many flawless wins in a row, and three full laps of the
+// module, before it moves up.
+export const AUTO_ADVANCE_MIN_STREAK = 10
+export const AUTO_ADVANCE_STREAK_LAPS = 3
+
+export function autoAdvanceStreakNeeded(lapLength: number): number {
+  return Math.max(AUTO_ADVANCE_MIN_STREAK, AUTO_ADVANCE_STREAK_LAPS * lapLength)
+}
+
+/** The table's flawless streak in the module it's on now. */
+export function flawlessStreak(table: Table): number {
+  return table.flawless && table.flawless.moduleId === table.assignedModuleId ? table.flawless.count : 0
+}
+
+/** Did the last fight go badly: a death (even one Plot Armor undid), a loss or a stalemate? */
+function struggled(r: NonNullable<Table['lastBattleRewards']>): boolean {
+  return r.outcome !== 'victory' || r.infamy > 0 || (r.spared ?? 0) > 0
+}
+
+/** Delegate the Table falling back a tier: straight after a bad fight, not at the next check. */
+function retreat(table: Table, dm: DMState): Pick<Table, 'assignedModuleId' | 'encounterIndex' | 'cooldownRemaining'> | null {
+  if (!table.assignedModuleId) return null
+  const moduleDef = getModuleById(table.assignedModuleId)
+  if (!moduleDef || moduleDef.kind !== 'campaign') return null
+  const previous = getPreviousUnlockedCampaignModule(moduleDef.id, dm.unlockedModuleIds)
+  return previous ? { assignedModuleId: previous.id, encounterIndex: 0, cooldownRemaining: 500 } : null
+}
 
 // Buy Offline Progress: spends a fraction of CURRENT gold (not a fixed or
 // escalating amount) to instantly simulate that much wall-clock time via the
@@ -719,15 +748,11 @@ function evaluateAutoAdvance(table: Table, dm: DMState): Pick<Table, 'assignedMo
   if (!moduleDef || moduleDef.kind !== 'campaign') return null
   if (table.lastBattleModuleName !== moduleDef.name) return null
 
-  const { outcome, infamy } = table.lastBattleRewards
-  if (outcome === 'victory' && infamy === 0) {
-    const next = getNextUnlockedCampaignModule(moduleDef.id, dm.unlockedModuleIds)
-    if (next) return { assignedModuleId: next.id, encounterIndex: 0, cooldownRemaining: 500 }
-  } else {
-    const previous = getPreviousUnlockedCampaignModule(moduleDef.id, dm.unlockedModuleIds)
-    if (previous) return { assignedModuleId: previous.id, encounterIndex: 0, cooldownRemaining: 500 }
-  }
-  return null
+  if (struggled(table.lastBattleRewards)) return retreat(table, dm)
+  // Up a tier only on a proven streak here (see AUTO_ADVANCE_MIN_STREAK).
+  if (flawlessStreak(table) < autoAdvanceStreakNeeded(moduleDef.encounters.length)) return null
+  const next = getNextUnlockedCampaignModule(moduleDef.id, dm.unlockedModuleIds)
+  return next ? { assignedModuleId: next.id, encounterIndex: 0, cooldownRemaining: 500 } : null
 }
 
 /** One encounterIndex's worth of empirically-observed reward/pacing, gathered from a real simulation, reused by fastForwardCampaignGrind instead of re-simulating combat for every repeat. */
@@ -881,6 +906,8 @@ export function tickTable(
       t = fast.table
       remaining = fast.remaining
       iterations += fast.iterations
+      // Every skipped fight was a flawless win (that's what made skipping safe).
+      t = { ...t, flawless: { moduleId: t.assignedModuleId!, count: flawlessStreak(t) + fast.iterations } }
       if (fast.totalGoldGain > 0) d = { ...d, gold: d.gold + fast.totalGoldGain }
       if (fast.totalXpGain > 0) {
         const seated = allPlayers.filter((p) => p.tableId === t.id)
@@ -906,7 +933,15 @@ export function tickTable(
     allPlayers = allPlayers.map((p) => updatedById.get(p.id) ?? p)
     iterations++
 
-    const flawless = t.lastBattleRewards?.outcome === 'victory' && t.lastBattleRewards.infamy === 0
+    const flawless = !!t.lastBattleRewards && !struggled(t.lastBattleRewards)
+    const foughtIn = moduleDef?.id ?? null
+    if (foughtIn) t = { ...t, flawless: { moduleId: foughtIn, count: flawless ? (t.flawless?.moduleId === foughtIn ? t.flawless.count : 0) + 1 : 0 } }
+    // Delegate the Table steps back straight away after a bad fight, before a short-handed party
+    // has to face the same thing again.
+    if (!flawless && isCampaign && t.assignedModuleId === foughtIn && hasAutoAdvanceUnlock(d)) {
+      const back = retreat(t, d)
+      if (back) t = { ...t, ...back }
+    }
     if (isCampaign && flawless) {
       lapSamples.set(encounterIndexBefore, {
         cooldownMs: t.cooldownRemaining,

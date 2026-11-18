@@ -82,6 +82,9 @@ export interface Table {
   lastWipeRoster: WipeRosterEntry[] | null
   /** Ms until Auto-Advance's next periodic check (see engine.ts AUTO_ADVANCE_CHECK_INTERVAL_MS) — irrelevant unless that perk is unlocked. */
   autoAdvanceCheckRemaining: number
+  /** Flawless wins in a row (no deaths, no one saved by Plot Armor) in this module: Delegate the
+   * Table only climbs on a proven streak. Tied to the module, so changing it starts over. */
+  flawless?: { moduleId: string; count: number }
 }
 
 export type UpgradeCurrency = 'gold' | 'infamy'
